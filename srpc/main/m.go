@@ -4,8 +4,8 @@ import (
 	"github.com/platinasystems/elib"
 	"github.com/platinasystems/elib/elog"
 	"github.com/platinasystems/elib/iomux"
-	"github.com/platinasystems/vnet/rpc"
 	"github.com/platinasystems/vnet/socket"
+	"github.com/platinasystems/vnet/srpc"
 
 	"flag"
 	"fmt"
@@ -69,7 +69,7 @@ func (s *rpcServer) ReadReady() (err error) {
 
 type rpcClient struct {
 	socket.Client
-	rpc.Server
+	srpc.Server
 	index uint32
 	iter  uint32
 }

@@ -1,5 +1,7 @@
-// Package Bi-directional RPC
-package rpc
+// Package srpc gives symmetric bi-directional RPC on top of GO rpc.
+// Two hosts connected via are Client and server both expose RPC calls to each other.
+// Either host may make RPC calls to the other: so each host is both client and server at the same time.
+package srpc
 
 import (
 	"encoding/binary"
@@ -258,7 +260,7 @@ type event struct {
 	s     [elog.EventDataBytes - 1]byte
 }
 
-//go:generate gentemplate -d Package=rpc -id event -d Type=event github.com/platinasystems/elib/elog/event.tmpl
+//go:generate gentemplate -d Package=srpc -id event -d Type=event github.com/platinasystems/elib/elog/event.tmpl
 
 type eventFlag uint8
 
@@ -323,7 +325,7 @@ type inputEvent struct {
 	s     [elog.EventDataBytes - 1]byte
 }
 
-//go:generate gentemplate -d Package=rpc -id inputEvent -d Type=inputEvent github.com/platinasystems/elib/elog/event.tmpl
+//go:generate gentemplate -d Package=srpc -id inputEvent -d Type=inputEvent github.com/platinasystems/elib/elog/event.tmpl
 
 func (e *inputEvent) String() string {
 	b, tagIndex := elog.Uvarint(e.s[:])
