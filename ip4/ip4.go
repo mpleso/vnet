@@ -77,7 +77,12 @@ func (a *Address) Scan(ss fmt.ScanState, verb rune) (err error) {
 	if err != nil {
 		return
 	}
-	_, err = fmt.Sscanf(as[0], "%d.%d.%d.%d", &a[0], &a[1], &a[2], &a[3])
+	for i := range as {
+		_, err = fmt.Sscanf(as[i], "%d.%d.%d.%d", &a[0], &a[1], &a[2], &a[3])
+		if err == nil {
+			return
+		}
+	}
 	return
 }
 
