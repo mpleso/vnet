@@ -39,6 +39,7 @@ func (c *conn) getBuf() (b elib.ByteVec) {
 	case b = <-c.recycle:
 		b = b[:0]
 	default:
+		b = make([]byte, 0, 4096)
 	}
 	return
 }
@@ -201,12 +202,12 @@ func (r *Server) Input(b []byte) (n int) {
 	return
 }
 
-func (r *Server) reader() {
+func (r *Server) Serve() {
 	var b elib.ByteVec
 	for {
 		i := len(b)
 		b.Resize(4096)
-		n, err := r.r.Read(b[i:])
+		n, err := r.r.Read(b[i:cap(b)]) // cap(b) needed with gopherjs; no sure why.
 		if err != nil {
 			panic(err)
 		}
@@ -245,7 +246,6 @@ func (r *Server) Init(rwc io.ReadWriteCloser, regs ...interface{}) {
 	r.r = rwc
 	r.conn.recycle = make(chan elib.ByteVec, 64)
 	r.init(rwc, regs)
-	go r.reader()
 }
 
 func (r *Server) InitWriter(wc io.WriteCloser, recycle chan elib.ByteVec, regs ...interface{}) {
