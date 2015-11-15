@@ -23,7 +23,9 @@ func init() {
 }
 
 func stringer_inputEvent(e *Event) string {
-	x := (*inputEvent)(unsafe.Pointer(&e.Data[0]))
+	var x inputEvent
+	b := (*[EventDataBytes]byte)(unsafe.Pointer(&x))
+	copy(b[:], e.Data[:])
 	return x.String()
 }
 
