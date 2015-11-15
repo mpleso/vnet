@@ -202,14 +202,14 @@ func (r *Server) Input(b []byte) (n int) {
 	return
 }
 
-func (r *Server) Serve() {
+func (r *Server) Serve() error {
 	var b elib.ByteVec
 	for {
 		i := len(b)
 		b.Resize(4096)
 		n, err := r.r.Read(b[i:cap(b)]) // cap(b) needed with gopherjs; no sure why.
 		if err != nil {
-			panic(err)
+			return err
 		}
 		b = b[0 : i+n]
 		l := r.Input(b)
