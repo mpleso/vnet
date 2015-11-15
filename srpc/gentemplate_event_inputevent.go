@@ -10,12 +10,38 @@ import (
 	"unsafe"
 )
 
-var inputEventType = &EventType{}
+var inputEventType = &EventType{
+	Name: "srpc.inputEvent",
+}
 
 func init() {
-	inputEventType.Stringer = func(e *Event) string {
-		x := (*inputEvent)(unsafe.Pointer(&e.Data[0]))
-		return x.String()
+	t := inputEventType
+	t.Stringer = stringer_inputEvent
+	t.Encoder = encoder_inputEvent
+	t.Decoder = decoder_inputEvent
+	RegisterType(inputEventType)
+}
+
+func stringer_inputEvent(e *Event) string {
+	x := (*inputEvent)(unsafe.Pointer(&e.Data[0]))
+	return x.String()
+}
+
+func encoder_inputEvent(b []byte, e *Event) int {
+	x := (interface{})((*inputEvent)(unsafe.Pointer(&e.Data[0])))
+	if y, ok := x.(EventDataEncoder); ok {
+		return y.Encode(b)
+	} else {
+		return copy(b, e.Data[:])
+	}
+}
+
+func decoder_inputEvent(b []byte, e *Event) int {
+	x := (interface{})((*inputEvent)(unsafe.Pointer(&e.Data[0])))
+	if y, ok := x.(EventDataDecoder); ok {
+		return y.Decode(b)
+	} else {
+		return copy(e.Data[:], b)
 	}
 }
 

@@ -4,16 +4,45 @@
 package main
 
 import (
-	"fmt"
 	. "github.com/platinasystems/elib/elog"
+
+	"fmt"
 	"unsafe"
 )
 
 var reqEventType = &EventType{
-	Stringer: func(e *Event) string {
-		x := (*reqEvent)(unsafe.Pointer(&e.Data[0]))
-		return x.String()
-	},
+	Name: "main.reqEvent",
+}
+
+func init() {
+	t := reqEventType
+	t.Stringer = stringer_reqEvent
+	t.Encoder = encoder_reqEvent
+	t.Decoder = decoder_reqEvent
+	RegisterType(reqEventType)
+}
+
+func stringer_reqEvent(e *Event) string {
+	x := (*reqEvent)(unsafe.Pointer(&e.Data[0]))
+	return x.String()
+}
+
+func encoder_reqEvent(b []byte, e *Event) int {
+	x := (interface{})((*reqEvent)(unsafe.Pointer(&e.Data[0])))
+	if y, ok := x.(EventDataEncoder); ok {
+		return y.Encode(b)
+	} else {
+		return copy(b, e.Data[:])
+	}
+}
+
+func decoder_reqEvent(b []byte, e *Event) int {
+	x := (interface{})((*reqEvent)(unsafe.Pointer(&e.Data[0])))
+	if y, ok := x.(EventDataDecoder); ok {
+		return y.Decode(b)
+	} else {
+		return copy(e.Data[:], b)
+	}
 }
 
 func reqEventNew() (x *reqEvent) {
