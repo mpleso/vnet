@@ -314,6 +314,17 @@ func (e *event) String() string {
 	}
 }
 
+func (e *event) Encode(b []byte) int {
+	b[0] = byte(e.flags)
+	copy(b[1:], e.s[:])
+	return 1 + len(e.s)
+}
+func (e *event) Decode(b []byte) int {
+	e.flags = eventFlag(b[0])
+	copy(e.s[:], b[1:])
+	return 1 + len(e.s)
+}
+
 type inputEventFlag uint8
 
 const (
@@ -335,4 +346,15 @@ func (e *inputEvent) String() string {
 		s = "frame "
 	}
 	return fmt.Sprintf("rpc %sinput %s%s", tag, s, elog.HexData(b))
+}
+
+func (e *inputEvent) Encode(b []byte) int {
+	b[0] = byte(e.flags)
+	copy(b[1:], e.s[:])
+	return 1 + len(e.s)
+}
+func (e *inputEvent) Decode(b []byte) int {
+	e.flags = inputEventFlag(b[0])
+	copy(e.s[:], b[1:])
+	return 1 + len(e.s)
 }

@@ -210,6 +210,19 @@ func (e *reqEvent) String() string {
 	return fmt.Sprintf("call %s #%d %s", c, 1+e.index, elog.String(e.s[:]))
 }
 
+func (e *reqEvent) Encode(b []byte) (i int) {
+	i += elog.EncodeUint32(b[i:], e.index)
+	i += elog.EncodeUint32(b[i:], e.client)
+	i += copy(b[i:], e.s[:])
+	return
+}
+func (e *reqEvent) Decode(b []byte) (i int) {
+	e.index, i = elog.DecodeUint32(b, i)
+	e.client, i = elog.DecodeUint32(b, i)
+	i += copy(e.s[:], b[i:])
+	return i
+}
+
 //go:generate gentemplate -d Package=main -id ReqEvent -d Type=reqEvent github.com/platinasystems/elib/elog/event.tmpl
 
 type Req struct {

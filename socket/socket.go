@@ -146,7 +146,7 @@ func (s *socket) ClientWriteReady() (newConnection bool, err error) {
 			return
 		}
 		l := len(s.txBuffer)
-		elog.Gen("socket write #%d %d %d %x", s.File.Index(), n, l, s.txBuffer[0:n])
+		elog.GenEvent("socket write #%d %d %d %x", s.File.Index(), n, l, s.txBuffer[0:n])
 		switch {
 		case n == l:
 			s.txBuffer = s.txBuffer[:0]
@@ -366,8 +366,7 @@ func (s *socket) elogf(f eventFlag, format string, args ...interface{}) (e event
 func (s *socket) elogData(f eventFlag, p []byte) (e event) {
 	e = event{flags: f | IsData}
 	b := elog.PutUvarint(e.s[:], int(s.File.Index()))
-	b = elog.PutUvarint(b, len(p))
-	copy(b, p)
+	elog.PutData(b, p)
 	e.Log()
 	return
 }
@@ -383,4 +382,15 @@ func (e *event) String() string {
 		d = elog.String(b)
 	}
 	return fmt.Sprintf("socket #%d %s %s", fi, op, d)
+}
+
+func (e *event) Encode(b []byte) int {
+	b[0] = byte(e.flags)
+	copy(b[1:], e.s[:])
+	return 1 + len(e.s)
+}
+func (e *event) Decode(b []byte) int {
+	e.flags = eventFlag(b[0])
+	copy(e.s[:], b[1:])
+	return 1 + len(e.s)
 }
