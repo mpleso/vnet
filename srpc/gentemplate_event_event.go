@@ -5,9 +5,6 @@ package srpc
 
 import (
 	. "github.com/platinasystems/elib/elog"
-
-	"fmt"
-	"unsafe"
 )
 
 var eventType = &EventType{
@@ -17,58 +14,30 @@ var eventType = &EventType{
 func init() {
 	t := eventType
 	t.Stringer = stringer_event
-	t.Encoder = encoder_event
-	t.Decoder = decoder_event
+	t.Encode = encode_event
+	t.Decode = decode_event
 	RegisterType(eventType)
 }
 
 func stringer_event(e *Event) string {
 	var x event
-	b := (*[EventDataBytes]byte)(unsafe.Pointer(&x))
-	copy(b[:], e.Data[:])
+	x.Decode(e.Data[:])
 	return x.String()
 }
 
-func encoder_event(b []byte, e *Event) int {
-	x := (interface{})((*event)(unsafe.Pointer(&e.Data[0])))
-	if y, ok := x.(EventDataEncoder); ok {
-		return y.Encode(b)
-	} else {
-		return copy(b, e.Data[:])
-	}
+func encode_event(b []byte, e *Event) int {
+	var x event
+	x.Decode(e.Data[:])
+	return x.Encode(b)
 }
 
-func decoder_event(b []byte, e *Event) int {
-	x := (interface{})((*event)(unsafe.Pointer(&e.Data[0])))
-	if y, ok := x.(EventDataDecoder); ok {
-		return y.Decode(b)
-	} else {
-		return copy(e.Data[:], b)
-	}
-}
-
-func eventNew() (x *event) {
-	e := Add(eventType)
-	if unsafe.Sizeof(*x) > unsafe.Sizeof(e.Data) {
-		panic(fmt.Sprintf("type too large: event %d bytes", unsafe.Sizeof(*x)))
-	}
-	x = (*event)(unsafe.Pointer(&e.Data[0]))
-	return
+func decode_event(b []byte, e *Event) int {
+	var x event
+	x.Decode(b)
+	return x.Encode(e.Data[:])
 }
 
 func (x event) Log() {
-	p := eventNew()
-	*p = x
+	e := Add(eventType)
+	x.Encode(e.Data[:])
 }
-
-func (x *event) Event() (e *Event) {
-	e = (*Event)(unsafe.Pointer(uintptr(unsafe.Pointer(x)) - unsafe.Offsetof(e.Data)))
-	return
-}
-
-func (x *event) LogEventString(l *Log) string {
-	e := x.Event()
-	return fmt.Sprintf("%s: %s", e.EventString(l), x)
-}
-
-func (x *event) EventString() string { return x.LogEventString(DefaultLog) }

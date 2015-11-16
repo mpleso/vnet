@@ -5,9 +5,6 @@ package main
 
 import (
 	. "github.com/platinasystems/elib/elog"
-
-	"fmt"
-	"unsafe"
 )
 
 var reqEventType = &EventType{
@@ -17,56 +14,30 @@ var reqEventType = &EventType{
 func init() {
 	t := reqEventType
 	t.Stringer = stringer_reqEvent
-	t.Encoder = encoder_reqEvent
-	t.Decoder = decoder_reqEvent
+	t.Encode = encode_reqEvent
+	t.Decode = decode_reqEvent
 	RegisterType(reqEventType)
 }
 
 func stringer_reqEvent(e *Event) string {
-	x := (*reqEvent)(unsafe.Pointer(&e.Data[0]))
+	var x reqEvent
+	x.Decode(e.Data[:])
 	return x.String()
 }
 
-func encoder_reqEvent(b []byte, e *Event) int {
-	x := (interface{})((*reqEvent)(unsafe.Pointer(&e.Data[0])))
-	if y, ok := x.(EventDataEncoder); ok {
-		return y.Encode(b)
-	} else {
-		return copy(b, e.Data[:])
-	}
+func encode_reqEvent(b []byte, e *Event) int {
+	var x reqEvent
+	x.Decode(e.Data[:])
+	return x.Encode(b)
 }
 
-func decoder_reqEvent(b []byte, e *Event) int {
-	x := (interface{})((*reqEvent)(unsafe.Pointer(&e.Data[0])))
-	if y, ok := x.(EventDataDecoder); ok {
-		return y.Decode(b)
-	} else {
-		return copy(e.Data[:], b)
-	}
-}
-
-func reqEventNew() (x *reqEvent) {
-	e := Add(reqEventType)
-	if unsafe.Sizeof(*x) > unsafe.Sizeof(e.Data) {
-		panic(fmt.Sprintf("type too large: reqEvent %d bytes", unsafe.Sizeof(*x)))
-	}
-	x = (*reqEvent)(unsafe.Pointer(&e.Data[0]))
-	return
+func decode_reqEvent(b []byte, e *Event) int {
+	var x reqEvent
+	x.Decode(b)
+	return x.Encode(e.Data[:])
 }
 
 func (x reqEvent) Log() {
-	p := reqEventNew()
-	*p = x
+	e := Add(reqEventType)
+	x.Encode(e.Data[:])
 }
-
-func (x *reqEvent) Event() (e *Event) {
-	e = (*Event)(unsafe.Pointer(uintptr(unsafe.Pointer(x)) - unsafe.Offsetof(e.Data)))
-	return
-}
-
-func (x *reqEvent) LogEventString(l *Log) string {
-	e := x.Event()
-	return fmt.Sprintf("%s: %s", e.EventString(l), x)
-}
-
-func (x *reqEvent) EventString() string { return x.LogEventString(DefaultLog) }
