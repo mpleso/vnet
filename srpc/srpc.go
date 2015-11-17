@@ -63,11 +63,8 @@ type Server struct {
 }
 
 func (c *conn) Read(p []byte, isClient int) (n int, err error) {
-	log := elog.Enabled()
-	if log {
-		e, o := c.logf(eventFlag(0), isClient, "enter")
-		defer func() { c.logExit(e, p, n, o, err) }()
-	}
+	e, o := c.logf(eventFlag(0), isClient, "enter")
+	defer func() { c.logExit(e, p, n, o, err) }()
 
 	s := &c.sides[isClient]
 
@@ -98,10 +95,8 @@ func (c *conn) Write(p []byte, isClient int) (n int, err error) {
 	c.wlock.Lock()
 	defer c.wlock.Unlock()
 
-	if elog.Enabled() {
-		e, o := c.logf(IsWrite, isClient, "enter")
-		defer func() { c.logExit(e, p, n, o, err) }()
-	}
+	e, o := c.logf(IsWrite, isClient, "enter")
+	defer func() { c.logExit(e, p, n, o, err) }()
 
 	side := &c.sides[isClient]
 
@@ -165,13 +160,10 @@ func (r *Server) Input(b []byte) (n int) {
 	nLeft := len(b)
 
 	c := &r.conn
-	log := elog.Enabled()
-	if log {
-		e := inputEvent{}
-		t := elog.PutUvarint(e.s[:], c.eventTagIndex)
-		elog.PutData(t, b)
-		e.Log()
-	}
+	e := inputEvent{}
+	t := elog.PutUvarint(e.s[:], c.eventTagIndex)
+	elog.PutData(t, b)
+	e.Log()
 
 	for {
 		frameIsClient, contentLen, headerLen := frameGet(b[n:])
@@ -203,15 +195,14 @@ func (r *Server) Input(b []byte) (n int) {
 }
 
 func (r *Server) Serve() error {
-	var b elib.ByteVec
+	var b []byte
 	for {
-		i := len(b)
-		b.Resize(4096)
-		n, err := r.r.Read(b[i:cap(b)]) // cap(b) needed with gopherjs; no sure why.
+		var c [4096]byte
+		n, err := r.r.Read(c[:])
 		if err != nil {
 			return err
 		}
-		b = b[0 : i+n]
+		b = append(b, c[:n]...)
 		l := r.Input(b)
 		nextBuf := r.conn.getBuf()
 		if l < len(b) {
