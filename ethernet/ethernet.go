@@ -1,10 +1,11 @@
 package ethernet
 
 import (
+	"github.com/platinasystems/vnet/layer"
+
 	"bytes"
 	"encoding/binary"
 	"net"
-	"vnet/layer"
 )
 
 // Header for ethernet packets as they appear on the network.
