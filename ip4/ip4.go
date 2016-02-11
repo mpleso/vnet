@@ -90,6 +90,13 @@ func (a *Address) Uint32() uint32 {
 	return uint32(a[3]) | uint32(a[2])<<8 | uint32(a[1])<<16 | uint32(a[0])<<24
 }
 
+func (a *Address) FromUint32(x uint32) {
+	a[0] = byte(x >> 24)
+	a[1] = byte(x >> 16)
+	a[2] = byte(x >> 8)
+	a[3] = byte(x)
+}
+
 // 16 bit port; ^uint32(0) means no port given.
 type Port uint32
 
