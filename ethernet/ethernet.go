@@ -126,6 +126,6 @@ func (a *Address) Parse(s string) (err error) {
 }
 
 // Implement layer interface.
-func (h *Header) Len() int              { return HeaderBytes }
-func (h *Header) Fin(l []layer.Layer)   {}
-func (h *Header) Write(b *bytes.Buffer) { binary.Write(b, binary.BigEndian, h) }
+func (h *Header) Len() int                 { return HeaderBytes }
+func (h *Header) Finalize(l []layer.Layer) {}
+func (h *Header) Write(b *bytes.Buffer)    { binary.Write(b, binary.BigEndian, h) }

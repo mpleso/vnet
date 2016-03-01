@@ -11,45 +11,45 @@ import (
 )
 
 const (
-	AddressBytes   = 4
-	HeaderBytes    = 20
-	MORE_FRAGMENTS = 1 << 13
-	DONT_FRAGMENT  = 1 << 14
-	CONGESTION     = 1 << 15
+	AddressBytes               = 4
+	HeaderBytes                = 20
+	More_fragments HeaderFlags = 1 << 13
+	Dont_fragment  HeaderFlags = 1 << 14
+	Congestion     HeaderFlags = 1 << 15
 )
 
 type Address [AddressBytes]byte
 
+type HeaderFlags uint16
+
 type Header struct {
-	/* 4 bit packet length (in 32bit units) and version VVVVLLLL.
-	   e.g. for packets w/ no options ip_version_and_header_length == 0x45. */
+	// 4 bit header length (in 32bit units) and version VVVVLLLL.
+	// e.g. for packets w/ no options ip_version_and_header_length == 0x45.
 	Ip_version_and_header_length uint8
 
-	/* Type of service. */
+	// Type of service.
 	Tos uint8
 
-	/* Total layer 3 packet length including this header. */
+	// Total layer 3 packet length including this header.
 	Length uint16
 
-	/* Fragmentation ID. */
+	// 16-bit number such that Src, Dst, Protocol and Fragment ID together uniquely
+	// identify packet for fragment re-assembly.
 	Fragment_id uint16
 
-	/* 3 bits of flags and 13 bits of fragment offset (in units
-	   of 8 byte quantities). */
-	Flags_and_fragment_offset uint16
+	// 3 bits of flags and 13 bits of fragment offset (in units of 8 bytes).
+	Flags_and_fragment_offset HeaderFlags
 
-	/* Time to live decremented by router at each hop. */
+	// Time to live decremented by router at each hop.
 	Ttl uint8
 
-	/* Next level protocol packet. */
+	// Next layer protocol.
 	Protocol ip.Protocol
 
-	/* Checksum. */
 	Checksum uint16
 
-	/* Source and destination address. */
-	Src Address
-	Dst Address
+	// Source and destination address.
+	Src, Dst Address
 }
 
 func (a *Address) String() string {
@@ -190,18 +190,15 @@ func (h *Header) checksum() uint16 {
 	c = sum_2x1(c, h.Ip_version_and_header_length, h.Tos)
 	c = sum_1x2(c, h.Length)
 	c = sum_1x2(c, h.Fragment_id)
-	c = sum_1x2(c, h.Flags_and_fragment_offset)
+	c = sum_1x2(c, uint16(h.Flags_and_fragment_offset))
 	c = sum_2x1(c, h.Ttl, uint8(h.Protocol))
 	c = sum_addr(c, h.Src)
 	c = sum_addr(c, h.Dst)
 	return ^checksum_reduce(c)
 }
 
-func (h *Header) Len() int {
-	return HeaderBytes
-}
-
-func (h *Header) Fin(layers []layer.Layer) {
+func (h *Header) Len() int { return HeaderBytes }
+func (h *Header) Finalize(layers []layer.Layer) {
 	var sum int
 	for _, l := range layers {
 		sum += l.Len()

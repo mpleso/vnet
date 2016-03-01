@@ -48,18 +48,12 @@ func (a *Address) FromUint32(i int, x uint32) {
 	a[4*i+3] = byte(x)
 }
 
-func (h *Header) Len() int {
-	return HeaderBytes
-}
-
-func (h *Header) Fin(layers []layer.Layer) {
+func (h *Header) Len() int              { return HeaderBytes }
+func (h *Header) Write(b *bytes.Buffer) { binary.Write(b, binary.BigEndian, h) }
+func (h *Header) Finalize(layers []layer.Layer) {
 	var sum int
 	for _, l := range layers {
 		sum += l.Len()
 	}
 	h.Payload_length = uint16(sum)
-}
-
-func (h *Header) Write(b *bytes.Buffer) {
-	binary.Write(b, binary.BigEndian, h)
 }
