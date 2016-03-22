@@ -57,7 +57,7 @@ func (s *rpcServer) ReadReady() (err error) {
 	if err != nil {
 		return
 	}
-	err = newRpcClient(c, &s.config, "")
+	err = newRpcClient(c, "")
 	if err != nil {
 		return
 	}
@@ -74,7 +74,7 @@ type rpcClient struct {
 	iter  uint32
 }
 
-func newRpcClient(c *rpcClient, cfg *config, socketConfig string) (err error) {
+func newRpcClient(c *rpcClient, socketConfig string) (err error) {
 	s := c.RPCServer()
 	s.lock.Lock()
 	c.index = uint32(len(s.clients))
@@ -172,7 +172,7 @@ func main() {
 
 	for i := 0; i < int(cfg.nClient); i++ {
 		c := &rpcClient{}
-		err = newRpcClient(c, cfg, cfg.socketConfig)
+		err = newRpcClient(c, cfg.socketConfig)
 		if err != nil {
 			panic(err)
 		}
