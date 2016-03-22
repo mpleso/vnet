@@ -54,6 +54,9 @@ func tst(err error, tag string) error {
 }
 
 func (s *socket) Close() (err error) {
+	s.txBufLock.Lock()
+	defer s.txBufLock.Unlock()
+	iomux.Del(s)
 	err = syscall.Close(s.Fd)
 	if err != nil {
 		err = fmt.Errorf("close: %s", err)
@@ -92,7 +95,6 @@ func (s *socket) ReadReady() (err error) {
 	}
 
 	if n == 0 {
-		iomux.Del(s)
 		s.Close()
 	}
 	return
@@ -126,12 +128,20 @@ func (s *Server) ReadReady() (err error) {
 }
 
 func (s *socket) ClientWriteReady() (newConnection bool, err error) {
+	s.txBufLock.Lock()
+
+	if s.IsClosed() {
+		return
+	}
+
 	needUpdate := false
 	defer func() {
+		s.txBufLock.Unlock()
 		if needUpdate {
 			iomux.Update(s)
 		}
 	}()
+
 	newConnection = s.flags&ConnectInProgress != 0
 	if newConnection {
 		s.flags &^= ConnectInProgress
@@ -151,8 +161,6 @@ func (s *socket) ClientWriteReady() (newConnection bool, err error) {
 	if len(s.txBuffer) > 0 {
 		var n int
 
-		s.txBufLock.Lock()
-		defer s.txBufLock.Unlock()
 		n, err = syscall.Write(s.Fd, s.txBuffer)
 		if err != nil {
 			err = tst(err, "write")
@@ -181,6 +189,9 @@ func (s *socket) WriteReady() (err error) {
 func (s *socket) Write(p []byte) (n int, err error) {
 	s.txBufLock.Lock()
 	defer s.txBufLock.Unlock()
+	if s.IsClosed() {
+		return
+	}
 	i := len(s.txBuffer)
 	n = len(p)
 	if n > 0 {
