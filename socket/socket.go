@@ -43,6 +43,7 @@ const (
 	// Use UDP instead of TCP
 	UDP
 	TCPDelay // set to enable Nagle algorithm (default is disabled)
+	Closed
 )
 
 func tst(err error, tag string) error {
@@ -57,8 +58,11 @@ func (s *socket) Close() (err error) {
 	if err != nil {
 		err = fmt.Errorf("close: %s", err)
 	}
+	s.flags |= Closed
 	return
 }
+
+func (s *socket) IsClosed() bool { return s.flags&Closed != 0 }
 
 func (s *socket) WriteAvailable() bool { return len(s.txBuffer) > 0 || s.flags&ConnectInProgress != 0 }
 
@@ -92,6 +96,15 @@ func (s *socket) ReadReady() (err error) {
 		s.Close()
 	}
 	return
+}
+
+func (s *socket) Read(advance int) []byte {
+	if advance >= len(s.RxBuffer) {
+		s.RxBuffer = s.RxBuffer[:0]
+	} else {
+		s.RxBuffer = s.RxBuffer[advance:]
+	}
+	return s.RxBuffer
 }
 
 func (s *Server) AcceptClient(c *Client) (err error) {
