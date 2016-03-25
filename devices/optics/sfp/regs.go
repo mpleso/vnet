@@ -1,9 +1,5 @@
 package sfp
 
-import (
-	"unsafe"
-)
-
 type SfpId uint8
 
 const (
@@ -53,53 +49,53 @@ type monitorInterruptRegs struct {
 	// [0] [7:4] latched temperature alarm status
 	// [1] [7:4] latched supply voltage alarm status
 	//   All else is reserved.
-	Module reg16
+	module reg16
 
 	_ [1]byte
 
 	// [0] [7:4] rx channel 0 power alarm status
 	//     [3:0] rx channel 1 power alarm status
 	// [1] same for channels 2 & 3
-	ChannelRxPower reg16
+	channelRxPower reg16
 
 	// [0], [1] rx channel 0-3 tx bias current alarm status
-	ChannelTxBiasCurrent reg16
+	channelTxBiasCurrent reg16
 }
 
 // Lower memory map.
 // Everything in network byte order.
 // Bytes 0-85 are read only; 86-128 are read/write.
-type QsfpRegs struct {
-	Id SfpId
+type qsfpRegs struct {
+	id SfpId
 
 	// [0] Data not ready.  Indicates transceiver has not yet achieved power up and monitor data is
 	// not ready.  Bit remains high until data is ready to be read at which time the device sets the bit low.
 	// [1] interrupt active low pin value
-	Status reg16
+	status reg16
 
 	// [0] [3:0] per channel latched rx loss of signal
 	//     [7:4] per channel latched tx loss of signal (optional)
 	// [1] [3:0] per channel latched tx fault
 	//   All else is reserved.
-	ChannelStatusInterrupt reg16
+	channelStatusInterrupt reg16
 	_                      [1]byte
 
-	MonitorInterruptStatus monitorInterruptRegs
+	monitorInterruptStatus monitorInterruptRegs
 	_                      [9]byte
 
 	// Module Monitoring Values.
-	InternallyMeasured struct {
+	internallyMeasured struct {
 		// signed 16 bit, units of degrees Celsius/256
-		Temperature regi16
+		temperature regi16
 		_           [2]byte
 		// 16 unsigned; units of 100e-6 Volts
-		SupplyVoltage reg16
+		supplyVoltage reg16
 		_             [6]byte
 		// Channel Monitoring Values.
 		// unsigned 16 bit, units of 1e-7 Watts
-		RxPower [QsfpNChannel]reg16
+		rxPower [QsfpNChannel]reg16
 		// unsigned 16 bit, units of 2e-6 Amps
-		TxBiasCurrent [QsfpNChannel]reg16
+		txBiasCurrent [QsfpNChannel]reg16
 	}
 
 	_ [86 - 50]byte
@@ -107,26 +103,28 @@ type QsfpRegs struct {
 	// Bytes 86 through 128 are all read/write.
 
 	// [3:0] per channel laser disable
-	TxDisable reg8
+	txDisable reg8
 
-	RxRateSelect        reg8
-	TxRateSelect        reg8
-	RxApplicationSelect [4]reg8
+	rxRateSelect        reg8
+	txRateSelect        reg8
+	rxApplicationSelect [4]reg8
 
 	// [1] low power enable
 	// [0] override LP_MODE signal; allows software to set low power mode.
-	PowerControl reg8
+	powerControl reg8
 
-	TxApplicationSelect [4]reg8
+	txApplicationSelect [4]reg8
 	_                   [2]reg8
 
-	MonitorInterruptDisable monitorInterruptRegs
+	monitorInterruptDisable monitorInterruptRegs
 	_                       [12]byte
 
-	PasswordEntryChange [4]reg8
-	PasswordEntry       [4]reg8
+	passwordEntryChange [4]reg8
+	passwordEntry       [4]reg8
 
-	UpperMemoryMapPageSelect reg8
+	upperMemoryMapPageSelect reg8
+
+	upperMemory [128]reg8
 }
 
 // Upper memory map (page select 0)
@@ -159,37 +157,32 @@ type SfpRegs struct {
 	VendorSpecific               [32]byte
 }
 
-func (r *SfpRegs) setByte(i, b byte) {
-	p := (*[128]byte)(unsafe.Pointer(r))
-	p[i] = b
-}
-
 func (r *SfpRegs) String() string {
 	// FIXME
 	return string(r.VendorName[:])
 }
 
 type qsfpHighLow struct {
-	High, Low [2]byte
+	high, low [2]byte
 }
 
 type qsfpThreshold struct {
-	Alarm, Warning qsfpHighLow
+	alarm, warning qsfpHighLow
 }
 
 // Upper memory map (page select 3)
-type QsfpThresholds struct {
-	Temperature   qsfpThreshold
+type qsfpThresholdRegs struct {
+	temperature   qsfpThreshold
 	_             [8]byte
-	Vcc           qsfpThreshold
+	vcc           qsfpThreshold
 	_             [176 - 152]byte
-	RxPower       qsfpThreshold
-	TxBiasCurrent qsfpThreshold
+	rxPower       qsfpThreshold
+	txBiasCurrent qsfpThreshold
 	_             [226 - 192]byte
 
 	// Bytes 226-255 are read/write.
-	VendorChannelControls     [14]byte
-	OptionalChannelControlls  [2]byte
-	ThresholdInterruptDisable [4]byte
+	vendorChannelControls     [14]byte
+	optionalChannelControlls  [2]byte
+	thresholdInterruptDisable [4]byte
 	_                         [256 - 246]byte
 }

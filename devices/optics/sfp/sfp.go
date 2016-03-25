@@ -2,6 +2,8 @@ package sfp
 
 import (
 	"github.com/platinasystems/i2c"
+
+	"time"
 	"unsafe"
 )
 
@@ -15,17 +17,20 @@ type QsfpModule struct {
 	BusAddress int
 }
 
-var dummy byte
+var (
+	dummy       byte
+	regsPointer = unsafe.Pointer(&dummy)
+	regsAddr    = uintptr(unsafe.Pointer(&dummy))
+)
 
-func qsfpRegs() *QsfpRegs { return (*QsfpRegs)(unsafe.Pointer(&dummy)) }
-
-func (r *reg8) offset() uint8 {
-	return uint8(uintptr(unsafe.Pointer(r)) - uintptr(unsafe.Pointer(&dummy)))
+func getQsfpRegs() *qsfpRegs { return (*qsfpRegs)(regsPointer) }
+func upperMemoryPageRegs() unsafe.Pointer {
+	return unsafe.Pointer(uintptr(regsPointer) + unsafe.Offsetof((*qsfpRegs)(nil).upperMemory))
 }
+func getQsfpThresholdRegs() *qsfpThresholdRegs { return (*qsfpThresholdRegs)(upperMemoryPageRegs()) }
 
-func (r *reg16) offset() uint8 {
-	return uint8(uintptr(unsafe.Pointer(r)) - uintptr(unsafe.Pointer(&dummy)))
-}
+func (r *reg8) offset() uint8  { return uint8(uintptr(unsafe.Pointer(r)) - regsAddr) }
+func (r *reg16) offset() uint8 { return uint8(uintptr(unsafe.Pointer(r)) - regsAddr) }
 
 func (m *QsfpModule) i2cDo(rw i2c.RW, regOffset uint8, size i2c.SMBusSize, data *i2c.SMBusData) (err error) {
 	var bus i2c.Bus
@@ -92,4 +97,28 @@ func (r *QsfpSignal) get() (v bool) {
 
 func (r *QsfpSignal) set(v bool) {
 	// GPIO
+}
+
+func (m *QsfpModule) Present() {
+	r := getQsfpRegs()
+
+	// Wait for module to become ready.
+	start := time.Now()
+	for r.status.get(m)&(1<<0) != 0 {
+		if time.Since(start) >= 100*time.Millisecond {
+			panic("timeout")
+		}
+	}
+
+	// Read EEPROM.
+	r.upperMemoryMapPageSelect.set(m, 0)
+	p := (*[128]byte)(unsafe.Pointer(&m.sfpRegs))
+	for i := byte(0); i < 128; i++ {
+		p[i] = r.upperMemory[i].get(m)
+	}
+
+	// Might as well select page 3 forever.
+	r.upperMemoryMapPageSelect.set(m, 3)
+	// tr := getQsfpThresholdRegs()
+	// set thresholds...
 }
