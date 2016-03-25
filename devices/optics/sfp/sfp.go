@@ -7,6 +7,17 @@ import (
 	"unsafe"
 )
 
+type QsfpThreshold struct {
+	Alarm, Warning struct{ Hi, Lo float64 }
+}
+
+type QsfpModuleConfig struct {
+	TemperatureInCelsius QsfpThreshold
+	SupplyVoltageInVolts QsfpThreshold
+	RxPowerInWatts       QsfpThreshold
+	TxBiasCurrentInAmps  QsfpThreshold
+}
+
 type QsfpModule struct {
 	// Read in when module is inserted and taken out of reset.
 	sfpRegs SfpRegs
@@ -15,6 +26,8 @@ type QsfpModule struct {
 
 	BusIndex   int
 	BusAddress int
+
+	Config QsfpModuleConfig
 }
 
 var (
@@ -99,6 +112,20 @@ func (r *QsfpSignal) set(v bool) {
 	// GPIO
 }
 
+func (t *QsfpThreshold) get(m *QsfpModule, r *qsfpThreshold, unit float64) {
+	t.Warning.Hi = float64(r.warning.hi.get(m)) * unit
+	t.Warning.Lo = float64(r.warning.lo.get(m)) * unit
+	t.Alarm.Hi = float64(r.alarm.hi.get(m)) * unit
+	t.Alarm.Lo = float64(r.alarm.lo.get(m)) * unit
+}
+
+const (
+	TemperatureToCelsius = 1 / 256.
+	SupplyVoltageToVolts = 100e-6
+	RxPowerToWatts       = 1e-7
+	TxBiasCurrentToAmps  = 2e-6
+)
+
 func (m *QsfpModule) Present() {
 	r := getQsfpRegs()
 
@@ -119,6 +146,9 @@ func (m *QsfpModule) Present() {
 
 	// Might as well select page 3 forever.
 	r.upperMemoryMapPageSelect.set(m, 3)
-	// tr := getQsfpThresholdRegs()
-	// set thresholds...
+	tr := getQsfpThresholdRegs()
+	m.Config.TemperatureInCelsius.get(m, &tr.temperature, TemperatureToCelsius)
+	m.Config.SupplyVoltageInVolts.get(m, &tr.supplyVoltage, SupplyVoltageToVolts)
+	m.Config.RxPowerInWatts.get(m, &tr.rxPower, RxPowerToWatts)
+	m.Config.TxBiasCurrentInAmps.get(m, &tr.txBiasCurrent, TxBiasCurrentToAmps)
 }

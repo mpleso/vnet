@@ -162,19 +162,14 @@ func (r *SfpRegs) String() string {
 	return string(r.VendorName[:])
 }
 
-type qsfpHighLow struct {
-	high, low [2]byte
-}
-
-type qsfpThreshold struct {
-	alarm, warning qsfpHighLow
-}
+type qsfpHighLow struct{ hi, lo reg16 }
+type qsfpThreshold struct{ alarm, warning struct{ hi, lo reg16 } }
 
 // Upper memory map (page select 3)
 type qsfpThresholdRegs struct {
 	temperature   qsfpThreshold
 	_             [8]byte
-	vcc           qsfpThreshold
+	supplyVoltage qsfpThreshold
 	_             [176 - 152]byte
 	rxPower       qsfpThreshold
 	txBiasCurrent qsfpThreshold
