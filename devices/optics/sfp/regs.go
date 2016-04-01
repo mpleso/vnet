@@ -16,6 +16,9 @@ const (
 	IdX2
 	IdDwdmSfp
 	IdQsfp
+	IdQsfpPlus
+	// 0E - 7F: Reserved
+	// 80 - FF: Vendor Specific
 )
 
 const QsfpNChannel = 4
