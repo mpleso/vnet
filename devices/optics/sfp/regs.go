@@ -1,26 +1,5 @@
 package sfp
 
-type SfpId uint8
-
-const (
-	Unknown SfpId = iota
-	IdGbic
-	IdOnMotherboard
-	IdSfp
-	IdXbi
-	IdXenpak
-	IdXfp
-	IdXff
-	IdXfpE
-	IdXpak
-	IdX2
-	IdDwdmSfp
-	IdQsfp
-	IdQsfpPlus
-	// 0E - 7F: Reserved
-	// 80 - FF: Vendor Specific
-)
-
 const QsfpNChannel = 4
 
 type QsfpSignal uint8
@@ -135,7 +114,7 @@ type qsfpRegs struct {
 type SfpRegs struct {
 	Id                           SfpId
 	ExtendedId                   byte
-	ConnectorType                byte
+	ConnectorType                SfpConnectorType
 	Compatibility                [8]byte
 	Encoding                     byte
 	NominalBitRate100MbitsPerSec byte
@@ -158,11 +137,6 @@ type SfpRegs struct {
 	_                            [3]byte
 	checksum_63_to_94            byte
 	VendorSpecific               [32]byte
-}
-
-func (r *SfpRegs) String() string {
-	// FIXME
-	return string(r.VendorName[:])
 }
 
 type qsfpHighLow struct{ hi, lo reg16 }

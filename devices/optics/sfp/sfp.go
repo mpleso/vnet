@@ -3,6 +3,9 @@ package sfp
 import (
 	"github.com/platinasystems/i2c"
 
+	"fmt"
+	"strings"
+	"syscall"
 	"time"
 	"unsafe"
 )
@@ -72,10 +75,14 @@ func (r *reg8) get(m *QsfpModule) byte {
 	return data[0]
 }
 
-func (r *reg8) set(m *QsfpModule, v uint8) {
+func (r *reg8) setErr(m *QsfpModule, v uint8) error {
 	var data i2c.SMBusData
 	data[0] = v
-	err := m.i2cDo(i2c.Write, r.offset(), i2c.ByteData, &data)
+	return m.i2cDo(i2c.Write, r.offset(), i2c.ByteData, &data)
+}
+
+func (r *reg8) set(m *QsfpModule, v uint8) {
+	err := r.setErr(m, v)
 	if err != nil {
 		panic(err)
 	}
@@ -138,17 +145,56 @@ func (m *QsfpModule) Present() {
 	}
 
 	// Read EEPROM.
-	r.upperMemoryMapPageSelect.set(m, 0)
+	if r.upperMemoryMapPageSelect.get(m) != 0 {
+		r.upperMemoryMapPageSelect.set(m, 0)
+	}
 	p := (*[128]byte)(unsafe.Pointer(&m.sfpRegs))
 	for i := byte(0); i < 128; i++ {
 		p[i] = r.upperMemory[i].get(m)
 	}
 
 	// Might as well select page 3 forever.
-	r.upperMemoryMapPageSelect.set(m, 3)
-	tr := getQsfpThresholdRegs()
-	m.Config.TemperatureInCelsius.get(m, &tr.temperature, TemperatureToCelsius)
-	m.Config.SupplyVoltageInVolts.get(m, &tr.supplyVoltage, SupplyVoltageToVolts)
-	m.Config.RxPowerInWatts.get(m, &tr.rxPower, RxPowerToWatts)
-	m.Config.TxBiasCurrentInAmps.get(m, &tr.txBiasCurrent, TxBiasCurrentToAmps)
+	// If write fails ENXIO then optics module does not support write and we ignore page 3.
+	err := r.upperMemoryMapPageSelect.setErr(m, 3)
+	if errno, ok := err.(syscall.Errno); !ok || errno != syscall.ENXIO {
+		panic(err)
+	}
+	if err == nil {
+		tr := getQsfpThresholdRegs()
+		m.Config.TemperatureInCelsius.get(m, &tr.temperature, TemperatureToCelsius)
+		m.Config.SupplyVoltageInVolts.get(m, &tr.supplyVoltage, SupplyVoltageToVolts)
+		m.Config.RxPowerInWatts.get(m, &tr.rxPower, RxPowerToWatts)
+		m.Config.TxBiasCurrentInAmps.get(m, &tr.txBiasCurrent, TxBiasCurrentToAmps)
+	}
+}
+
+func (m *QsfpModule) TxEnable(enableMask, laneMask uint) uint {
+	r := getQsfpRegs()
+	was := r.txDisable.get(m)
+	disableMask := byte(^enableMask)
+	is := 0xf & ((was &^ byte(laneMask)) | disableMask)
+	if is != was {
+		r.txDisable.set(m, is)
+	}
+	return uint(was)
+}
+
+func trim(b []byte) string {
+	// Strip trailing nulls.
+	if i := strings.IndexByte(string(b), 0); i >= 0 {
+		b = b[:i]
+	}
+	return strings.TrimSpace(string(b))
+}
+
+func (r *SfpRegs) String() string {
+	s := fmt.Sprintf("Id: %s, Connector Type: %s", r.Id.String(), r.ConnectorType.String())
+	s += fmt.Sprintf("\n  Vendor: %s, Part Number %s, Revision %s, Serial %s, Date %s",
+		trim(r.VendorName[:]), trim(r.VendorPartNumber[:]), trim(r.VendorRevision[:]),
+		trim(r.VendorSerialNumber[:]), trim(r.VendorDateCode[:]))
+	return s
+}
+
+func (m *QsfpModule) String() string {
+	return m.sfpRegs.String()
 }
