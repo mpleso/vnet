@@ -1,26 +1,31 @@
 package ip4
 
 import (
+	"github.com/platinasystems/vnet"
+	"github.com/platinasystems/vnet/ip"
+
 	"bytes"
-	"encoding/binary"
 	"fmt"
 	"net"
-
-	"github.com/platinasystems/vnet/ip"
-	"github.com/platinasystems/vnet/layer"
+	"unsafe"
 )
 
 const (
-	AddressBytes               = 4
-	HeaderBytes                = 20
-	More_fragments HeaderFlags = 1 << 13
-	Dont_fragment  HeaderFlags = 1 << 14
-	Congestion     HeaderFlags = 1 << 15
+	AddressBytes              = 4
+	HeaderBytes               = 20
+	MoreFragments HeaderFlags = 1 << 13
+	DontFragment  HeaderFlags = 1 << 14
+	Congestion    HeaderFlags = 1 << 15
 )
 
 type Address [AddressBytes]byte
 
-type HeaderFlags uint16
+type HeaderFlags vnet.Uint16
+
+func (h *Header) GetHeaderFlags() HeaderFlags {
+	return HeaderFlags(h.Flags_and_fragment_offset.ToHost())
+}
+func (t HeaderFlags) FromHost() vnet.Uint16 { return vnet.Uint16(t).FromHost() }
 
 type Header struct {
 	// 4 bit header length (in 32bit units) and version VVVVLLLL.
@@ -31,14 +36,14 @@ type Header struct {
 	Tos uint8
 
 	// Total layer 3 packet length including this header.
-	Length uint16
+	Length vnet.Uint16
 
 	// 16-bit number such that Src, Dst, Protocol and Fragment ID together uniquely
 	// identify packet for fragment re-assembly.
-	Fragment_id uint16
+	Fragment_id vnet.Uint16
 
 	// 3 bits of flags and 13 bits of fragment offset (in units of 8 bytes).
-	Flags_and_fragment_offset HeaderFlags
+	Flags_and_fragment_offset vnet.Uint16
 
 	// Time to live decremented by router at each hop.
 	Ttl uint8
@@ -46,10 +51,21 @@ type Header struct {
 	// Next layer protocol.
 	Protocol ip.Protocol
 
-	Checksum uint16
+	Checksum vnet.Uint16
 
 	// Source and destination address.
 	Src, Dst Address
+}
+
+func (h *Header) String() (s string) {
+	s = fmt.Sprintf("%s: %s -> %s", h.Protocol.String(), h.Src.String(), h.Dst.String())
+	if h.Ip_version_and_header_length != 0x45 {
+		s += fmt.Sprintf(", version: 0x%02x", h.Ip_version_and_header_length)
+	}
+	if got, want := h.Checksum, h.ComputeChecksum(); got != want {
+		s += fmt.Sprintf(", checksum: 0x%04x (should be 0x%04x)", got.ToHost(), want.ToHost())
+	}
+	return
 }
 
 func (a *Address) String() string {
@@ -176,37 +192,40 @@ func sum_addr(sum uint64, x Address) uint64 {
 	return sum
 }
 
-/* Reduce to 16 bits. */
-func checksum_reduce(c uint64) uint16 {
-	c = (c & 0xffffffff) + (c >> 32)
-	c = (c & 0xffff) + (c >> 16)
-	c = (c & 0xffff) + (c >> 16)
-	c = (c & 0xffff) + (c >> 16)
-	return uint16(c)
+// 20 byte ip4 header wide access for efficient checksum.
+type header64 struct {
+	d64 [2]uint64
+	d32 [1]uint32
 }
 
-func (h *Header) checksum() uint16 {
-	c := uint64(0)
-	c = sum_2x1(c, h.Ip_version_and_header_length, h.Tos)
-	c = sum_1x2(c, h.Length)
-	c = sum_1x2(c, h.Fragment_id)
-	c = sum_1x2(c, uint16(h.Flags_and_fragment_offset))
-	c = sum_2x1(c, h.Ttl, uint8(h.Protocol))
-	c = sum_addr(c, h.Src)
-	c = sum_addr(c, h.Dst)
-	return ^checksum_reduce(c)
+func (h *Header) checksum() vnet.Uint16 {
+	i := (*header64)(unsafe.Pointer(h))
+	c := ip.Checksum(i.d64[0])
+	c = c.AddWithCarry(ip.Checksum(i.d64[1]))
+	c = c.AddWithCarry(ip.Checksum(i.d32[0]))
+	return ^c.Fold()
 }
 
-func (h *Header) Len() int { return HeaderBytes }
-func (h *Header) Finalize(layers []layer.Layer) {
-	var sum int
-	for _, l := range layers {
+func (h *Header) ComputeChecksum() vnet.Uint16 {
+	var tmp Header = *h
+	tmp.Checksum = 0
+	return tmp.checksum()
+}
+
+func (h *Header) Len() uint { return HeaderBytes }
+func (h *Header) Finalize(payload []vnet.PacketHeader) {
+	var sum uint
+	for _, l := range payload {
 		sum += l.Len()
 	}
-	h.Length = uint16(HeaderBytes + sum)
+	h.Length.Set(HeaderBytes + sum)
+	h.Checksum = 0
 	h.Checksum = h.checksum()
 }
 
 func (h *Header) Write(b *bytes.Buffer) {
-	binary.Write(b, binary.BigEndian, h)
+	type t struct{ data [20]byte }
+	i := (*t)(unsafe.Pointer(h))
+	b.Write(i.data[:])
 }
+func (h *Header) Read(b []byte) vnet.PacketHeader { return (*Header)(vnet.Pointer(b)) }

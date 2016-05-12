@@ -1,29 +1,30 @@
 package ethernet
 
 import (
-	"github.com/platinasystems/vnet/layer"
+	"github.com/platinasystems/vnet"
 
 	"bytes"
-	"encoding/binary"
+	"fmt"
 	"net"
+	"unsafe"
 )
 
 // Header for ethernet packets as they appear on the network.
 type Header struct {
 	Dst  Address
 	Src  Address
-	Type Type
+	Type vnet.Uint16
 }
 
-type Vlan uint16
+type Vlan vnet.Uint16
 
 // Tagged packets have VlanHeader after ethernet header.
 type VlanHeader struct {
 	/* 3 bit priority, 1 bit CFI and 12 bit vlan id. */
-	Priority_cfi_and_id uint16
+	Priority_cfi_and_id vnet.Uint16
 
 	/* Inner ethernet type. */
-	Type Type
+	Type vnet.Uint16
 }
 
 // Packet type from ethernet header.
@@ -35,6 +36,9 @@ const (
 	ARP  Type = 0x806
 	VLAN Type = 0x8100
 )
+
+func (h *Header) GetType() Type      { return Type(h.Type.ToHost()) }
+func (t Type) FromHost() vnet.Uint16 { return vnet.Uint16(t).FromHost() }
 
 //go:generate stringer -type=Type
 
@@ -125,7 +129,16 @@ func (a *Address) Parse(s string) (err error) {
 	return
 }
 
-// Implement layer interface.
-func (h *Header) Len() int                 { return HeaderBytes }
-func (h *Header) Finalize(l []layer.Layer) {}
-func (h *Header) Write(b *bytes.Buffer)    { binary.Write(b, binary.BigEndian, h) }
+func (h *Header) String() (s string) {
+	return fmt.Sprintf("%s: %s -> %s", h.GetType().String(), h.Src.String(), h.Dst.String())
+}
+
+// Implement vnet.Header interface.
+func (h *Header) Len() uint                      { return HeaderBytes }
+func (h *Header) Finalize(l []vnet.PacketHeader) {}
+func (h *Header) Write(b *bytes.Buffer) {
+	type t struct{ data [unsafe.Sizeof(*h)]byte }
+	i := (*t)(unsafe.Pointer(h))
+	b.Write(i.data[:])
+}
+func (h *Header) Read(b []byte) vnet.PacketHeader { return (*Header)(vnet.Pointer(b)) }

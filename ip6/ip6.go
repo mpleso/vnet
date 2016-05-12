@@ -5,7 +5,7 @@ import (
 	"encoding/binary"
 	"net"
 
-	"github.com/platinasystems/vnet/layer"
+	"github.com/platinasystems/vnet"
 )
 
 const (
@@ -50,10 +50,10 @@ func (a *Address) FromUint32(i int, x uint32) {
 
 func (h *Header) Len() int              { return HeaderBytes }
 func (h *Header) Write(b *bytes.Buffer) { binary.Write(b, binary.BigEndian, h) }
-func (h *Header) Finalize(layers []layer.Layer) {
-	var sum int
-	for _, l := range layers {
-		sum += l.Len()
+func (h *Header) Finalize(hs []vnet.PacketHeader) {
+	sum := uint(0)
+	for _, h := range hs {
+		sum += h.Len()
 	}
 	h.Payload_length = uint16(sum)
 }
