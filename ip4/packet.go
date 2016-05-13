@@ -17,7 +17,7 @@ const (
 	Congestion    HeaderFlags = 1 << 15
 )
 
-type Address [AddressBytes]byte
+type Address [AddressBytes]uint8
 
 type HeaderFlags vnet.Uint16
 
@@ -71,16 +71,9 @@ func (a *Address) String() string {
 	return fmt.Sprintf("%d.%d.%d.%d", a[0], a[1], a[2], a[3])
 }
 
-func (a *Address) Uint32() uint32 {
-	return uint32(a[3]) | uint32(a[2])<<8 | uint32(a[1])<<16 | uint32(a[0])<<24
-}
-
-func (a *Address) FromUint32(x uint32) {
-	a[0] = byte(x >> 24)
-	a[1] = byte(x >> 16)
-	a[2] = byte(x >> 8)
-	a[3] = byte(x)
-}
+func (a *Address) AsUint32() uint32      { return *(*uint32)(unsafe.Pointer(&a[0])) }
+func (a *Address) FromUint32(x uint32)   { *(*uint32)(unsafe.Pointer(&a[0])) = x }
+func (a *Address) Equal(b *Address) bool { return a.AsUint32() == b.AsUint32() }
 
 // 20 byte ip4 header wide access for efficient checksum.
 type header64 struct {

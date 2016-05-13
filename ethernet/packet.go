@@ -53,18 +53,18 @@ var BroadcastAddr = Address{0xff, 0xff, 0xff, 0xff, 0xff, 0xff}
 
 const hexDigit = "0123456789abcdef"
 
-func (a *Address) isBroadcast() bool {
+func (a *Address) IsBroadcast() bool {
 	return a[0]&1 != 0
 }
-func (a *Address) isUnicast() bool {
-	return !a.isBroadcast()
+func (a *Address) IsUnicast() bool {
+	return !a.IsBroadcast()
 }
 
-func (h *Header) isBroadcast() bool {
-	return h.Dst.isBroadcast()
+func (h *Header) IsBroadcast() bool {
+	return h.Dst.IsBroadcast()
 }
-func (h *Header) isUnicast() bool {
-	return !h.Dst.isBroadcast()
+func (h *Header) IsUnicast() bool {
+	return !h.Dst.IsBroadcast()
 }
 
 func (a *Address) Add(x uint64) {
