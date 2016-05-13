@@ -49,6 +49,8 @@ const (
 
 type Address [AddressBytes]byte
 
+var BroadcastAddr = Address{0xff, 0xff, 0xff, 0xff, 0xff, 0xff}
+
 const hexDigit = "0123456789abcdef"
 
 func (a *Address) isBroadcast() bool {
