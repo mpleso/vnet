@@ -129,12 +129,6 @@ func (m *mtrie) setPlyWithMoreSpecificLeaf(p *ply, l leaf, n uint8) {
 	}
 }
 
-type setUnset struct {
-	key    Address
-	keyLen uint8
-	result ip.Adj
-}
-
 func (p *ply) replaceLeaf(new, old leaf, i uint8) {
 	p.leaves[i] = new
 	if old != emptyLeaf {
@@ -142,7 +136,13 @@ func (p *ply) replaceLeaf(new, old leaf, i uint8) {
 	}
 }
 
-func (s *setUnset) setLeaf(m *mtrie, oldPlyIndex, keyByteIndex uint) {
+type setUnsetLeaf struct {
+	key    Address
+	keyLen uint8
+	result ip.Adj
+}
+
+func (s *setUnsetLeaf) setLeafHelper(m *mtrie, oldPlyIndex, keyByteIndex uint) {
 	nBits := int(s.keyLen) - 8*int(keyByteIndex+1)
 	k := s.key[keyByteIndex]
 	oldPly := &m.plys[oldPlyIndex]
@@ -167,7 +167,7 @@ func (s *setUnset) setLeaf(m *mtrie, oldPlyIndex, keyByteIndex uint) {
 					m.setPlyWithMoreSpecificLeaf(newPly, newLeaf, s.keyLen)
 				}
 			} else if !oldTerm {
-				s.setLeaf(m, oldLeaf.plyIndex(), keyByteIndex+1)
+				s.setLeafHelper(m, oldLeaf.plyIndex(), keyByteIndex+1)
 			}
 		}
 	} else {
@@ -189,11 +189,11 @@ func (s *setUnset) setLeaf(m *mtrie, oldPlyIndex, keyByteIndex uint) {
 			// Account for the ply we just created.
 			oldPly.nNonEmpty++
 		}
-		s.setLeaf(m, newPly.poolIndex, keyByteIndex+1)
+		s.setLeafHelper(m, newPly.poolIndex, keyByteIndex+1)
 	}
 }
 
-func (s *setUnset) unsetLeaf(m *mtrie, oldPlyIndex, keyByteIndex uint) (oldPlyWasDeleted bool) {
+func (s *setUnsetLeaf) unsetLeafHelper(m *mtrie, oldPlyIndex, keyByteIndex uint) (oldPlyWasDeleted bool) {
 	k := s.key[keyByteIndex]
 	nBits := int(s.keyLen) - 8*int(keyByteIndex+1)
 	if nBits <= 0 {
@@ -209,7 +209,7 @@ func (s *setUnset) unsetLeaf(m *mtrie, oldPlyIndex, keyByteIndex uint) (oldPlyWa
 		oldLeaf := oldPly.leaves[i]
 		oldTerm := oldLeaf.isTerminal()
 		if oldLeaf == delLeaf ||
-			(!oldTerm && s.unsetLeaf(m, oldLeaf.plyIndex(), keyByteIndex+1)) {
+			(!oldTerm && s.unsetLeafHelper(m, oldLeaf.plyIndex(), keyByteIndex+1)) {
 			oldPly.leaves[i] = emptyLeaf
 			oldPly.lens[i] = 0
 			oldPly.nNonEmpty--
@@ -224,6 +224,9 @@ func (s *setUnset) unsetLeaf(m *mtrie, oldPlyIndex, keyByteIndex uint) (oldPlyWa
 
 	return
 }
+
+func (s *setUnsetLeaf) set(m *mtrie)        { s.setLeafHelper(m, rootPlyIndex, 0) }
+func (s *setUnsetLeaf) unset(m *mtrie) bool { return s.unsetLeafHelper(m, rootPlyIndex, 0) }
 
 func (m *mtrie) init() {
 	m.defaultLeaf = emptyLeaf
@@ -307,7 +310,7 @@ func (f *Fib) setUnset(a *Address, l uint, r ip.Adj, isSet bool) {
 		m.init()
 	}
 
-	s := setUnset{
+	s := setUnsetLeaf{
 		key:    *a,
 		keyLen: uint8(l),
 		result: r,
@@ -316,26 +319,34 @@ func (f *Fib) setUnset(a *Address, l uint, r ip.Adj, isSet bool) {
 		if l == 0 {
 			m.defaultLeaf = setResult(s.result)
 		} else {
-			s.setLeaf(m, rootPlyIndex, 0)
+			s.set(m)
 		}
 	} else {
 		if l == 0 {
 			m.defaultLeaf = emptyLeaf
 		} else {
-			s.unsetLeaf(m, rootPlyIndex, 0)
+			s.unset(m)
+			f.setLessSpecific(a)
+		}
+	}
+}
 
-			// Find next less specific route and insert into mtrie.
-			for l := uint(32); l >= 1; l-- {
-				if f.maps[l] == nil {
-					continue
-				}
-				k := a.mapFibKey(l)
-				if rʹ, ok := f.maps[l][k]; ok {
-					s.result = rʹ
-					s.keyLen = uint8(l)
-					break
-				}
+// Find first less specific route matching address and insert into mtrie.
+func (f *Fib) setLessSpecific(a *Address) {
+	// No need to consider length 0 since that's not in mtrie.
+	for l := uint(32); l >= 1; l-- {
+		if f.maps[l] == nil {
+			continue
+		}
+		k := a.mapFibKey(l)
+		if r, ok := f.maps[l][k]; ok {
+			s := setUnsetLeaf{
+				result: r,
+				keyLen: uint8(l),
 			}
+			s.key.FromUint32(k)
+			s.set(&f.mtrie)
+			break
 		}
 	}
 }
