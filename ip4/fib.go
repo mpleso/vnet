@@ -292,7 +292,9 @@ func (m *mapFib) lookup(a *Address) ip.Adj {
 }
 
 type Fib struct {
+	// Mtrie for fast lookups.
 	mtrie
+	// Map fib for general accounting and to maintain mtrie (e.g. setLessSpecific).
 	mapFib
 }
 
@@ -304,6 +306,7 @@ func (f *Fib) setUnset(a *Address, l uint, r ip.Adj, isSet bool) {
 		f.mapFib.unset(a, l)
 	}
 
+	// Add/delete in mtrie fib.
 	m := &f.mtrie
 
 	if len(m.plys) == 0 {
