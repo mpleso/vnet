@@ -291,14 +291,31 @@ func (m *mapFib) lookup(a *Address) ip.Adj {
 	return ip.MissAdj
 }
 
+type FibSetUnsetHook func(a *Address, l uint, r ip.Adj, isSet bool)
+
+//go:generate gentemplate -id FibSetUnsetHook -d Package=ip4 -d DepsType=FibSetUnsetHookVec -d Type=FibSetUnsetHook -d Data=hooks github.com/platinasystems/elib/dep/dep.tmpl
+
 type Fib struct {
 	// Mtrie for fast lookups.
 	mtrie
 	// Map fib for general accounting and to maintain mtrie (e.g. setLessSpecific).
 	mapFib
+	// Hooks to call on set/unset.
+	Hooks FibSetUnsetHookVec
+}
+
+func (f *Fib) callHooks(a *Address, l uint, r ip.Adj, isSet bool) {
+	for i := range f.Hooks.hooks {
+		f.Hooks.Get(i)(a, l, r, isSet)
+	}
 }
 
 func (f *Fib) setUnset(a *Address, l uint, r ip.Adj, isSet bool) {
+	// Call hooks before unset.
+	if !isSet {
+		f.callHooks(a, l, r, isSet)
+	}
+
 	// Add/delete in map fib.
 	if isSet {
 		f.mapFib.set(a, l, r)
@@ -331,6 +348,11 @@ func (f *Fib) setUnset(a *Address, l uint, r ip.Adj, isSet bool) {
 			s.unset(m)
 			f.setLessSpecific(a)
 		}
+	}
+
+	// Call hooks after set.
+	if isSet {
+		f.callHooks(a, l, r, isSet)
 	}
 }
 
