@@ -34,3 +34,5 @@ func (p *miniCombinedCounterVec) Validate(i uint) {
 		*p = (*p)[:l]
 	}
 }
+
+func (p miniCombinedCounterVec) Len() uint { return uint(len(p)) }

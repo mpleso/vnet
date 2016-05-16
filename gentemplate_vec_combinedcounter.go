@@ -34,3 +34,5 @@ func (p *CombinedCounterVec) Validate(i uint) {
 		*p = (*p)[:l]
 	}
 }
+
+func (p CombinedCounterVec) Len() uint { return uint(len(p)) }
