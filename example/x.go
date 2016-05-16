@@ -98,6 +98,19 @@ func (n *myNode) LoopInit(l *loop.Loop) {
 	n.pool.Init()
 }
 
+func (n *myNode) dump(i int, r *loop.Ref, l *loop.Loop) {
+	eh := ethernet.GetPacketHeader(r)
+	l.Logf("%s %d: %s\n", n.Name(), i, eh)
+	r.Advance(ethernet.HeaderBytes)
+	if false {
+		ih := ip4.GetHeader(r)
+		l.Logf("%d: %s\n", i, ih)
+	} else {
+		ah := arp.GetHeader(r)
+		l.Logf("%d: %s\n", i, ah)
+	}
+}
+
 func (n *myNode) LoopInput(l *loop.Loop, lo loop.LooperOut) {
 	o := lo.(*out)
 	toErr := &o.Outs[0]
@@ -105,17 +118,8 @@ func (n *myNode) LoopInput(l *loop.Loop, lo loop.LooperOut) {
 	rs := toErr.Refs[:]
 	for i := range rs {
 		r := &rs[i]
-		if true {
-			eh := ethernet.GetPacketHeader(r)
-			l.Logf("%s %d: %s\n", n.Name(), i, eh)
-			r.Advance(ethernet.HeaderBytes)
-			if false {
-				ih := ip4.GetHeader(r)
-				l.Logf("%d: %s\n", i, ih)
-			} else {
-				ah := arp.GetHeader(r)
-				l.Logf("%d: %s\n", i, ah)
-			}
+		if false {
+			n.dump(i, r, l)
 		}
 		r.Err = n.myErr[i%n_error]
 	}

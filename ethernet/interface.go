@@ -86,13 +86,11 @@ type Attrs map[Attr]interface{}
 func (as Attrs) String() string {
 	s := "{"
 	n := len(as)
-	for ai := Attr(0); n > 0; ai++ {
-		if v, ok := as[ai]; ok {
-			s += fmt.Sprintf("%v: %v", ai, v)
-			n--
-			if n > 0 {
-				s += ", "
-			}
+	for ai, v := range as {
+		s += fmt.Sprintf("%v: %v", ai, v)
+		n--
+		if n > 0 {
+			s += ", "
 		}
 	}
 	s += "}"
@@ -100,7 +98,7 @@ func (as Attrs) String() string {
 }
 
 type Intf struct {
-	vnet.HwIntf
+	vnet.HwIf
 
 	Duplex       IfDuplex
 	PhyInterface PhyIf
@@ -112,8 +110,6 @@ type Intf struct {
 
 	// Native VLAN for this interface.
 	NativeVlan Vlan
-
-	Counters []vnet.IntfCounter
 }
 
 func (i *Intf) Set(a Attr, x interface{}) (err error) {
