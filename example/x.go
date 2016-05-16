@@ -13,14 +13,15 @@ import (
 )
 
 type myNode struct {
-	loop.Node
+	vnet.Node
+	vnet.HwIf
 	myErr [n_error]loop.ErrorRef
 	pool  loop.BufferPool
 }
 
 var MyNode = &myNode{}
 
-func init() { loop.Register(MyNode, "my-node") }
+func init() { vnet.Register(MyNode, "my-node") }
 
 type out struct {
 	loop.Out
@@ -45,6 +46,10 @@ func (n *myNode) LoopInit(l *loop.Loop) {
 	for i := range errorStrings {
 		n.myErr[i] = n.NewError(errorStrings[i])
 	}
+
+	// Link is always up for packet generator.
+	n.SetLinkUp(true)
+
 	t := &n.pool.BufferTemplate
 	*t = *loop.DefaultBufferTemplate
 	t.Size = 2048
@@ -100,7 +105,7 @@ func (n *myNode) LoopInit(l *loop.Loop) {
 
 func (n *myNode) dump(i int, r *loop.Ref, l *loop.Loop) {
 	eh := ethernet.GetPacketHeader(r)
-	l.Logf("%s %d: %s\n", n.Name(), i, eh)
+	l.Logf("%s %d: %s\n", n.NodeName(), i, eh)
 	r.Advance(ethernet.HeaderBytes)
 	if false {
 		ih := ip4.GetHeader(r)
@@ -115,14 +120,18 @@ func (n *myNode) LoopInput(l *loop.Loop, lo loop.LooperOut) {
 	o := lo.(*out)
 	toErr := &o.Outs[0]
 	toErr.AllocPoolRefs(&n.pool)
+	t := n.GetIfThread()
 	rs := toErr.Refs[:]
+	nBytes := uint(0)
 	for i := range rs {
 		r := &rs[i]
 		if false {
 			n.dump(i, r, l)
 		}
 		r.Err = n.myErr[i%n_error]
+		nBytes += r.DataLen()
 	}
+	vnet.IfRxCounter.Add(t, n.SwIfIndex, uint(len(rs)), nBytes)
 	toErr.SetLen(l, uint(len(toErr.Refs)))
 }
 
