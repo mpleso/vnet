@@ -55,6 +55,10 @@ func (p *plyPool) Validate(i uint) {
 	}
 }
 
-func (p *plyPool) Elts() int {
-	return len(p.plys) - p.FreeLen()
+func (p *plyPool) Elts() uint {
+	return uint(len(p.plys)) - p.FreeLen()
+}
+
+func (p *plyPool) Len() uint {
+	return uint(len(p.plys))
 }
