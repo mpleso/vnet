@@ -100,79 +100,79 @@ func (as Attrs) String() string {
 type Intf struct {
 	vnet.HwIf
 
-	Duplex       IfDuplex
-	PhyInterface PhyIf
+	duplex       IfDuplex
+	phyInterface PhyIf
 
-	AutoNegotiation bool
+	autoNegotiation bool
 
-	SpanningTreeState IfSpanningTreeState
-	Loopback          vnet.IntfLoopbackType
+	spanningTreeState IfSpanningTreeState
+	loopback          vnet.IntfLoopbackType
 
 	// Native VLAN for this interface.
-	NativeVlan Vlan
+	nativeVlan Vlan
 }
 
 func (i *Intf) Set(a Attr, x interface{}) (err error) {
 	switch a {
 	case Name:
 		if v, ok := x.(string); ok {
-			i.Name = v
+			i.SetIfName(v)
 			return
 		}
 	case Speed:
 		if v, ok := x.(vnet.Bandwidth); ok {
-			i.Speed = v
+			i.SetSpeed(v)
 			return
 		}
 	case AdminUp:
 		if v, ok := x.(bool); ok {
-			i.AdminUp = v
+			i.SetAdminUp(v)
 			return
 		}
 	case AutoNegotiation:
 		if v, ok := x.(bool); ok {
-			i.AutoNegotiation = v
+			i.autoNegotiation = v
 			return
 		}
 	case Duplex:
 		if v, ok := x.(IfDuplex); ok {
-			i.Duplex = v
+			i.duplex = v
 			return
 		}
 	case PhyInterface:
 		if v, ok := x.(PhyIf); ok {
-			i.PhyInterface = v
+			i.phyInterface = v
 			return
 		}
 	case Loopback:
 		if v, ok := x.(vnet.IntfLoopbackType); ok {
-			i.Loopback = v
+			i.loopback = v
 			return
 		}
 	case SpanningTreeState:
 		if v, ok := x.(IfSpanningTreeState); ok {
-			i.SpanningTreeState = v
+			i.spanningTreeState = v
 			return
 		}
 	case NativeVlan:
 		switch v := x.(type) {
 		case Vlan:
-			i.NativeVlan = v
+			i.nativeVlan = v
 			return
 		case int:
-			i.NativeVlan = Vlan(v)
+			i.nativeVlan = Vlan(v)
 			return
 		case uint:
-			i.NativeVlan = Vlan(v)
+			i.nativeVlan = Vlan(v)
 			return
 		}
 	case MaxPacketSize:
 		switch v := x.(type) {
 		case int:
-			i.MaxPacketSize = v * vnet.Bytes
+			i.SetMaxPacketSize(v * vnet.Bytes)
 			return
 		case uint:
-			i.MaxPacketSize = int(v) * vnet.Bytes
+			i.SetMaxPacketSize(int(v) * vnet.Bytes)
 			return
 		}
 	default:
