@@ -61,6 +61,7 @@ func (v *Vnet) showSwIfs(c cli.Commander, w cli.Writer, s *cli.Scanner) {
 }
 
 func (v *Vnet) clearSwIfs(c cli.Commander, w cli.Writer, s *cli.Scanner) {
+	v.clearIfCounters()
 }
 
 type showHwIf struct {

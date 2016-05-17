@@ -38,18 +38,36 @@ func (c *Counters) Add(i, x uint) {
 	}
 }
 
-func (c *Counters) Value(i uint) (v uint64) {
-	v = c.maxi[i] + uint64(c.mini[i]) - c.valuesLastClear[i]
+func (c *Counters) Get(i uint, v *uint64) {
+	*v = c.maxi[i] + uint64(c.mini[i]) - c.valuesLastClear[i]
 	return
 }
 
-func (c *Counters) Clear(i uint32) {
-	c.maxi[i] = 0
-	c.mini[i] = 0
-	c.valuesLastClear[i] = 0
+func (c *Counters) Value(i uint) (v uint64) {
+	c.Get(i, &v)
+	return
+}
+
+func (c Counters) Clear() {
+	for i := range c.valuesLastClear {
+		c.Get(uint(i), &c.valuesLastClear[i])
+		c.mini[i] = 0
+		c.maxi[i] = 0
+	}
+}
+
+func (c CountersVec) Clear() {
+	for i := range c {
+		c[i].Clear()
+	}
 }
 
 type CombinedCounter struct{ packets, bytes uint64 }
+
+func (c *CombinedCounter) Zero() {
+	c.packets = 0
+	c.bytes = 0
+}
 
 func (c *CombinedCounter) Add(d *CombinedCounter) {
 	c.packets += d.packets
@@ -68,11 +86,6 @@ func (c *CombinedCounter) Sub(d *CombinedCounter) {
 	c.subNoValidate(d)
 }
 
-func (c *CombinedCounter) Clear() {
-	c.packets = 0
-	c.bytes = 0
-}
-
 type miniCombinedCounter struct {
 	// Packet count.
 	packets uint16
@@ -81,7 +94,7 @@ type miniCombinedCounter struct {
 	byteDiff int16
 }
 
-func (c *miniCombinedCounter) Clear() {
+func (c *miniCombinedCounter) Zero() {
 	c.packets = 0
 	c.byteDiff = 0
 }
@@ -134,7 +147,7 @@ func (c *CombinedCounters) Add(i uint, p, b uint) {
 
 		maxi.packets += uint64(np)
 		maxi.bytes += uint64(nb)
-		mini.Clear()
+		mini.Zero()
 
 		// Update average packet size.
 		c.sumPackets += np
@@ -157,10 +170,18 @@ func (c *CombinedCounters) Value(i uint) (v CombinedCounter) {
 	return
 }
 
-func (c *CombinedCounters) Clear(i uint) {
-	c.mini[i].Clear()
-	c.maxi[i].Clear()
-	c.valuesLastClear[i].Clear()
+func (c CombinedCounters) Clear() {
+	for i := range c.valuesLastClear {
+		c.Get(uint(i), &c.valuesLastClear[i])
+		c.mini[i].Zero()
+		c.maxi[i].Zero()
+	}
+}
+
+func (c CombinedCountersVec) Clear() {
+	for i := range c {
+		c[i].Clear()
+	}
 }
 
 func (c *CombinedCounters) addMini(mini *miniCombinedCounter, maxi *CombinedCounter) {
@@ -170,7 +191,7 @@ func (c *CombinedCounters) addMini(mini *miniCombinedCounter, maxi *CombinedCoun
 
 func (c *CombinedCounters) flushMini(mini *miniCombinedCounter, maxi *CombinedCounter) {
 	c.addMini(mini, maxi)
-	mini.Clear()
+	mini.Zero()
 }
 
 func (c *CombinedCounters) recomputeAvePacketSize() {

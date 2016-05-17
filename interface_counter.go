@@ -116,6 +116,13 @@ func (m *interfaceMain) foreachCounter(enableZeroCounters bool, si SwIfIndex, f 
 	}
 }
 
+func (m *interfaceMain) clearIfCounters() {
+	for _, t := range m.ifThreads {
+		t.combinedCounters.Clear()
+		t.singleCounters.Clear()
+	}
+}
+
 func (m *interfaceMain) counterValidate(si SwIfIndex) {
 	i := uint(si)
 	for _, t := range m.ifThreads {
