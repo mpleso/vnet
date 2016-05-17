@@ -4,9 +4,9 @@ package ethernet
 
 import "fmt"
 
-const _Attr_name = "NameAdminUpSpeedAutoNegotiationDuplexPhyInterfaceLoopbackVlanSpanningTreeStateMaxPacketSize"
+const _Attr_name = "NameSpeedAutoNegotiationDuplexPhyInterfaceLoopbackNativeVlanSpanningTreeStateMaxPacketSize"
 
-var _Attr_index = [...]uint8{0, 4, 11, 16, 31, 37, 49, 57, 61, 78, 91}
+var _Attr_index = [...]uint8{0, 4, 9, 24, 30, 42, 50, 60, 77, 90}
 
 func (i Attr) String() string {
 	if i < 0 || i >= Attr(len(_Attr_index)-1) {

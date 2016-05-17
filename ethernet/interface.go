@@ -68,7 +68,6 @@ type Attr int
 
 const (
 	Name            Attr = iota
-	AdminUp              // admin up/down
 	Speed                // float64 in units of bits per second
 	AutoNegotiation      // bool
 	Duplex
@@ -122,11 +121,6 @@ func (i *Intf) Set(a Attr, x interface{}) (err error) {
 	case Speed:
 		if v, ok := x.(vnet.Bandwidth); ok {
 			i.SetSpeed(v)
-			return
-		}
-	case AdminUp:
-		if v, ok := x.(bool); ok {
-			i.SetAdminUp(v)
 			return
 		}
 	case AutoNegotiation:
