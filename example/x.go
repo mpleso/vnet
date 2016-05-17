@@ -49,6 +49,7 @@ func (n *myNode) LoopInit(l *loop.Loop) {
 
 	// Link is always up for packet generator.
 	n.SetLinkUp(true)
+	n.SetAdminUp(true)
 
 	t := &n.pool.BufferTemplate
 	*t = *loop.DefaultBufferTemplate
@@ -131,7 +132,7 @@ func (n *myNode) LoopInput(l *loop.Loop, lo loop.LooperOut) {
 		r.Err = n.myErr[i%n_error]
 		nBytes += r.DataLen()
 	}
-	vnet.IfRxCounter.Add(t, n.SwIfIndex, uint(len(rs)), nBytes)
+	vnet.IfRxCounter.Add(t, n.SwIfIndex(), uint(len(rs)), nBytes)
 	toErr.SetLen(l, uint(len(toErr.Refs)))
 }
 

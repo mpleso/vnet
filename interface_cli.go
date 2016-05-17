@@ -44,7 +44,7 @@ func (v *Vnet) showSwIfs(c cli.Commander, w cli.Writer, s *cli.Scanner) {
 	for i := range swIfs.ifs {
 		si := v.SwIf(swIfs.ifs[i])
 		first := true
-		v.foreachCounter(verbose, si.index, func(counter string, count uint64) {
+		v.foreachCounter(verbose, si.swIf, func(counter string, count uint64) {
 			s := showSwIf{
 				Counter: counter,
 				Count:   count,

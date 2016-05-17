@@ -7,14 +7,11 @@ import (
 type HwIf struct {
 	ifName string
 
-	HwIfIndex
-	SwIfIndex
+	hwIf HwIfIndex
+	swIf SwIfIndex
 
 	hwInstance  uint32
 	devInstance uint32
-
-	// Admin state: up or down
-	adminUp bool
 
 	// Hardware link state: up or down
 	linkUp bool
@@ -43,14 +40,18 @@ func (h *HwIf) IfName() string         { return h.ifName }
 func (h *HwIf) SetIfName(v string)     { h.ifName = v }
 func (h *HwIf) Speed() Bandwidth       { return h.speed }
 func (h *HwIf) SetSpeed(v Bandwidth)   { h.speed = v }
-func (h *HwIf) AdminUp() bool          { return h.adminUp }
-func (h *HwIf) SetAdminUp(v bool)      { h.adminUp = v }
 func (h *HwIf) LinkUp() bool           { return h.linkUp }
 func (h *HwIf) SetLinkUp(v bool)       { h.linkUp = v }
 func (h *HwIf) IsProvisioned() bool    { return !h.unprovisioned }
 func (h *HwIf) SetProvisioned(v bool)  { h.unprovisioned = !v }
 func (h *HwIf) MaxPacketSize() int     { return h.maxPacketSize }
 func (h *HwIf) SetMaxPacketSize(v int) { h.maxPacketSize = v }
+func (h *HwIf) SwIfIndex() SwIfIndex   { return h.swIf }
+
+func (h *HwIf) SetAdminUp(v bool) {
+	s := defaultVnet.SwIf(h.swIf)
+	s.SetAdminUp(v)
+}
 
 func (h *HwIf) LinkString() (s string) {
 	s = "down"
@@ -65,24 +66,24 @@ type SwIfIndex IfIndex
 type swIfKind uint16
 
 const (
-	SwIfHardware swIfKind = iota + 1
-	SwIfSub
+	swIfHardware swIfKind = iota + 1
+	swIfSub
 )
 
 type swIfFlag uint16
 
 const (
-	SwIfAdminUpIndex, SwIfAdminUp swIfFlag = iota, 1 << iota
-	SwIfPuntIndex, SwIfPunt
+	swIfAdminUpIndex, swIfAdminUp swIfFlag = iota, 1 << iota
+	swIfPuntIndex, swIfPunt
 )
 
 func (f swIfFlag) String() (s string) {
 	s = "down"
-	if f&SwIfAdminUp != 0 {
+	if f&swIfAdminUp != 0 {
 		s = "up"
 	}
 	extra := ""
-	if f&SwIfPunt != 0 {
+	if f&swIfPunt != 0 {
 		if extra != "" {
 			extra += ", "
 		}
@@ -99,11 +100,11 @@ type swIf struct {
 	flags swIfFlag
 
 	// Pool index for this interface.
-	index SwIfIndex
+	swIf SwIfIndex
 
 	// Software interface index of super-interface.
 	// Equal to index if this interface is not a sub-interface.
-	supIndex SwIfIndex
+	supSwIf SwIfIndex
 
 	// For hardware interface: HwIfIndex
 	// For sub interface: sub interface id (e.g. vlan/vc number).
@@ -116,8 +117,8 @@ func (m *interfaceMain) NewSwIf(kind swIfKind, id IfIndex) (si SwIfIndex) {
 	si = SwIfIndex(m.swInterfaces.GetIndex())
 	s := m.SwIf(si)
 	s.kind = kind
-	s.index = si
-	s.supIndex = si
+	s.swIf = si
+	s.supSwIf = si
 	s.id = id
 	m.counterValidate(si)
 	return
@@ -126,8 +127,8 @@ func (m *interfaceMain) NewSwIf(kind swIfKind, id IfIndex) (si SwIfIndex) {
 func (m *interfaceMain) SwIf(i SwIfIndex) *swIf { return &m.swInterfaces.elts[i] }
 func (m *interfaceMain) SupSwIf(s *swIf) (sup *swIf) {
 	sup = s
-	if s.supIndex != s.index {
-		sup = m.SwIf(s.supIndex)
+	if s.supSwIf != s.swIf {
+		sup = m.SwIf(s.supSwIf)
 	}
 	return
 }
@@ -139,11 +140,14 @@ func (m *interfaceMain) SupHwIf(s *swIf) *HwIf {
 
 func (s *swIf) IfName(vn *Vnet) (v string) {
 	v = vn.SupHwIf(s).ifName
-	if s.kind != SwIfHardware {
+	if s.kind != swIfHardware {
 		v += fmt.Sprintf(".%d", s.id)
 	}
 	return
 }
+
+func (i *swIf) AdminUp() bool     { return i.flags&swIfAdminUp != 0 }
+func (i *swIf) SetAdminUp(v bool) { i.flags |= swIfAdminUp }
 
 type interfaceMain struct {
 	hwInterfaces             []HwInterfacer
@@ -159,8 +163,8 @@ func (v *Vnet) RegisterHwInterface(hi HwInterfacer, format string, args ...inter
 	l := len(v.hwInterfaces)
 	v.hwInterfaces = append(v.hwInterfaces, hi)
 	h := hi.GetHwIf()
-	h.HwIfIndex = HwIfIndex(l)
-	h.SwIfIndex = v.NewSwIf(SwIfHardware, IfIndex(h.HwIfIndex))
+	h.hwIf = HwIfIndex(l)
+	h.swIf = v.NewSwIf(swIfHardware, IfIndex(h.hwIf))
 	h.SetIfName(fmt.Sprintf(format, args...))
 }
 
