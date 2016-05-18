@@ -44,3 +44,6 @@ func (v *Vnet) Register(n loop.Noder, format string, args ...interface{}) {
 func Register(n loop.Noder, format string, args ...interface{}) {
 	defaultVnet.Register(n, format, args...)
 }
+
+func (v *Vnet) Logf(format string, args ...interface{})   { loop.Logf(format, args...) }
+func (v *Vnet) Fatalf(format string, args ...interface{}) { loop.Fatalf(format, args...) }

@@ -5,6 +5,11 @@ import (
 	"github.com/platinasystems/vnet/ip"
 )
 
+type Prefix struct {
+	Address
+	Len uint32
+}
+
 type leaf uint32
 
 const (

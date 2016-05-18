@@ -74,6 +74,7 @@ func (a *Address) String() string {
 func (a *Address) AsUint32() uint32      { return *(*uint32)(unsafe.Pointer(&a[0])) }
 func (a *Address) FromUint32(x uint32)   { *(*uint32)(unsafe.Pointer(&a[0])) = x }
 func (a *Address) Equal(b *Address) bool { return a.AsUint32() == b.AsUint32() }
+func IpAddress(a *ip.Address) *Address   { return (*Address)(unsafe.Pointer(&a[0])) }
 
 // 20 byte ip4 header wide access for efficient checksum.
 type header64 struct {

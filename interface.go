@@ -63,6 +63,11 @@ func (h *HwIf) LinkString() (s string) {
 
 type SwIfIndex IfIndex
 
+// Software and hardware interface index.
+// Alias for commonly used types.
+type Si SwIfIndex
+type Hi HwIfIndex
+
 type swIfKind uint16
 
 const (
@@ -145,6 +150,7 @@ func (s *swIf) IfName(vn *Vnet) (v string) {
 	}
 	return
 }
+func (s SwIfIndex) IfName(v *Vnet) string { return v.SwIf(s).IfName(v) }
 
 func (i *swIf) AdminUp() bool     { return i.flags&swIfAdminUp != 0 }
 func (i *swIf) SetAdminUp(v bool) { i.flags |= swIfAdminUp }
