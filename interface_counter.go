@@ -118,8 +118,8 @@ func (m *interfaceMain) foreachCounter(enableZeroCounters bool, si SwIfIndex, f 
 
 func (m *interfaceMain) clearIfCounters() {
 	for _, t := range m.ifThreads {
-		t.combinedCounters.Clear()
-		t.singleCounters.Clear()
+		t.combinedCounters.ClearAll()
+		t.singleCounters.ClearAll()
 	}
 }
 

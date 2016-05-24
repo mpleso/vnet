@@ -10,10 +10,15 @@ type Prefix struct {
 	Len uint32
 }
 
+// True if given destination matches prefix.
+func (dst *Address) MatchesPrefix(p *Prefix) bool {
+	return 0 == (dst.AsUint32()^p.Address.AsUint32())&mapFibMasks[p.Len]
+}
+
 type leaf uint32
 
 const (
-	emptyLeaf    leaf = leaf(1 + 2*ip.MissAdj)
+	emptyLeaf    leaf = leaf(1 + 2*ip.AdjMiss)
 	rootPlyIndex uint = 0
 )
 
@@ -293,7 +298,7 @@ func (m *mapFib) lookup(a *Address) ip.Adj {
 			return r
 		}
 	}
-	return ip.MissAdj
+	return ip.AdjMiss
 }
 
 type FibSetUnsetHook func(a *Address, l uint, r ip.Adj, isSet bool)
@@ -382,7 +387,7 @@ func (f *Fib) setLessSpecific(a *Address) {
 }
 
 func (f *Fib) Set(a *Address, l uint, r ip.Adj) { f.setUnset(a, l, r, true) }
-func (f *Fib) Unset(a *Address, l uint)         { f.setUnset(a, l, ip.MissAdj, true) }
+func (f *Fib) Unset(a *Address, l uint)         { f.setUnset(a, l, ip.AdjMiss, true) }
 func (f *Fib) Lookup(a *Address) (r ip.Adj) {
 	r = f.mtrie.lookup(a)
 	return

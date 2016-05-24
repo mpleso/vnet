@@ -68,6 +68,11 @@ type SwIfIndex IfIndex
 type Si SwIfIndex
 type Hi HwIfIndex
 
+const (
+	SiNil Si = ^Si(0)
+	HiNil Hi = ^Hi(0)
+)
+
 type swIfKind uint16
 
 const (

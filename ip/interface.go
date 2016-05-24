@@ -66,6 +66,7 @@ func (m *ifAddressMain) GetIfAddress(a []uint8) (ia *IfAddress) {
 func (i ifAddr) Get(m *ifAddressMain) *IfAddress                       { return &m.ifAddrs[i] }
 func (m *ifAddressMain) IfFirstAddress(i vnet.Si) *IfAddress           { return m.headBySwIf[i].Get(m) }
 func (m *ifAddressMain) IfAddressForAdjacency(a *Adjacency) *IfAddress { return a.ifAddr.Get(m) }
+
 func (m *ifAddressMain) ForeachIfAddress(si vnet.Si, f func(i *IfAddress)) {
 	i := m.headBySwIf[si]
 	for i != ifAddrNone {

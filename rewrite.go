@@ -8,7 +8,7 @@ type Ref struct{ loop.Ref }
 
 type Rewrite struct {
 	// Software interface to mark re-written packets with.
-	SwIf SwIfIndex
+	Si Si
 
 	// Node where packet will be rewritten.
 	NodeIndex uint32

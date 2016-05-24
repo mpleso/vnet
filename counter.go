@@ -48,17 +48,21 @@ func (c *Counters) Value(i uint) (v uint64) {
 	return
 }
 
-func (c Counters) Clear() {
+func (c *Counters) Clear(i uint) {
+	c.Get(i, &c.valuesLastClear[i])
+	c.mini[i] = 0
+	c.maxi[i] = 0
+}
+
+func (c *Counters) ClearAll() {
 	for i := range c.valuesLastClear {
-		c.Get(uint(i), &c.valuesLastClear[i])
-		c.mini[i] = 0
-		c.maxi[i] = 0
+		c.Clear(uint(i))
 	}
 }
 
-func (c CountersVec) Clear() {
+func (c CountersVec) ClearAll() {
 	for i := range c {
-		c[i].Clear()
+		c[i].ClearAll()
 	}
 }
 
@@ -170,17 +174,21 @@ func (c *CombinedCounters) Value(i uint) (v CombinedCounter) {
 	return
 }
 
-func (c CombinedCounters) Clear() {
+func (c *CombinedCounters) Clear(i uint) {
+	c.Get(i, &c.valuesLastClear[i])
+	c.mini[i].Zero()
+	c.maxi[i].Zero()
+}
+
+func (c *CombinedCounters) ClearAll() {
 	for i := range c.valuesLastClear {
-		c.Get(uint(i), &c.valuesLastClear[i])
-		c.mini[i].Zero()
-		c.maxi[i].Zero()
+		c.Clear(uint(i))
 	}
 }
 
-func (c CombinedCountersVec) Clear() {
+func (c CombinedCountersVec) ClearAll() {
 	for i := range c {
-		c[i].Clear()
+		c[i].ClearAll()
 	}
 }
 
