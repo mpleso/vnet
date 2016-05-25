@@ -10,14 +10,14 @@ import (
 
 type swIfIndices struct {
 	*Vnet
-	ifs []SwIfIndex
+	ifs []Si
 }
 
 func (x *swIfIndices) Init(v *Vnet) {
 	x.Vnet = v
 	for i := range v.swInterfaces.elts {
 		if !v.swInterfaces.IsFree(uint(i)) {
-			x.ifs = append(x.ifs, SwIfIndex(i))
+			x.ifs = append(x.ifs, Si(i))
 		}
 	}
 }

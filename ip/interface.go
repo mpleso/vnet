@@ -33,7 +33,7 @@ type IfAddress struct {
 	Prefix Prefix
 
 	// Interface which has this address.
-	Si vnet.SwIfIndex
+	Si vnet.Si
 
 	// Next and previous pointers in doubly-linked list of interface addresses for this interface.
 	next, prev ifAddr
@@ -76,7 +76,7 @@ func (m *ifAddressMain) ForeachIfAddress(si vnet.Si, f func(i *IfAddress)) {
 	}
 }
 
-func (m *ifAddressMain) ifAddressAddDel(si vnet.SwIfIndex, p *Prefix, isDel bool) {
+func (m *ifAddressMain) ifAddressAddDel(si vnet.Si, p *Prefix, isDel bool) {
 	var (
 		a  *IfAddress
 		ai ifAddr

@@ -67,19 +67,19 @@ func (v *Vnet) NewCombinedCounters(names []string) (i ifCounterKind) {
 }
 
 // Add to given interface counters value.
-func (c ifCounterKind) Add(t *interfaceThread, swIfIndex SwIfIndex, value uint) {
+func (c ifCounterKind) Add(t *interfaceThread, swIfIndex Si, value uint) {
 	t.singleCounters[c].Add(uint(swIfIndex), value)
 }
 
 // Add to given interface counters packets and bytes values.
-func (c ifCombinedCounterKind) Add(t *interfaceThread, swIfIndex SwIfIndex, packets, bytes uint) {
+func (c ifCombinedCounterKind) Add(t *interfaceThread, swIfIndex Si, packets, bytes uint) {
 	t.combinedCounters[c].Add(uint(swIfIndex), packets, bytes)
 }
 
 func (m *interfaceMain) doSingle(t *interfaceThread,
 	kind ifCounterKind,
 	enableZeroCounters bool,
-	si SwIfIndex,
+	si Si,
 	f func(name string, value uint64)) {
 	v := t.singleCounters[kind].Value(uint(si))
 	if v != 0 || enableZeroCounters {
@@ -90,7 +90,7 @@ func (m *interfaceMain) doSingle(t *interfaceThread,
 func (m *interfaceMain) doCombined(t *interfaceThread,
 	kind ifCombinedCounterKind,
 	enableZeroCounters bool,
-	si SwIfIndex,
+	si Si,
 	f func(name string, value uint64)) {
 	v := t.combinedCounters[kind].Value(uint(si))
 	if v.packets != 0 || enableZeroCounters {
@@ -99,7 +99,7 @@ func (m *interfaceMain) doCombined(t *interfaceThread,
 	}
 }
 
-func (m *interfaceMain) foreachCounter(enableZeroCounters bool, si SwIfIndex, f func(name string, value uint64)) {
+func (m *interfaceMain) foreachCounter(enableZeroCounters bool, si Si, f func(name string, value uint64)) {
 	for _, t := range m.ifThreads {
 		// First builtin counters.
 		for i := 0; i < len(builtinCombinedIfCounterNames); i++ {
@@ -123,7 +123,7 @@ func (m *interfaceMain) clearIfCounters() {
 	}
 }
 
-func (m *interfaceMain) counterValidate(si SwIfIndex) {
+func (m *interfaceMain) counterValidate(si Si) {
 	i := uint(si)
 	for _, t := range m.ifThreads {
 		for k := range t.combinedCounters {

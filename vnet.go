@@ -23,6 +23,9 @@ func (x RxTx) String() (s string) {
 }
 
 type Node struct{ loop.Node }
+type Noder interface {
+	loop.Noder
+}
 
 // Main structure.
 type Vnet struct {
@@ -31,18 +34,19 @@ type Vnet struct {
 
 var defaultVnet = &Vnet{}
 
-func (v *Vnet) Register(n loop.Noder, format string, args ...interface{}) {
-	nodeFormat := format
-
-	if x, ok := n.(HwInterfacer); ok {
-		v.RegisterHwInterface(x, format, args...)
-		nodeFormat = nodeFormat + "-input"
-	}
-
-	loop.Register(n, nodeFormat, args...)
+func (v *Vnet) Register(n Noder, format string, args ...interface{}) {
+	loop.Register(n, format, args...)
 }
-func Register(n loop.Noder, format string, args ...interface{}) {
+func (v *Vnet) RegisterHwIf(n HwInterfacer, format string, args ...interface{}) {
+	v.RegisterHwInterface(n, format, args...)
+	v.Register(n, format+"-input", args...)
+}
+
+func Register(n Noder, format string, args ...interface{}) {
 	defaultVnet.Register(n, format, args...)
+}
+func RegisterHwIf(n HwInterfacer, format string, args ...interface{}) {
+	defaultVnet.RegisterHwIf(n, format, args...)
 }
 
 func (v *Vnet) Logf(format string, args ...interface{})   { loop.Logf(format, args...) }

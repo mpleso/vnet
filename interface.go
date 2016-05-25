@@ -7,8 +7,8 @@ import (
 type HwIf struct {
 	ifName string
 
-	hwIf HwIfIndex
-	swIf SwIfIndex
+	hi Hi
+	si Si
 
 	hwInstance  uint32
 	devInstance uint32
@@ -25,31 +25,33 @@ type HwIf struct {
 	speed Bandwidth
 
 	// Max size of packet in bytes (MTU)
-	maxPacketSize int
+	maxPacketSize uint
 }
 
 type IfIndex uint32
-type HwIfIndex IfIndex
 
 type HwInterfacer interface {
+	Noder
 	GetHwIf() *HwIf
+	HwIfClasser
+	HwDevicer
 }
 
-func (h *HwIf) GetHwIf() *HwIf         { return h }
-func (h *HwIf) IfName() string         { return h.ifName }
-func (h *HwIf) SetIfName(v string)     { h.ifName = v }
-func (h *HwIf) Speed() Bandwidth       { return h.speed }
-func (h *HwIf) SetSpeed(v Bandwidth)   { h.speed = v }
-func (h *HwIf) LinkUp() bool           { return h.linkUp }
-func (h *HwIf) SetLinkUp(v bool)       { h.linkUp = v }
-func (h *HwIf) IsProvisioned() bool    { return !h.unprovisioned }
-func (h *HwIf) SetProvisioned(v bool)  { h.unprovisioned = !v }
-func (h *HwIf) MaxPacketSize() int     { return h.maxPacketSize }
-func (h *HwIf) SetMaxPacketSize(v int) { h.maxPacketSize = v }
-func (h *HwIf) SwIfIndex() SwIfIndex   { return h.swIf }
+func (h *HwIf) GetHwIf() *HwIf          { return h }
+func (h *HwIf) IfName() string          { return h.ifName }
+func (h *HwIf) SetIfName(v string)      { h.ifName = v }
+func (h *HwIf) Speed() Bandwidth        { return h.speed }
+func (h *HwIf) SetSpeed(v Bandwidth)    { h.speed = v }
+func (h *HwIf) LinkUp() bool            { return h.linkUp }
+func (h *HwIf) SetLinkUp(v bool)        { h.linkUp = v }
+func (h *HwIf) IsProvisioned() bool     { return !h.unprovisioned }
+func (h *HwIf) SetProvisioned(v bool)   { h.unprovisioned = !v }
+func (h *HwIf) MaxPacketSize() uint     { return h.maxPacketSize }
+func (h *HwIf) SetMaxPacketSize(v uint) { h.maxPacketSize = v }
+func (h *HwIf) Si() Si                  { return h.si }
 
 func (h *HwIf) SetAdminUp(v bool) {
-	s := defaultVnet.SwIf(h.swIf)
+	s := defaultVnet.SwIf(h.si)
 	s.SetAdminUp(v)
 }
 
@@ -61,12 +63,10 @@ func (h *HwIf) LinkString() (s string) {
 	return
 }
 
-type SwIfIndex IfIndex
-
 // Software and hardware interface index.
 // Alias for commonly used types.
-type Si SwIfIndex
-type Hi HwIfIndex
+type Si IfIndex
+type Hi IfIndex
 
 const (
 	SiNil Si = ^Si(0)
@@ -110,11 +110,11 @@ type swIf struct {
 	flags swIfFlag
 
 	// Pool index for this interface.
-	swIf SwIfIndex
+	swIf Si
 
 	// Software interface index of super-interface.
 	// Equal to index if this interface is not a sub-interface.
-	supSwIf SwIfIndex
+	supSwIf Si
 
 	// For hardware interface: HwIfIndex
 	// For sub interface: sub interface id (e.g. vlan/vc number).
@@ -123,8 +123,8 @@ type swIf struct {
 
 //go:generate gentemplate -d Package=vnet -id swIf -d PoolType=swIfPool -d Type=swIf -d Data=elts github.com/platinasystems/elib/pool.tmpl
 
-func (m *interfaceMain) NewSwIf(kind swIfKind, id IfIndex) (si SwIfIndex) {
-	si = SwIfIndex(m.swInterfaces.GetIndex())
+func (m *interfaceMain) NewSwIf(kind swIfKind, id IfIndex) (si Si) {
+	si = Si(m.swInterfaces.GetIndex())
 	s := m.SwIf(si)
 	s.kind = kind
 	s.swIf = si
@@ -134,7 +134,7 @@ func (m *interfaceMain) NewSwIf(kind swIfKind, id IfIndex) (si SwIfIndex) {
 	return
 }
 
-func (m *interfaceMain) SwIf(i SwIfIndex) *swIf { return &m.swInterfaces.elts[i] }
+func (m *interfaceMain) SwIf(i Si) *swIf { return &m.swInterfaces.elts[i] }
 func (m *interfaceMain) SupSwIf(s *swIf) (sup *swIf) {
 	sup = s
 	if s.supSwIf != s.swIf {
@@ -142,10 +142,11 @@ func (m *interfaceMain) SupSwIf(s *swIf) (sup *swIf) {
 	}
 	return
 }
-func (m *interfaceMain) HwIf(i HwIfIndex) *HwIf { return m.hwInterfaces[i].GetHwIf() }
+func (m *interfaceMain) HwIfer(i Hi) HwInterfacer { return m.hwInterfaces[i] }
+func (m *interfaceMain) HwIf(i Hi) *HwIf          { return m.hwInterfaces[i].GetHwIf() }
 func (m *interfaceMain) SupHwIf(s *swIf) *HwIf {
 	sup := m.SupSwIf(s)
-	return m.HwIf(HwIfIndex(sup.id))
+	return m.HwIf(Hi(sup.id))
 }
 
 func (s *swIf) IfName(vn *Vnet) (v string) {
@@ -155,7 +156,7 @@ func (s *swIf) IfName(vn *Vnet) (v string) {
 	}
 	return
 }
-func (s SwIfIndex) IfName(v *Vnet) string { return v.SwIf(s).IfName(v) }
+func (s Si) IfName(v *Vnet) string { return v.SwIf(s).IfName(v) }
 
 func (i *swIf) AdminUp() bool     { return i.flags&swIfAdminUp != 0 }
 func (i *swIf) SetAdminUp(v bool) { i.flags |= swIfAdminUp }
@@ -174,8 +175,8 @@ func (v *Vnet) RegisterHwInterface(hi HwInterfacer, format string, args ...inter
 	l := len(v.hwInterfaces)
 	v.hwInterfaces = append(v.hwInterfaces, hi)
 	h := hi.GetHwIf()
-	h.hwIf = HwIfIndex(l)
-	h.swIf = v.NewSwIf(swIfHardware, IfIndex(h.hwIf))
+	h.hi = Hi(l)
+	h.si = v.NewSwIf(swIfHardware, IfIndex(h.hi))
 	h.SetIfName(fmt.Sprintf(format, args...))
 }
 
@@ -218,10 +219,10 @@ func (m *interfaceMain) SwLessThan(a, b *swIf) bool {
 }
 
 // Interface can loopback at MAC or PHY.
-type IntfLoopbackType int
+type IfLoopbackType int
 
 const (
-	None IntfLoopbackType = iota
+	None IfLoopbackType = iota
 	Mac
 	Phy
 )
@@ -262,4 +263,11 @@ func (b Bandwidth) String() string {
 	}
 	b /= unit
 	return fmt.Sprintf("%g%sbps", b, prefix)
+}
+
+type HwIfClasser interface {
+	SetRewrite(r *Rewrite)
+}
+
+type HwDevicer interface {
 }

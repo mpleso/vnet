@@ -15,13 +15,14 @@ import (
 type myNode struct {
 	vnet.Node
 	vnet.HwIf
+	ethernet.HwInterface
 	myErr [n_error]loop.ErrorRef
 	pool  loop.BufferPool
 }
 
 var MyNode = &myNode{}
 
-func init() { vnet.Register(MyNode, "my-node") }
+func init() { vnet.RegisterHwIf(MyNode, "my-node") }
 
 type out struct {
 	loop.Out
@@ -132,7 +133,7 @@ func (n *myNode) LoopInput(l *loop.Loop, lo loop.LooperOut) {
 		r.Err = n.myErr[i%n_error]
 		nBytes += r.DataLen()
 	}
-	vnet.IfRxCounter.Add(t, n.SwIfIndex(), uint(len(rs)), nBytes)
+	vnet.IfRxCounter.Add(t, n.Si(), uint(len(rs)), nBytes)
 	toErr.SetLen(l, uint(len(toErr.Refs)))
 }
 

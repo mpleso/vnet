@@ -35,9 +35,18 @@ func PerformRewrite(r0 *Ref, rw0 *Rewrite) {
 	copy(r0.DataSlice(), rw0.getData())
 }
 
-func PerformRewrites(r0, r1 *Ref, rw0, rw1 *Rewrite) {
+func Perform2Rewrites(r0, r1 *Ref, rw0, rw1 *Rewrite) {
 	r0.Advance(-int(rw0.dataLen))
 	r1.Advance(-int(rw1.dataLen))
 	copy(r0.DataSlice(), rw0.getData())
 	copy(r1.DataSlice(), rw1.getData())
+}
+
+func (rw *Rewrite) Set(v *Vnet, si Si, n Noder, dstAddr []byte) {
+	sw := v.SwIf(si)
+	hw := v.SupHwIf(sw)
+	rw.NextIndex = ^uint32(0) // fixme
+	rw.MaxL3PacketSize = uint16(hw.maxPacketSize)
+	h := v.HwIfer(hw.hi)
+	h.SetRewrite(rw)
 }
