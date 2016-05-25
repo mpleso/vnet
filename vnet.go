@@ -37,16 +37,8 @@ var defaultVnet = &Vnet{}
 func (v *Vnet) Register(n Noder, format string, args ...interface{}) {
 	loop.Register(n, format, args...)
 }
-func (v *Vnet) RegisterHwIf(n HwInterfacer, format string, args ...interface{}) {
-	v.RegisterHwInterface(n, format, args...)
-	v.Register(n, format+"-input", args...)
-}
-
 func Register(n Noder, format string, args ...interface{}) {
 	defaultVnet.Register(n, format, args...)
-}
-func RegisterHwIf(n HwInterfacer, format string, args ...interface{}) {
-	defaultVnet.RegisterHwIf(n, format, args...)
 }
 
 func (v *Vnet) Logf(format string, args ...interface{})   { loop.Logf(format, args...) }

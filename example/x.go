@@ -14,15 +14,19 @@ import (
 
 type myNode struct {
 	vnet.Node
-	vnet.HwIf
-	ethernet.HwInterface
+	ethernet.Interface
 	myErr [n_error]loop.ErrorRef
 	pool  loop.BufferPool
 }
 
 var MyNode = &myNode{}
 
-func init() { vnet.RegisterHwIf(MyNode, "my-node") }
+func init() {
+	config := &ethernet.InterfaceConfig{
+		Address: ethernet.Address{1, 2, 3, 4, 5, 6},
+	}
+	ethernet.RegisterInterface(MyNode, config, "my-node")
+}
 
 type out struct {
 	loop.Out
@@ -135,6 +139,11 @@ func (n *myNode) LoopInput(l *loop.Loop, lo loop.LooperOut) {
 	}
 	vnet.IfRxCounter.Add(t, n.Si(), uint(len(rs)), nBytes)
 	toErr.SetLen(l, uint(len(toErr.Refs)))
+}
+
+func (n *myNode) MakeLoopIn() loop.LooperIn { return &loop.RefIn{} }
+func (n *myNode) LoopOutput(l *loop.Loop, li loop.LooperIn) {
+	panic("not yet")
 }
 
 func init() {

@@ -30,21 +30,15 @@ type VlanHeader struct {
 // Packet type from ethernet header.
 type Type uint16
 
-const (
-	IP4  Type = 0x800
-	IP6  Type = 0x86DD
-	ARP  Type = 0x806
-	VLAN Type = 0x8100
-)
-
 func (h *Header) GetType() Type      { return Type(h.Type.ToHost()) }
 func (t Type) FromHost() vnet.Uint16 { return vnet.Uint16(t).FromHost() }
 
 //go:generate stringer -type=Type
 
 const (
-	AddressBytes = 6
-	HeaderBytes  = 14
+	AddressBytes    = 6
+	HeaderBytes     = 14
+	VlanHeaderBytes = 4
 )
 
 type Address [AddressBytes]byte

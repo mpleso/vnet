@@ -1,6 +1,8 @@
 package vnet
 
 import (
+	"github.com/platinasystems/elib/loop"
+
 	"fmt"
 )
 
@@ -32,6 +34,8 @@ type IfIndex uint32
 
 type HwInterfacer interface {
 	Noder
+	loop.InputLooper
+	loop.OutputLooper
 	GetHwIf() *HwIf
 	HwIfClasser
 	HwDevicer
@@ -160,6 +164,7 @@ func (s Si) IfName(v *Vnet) string { return v.SwIf(s).IfName(v) }
 
 func (i *swIf) AdminUp() bool     { return i.flags&swIfAdminUp != 0 }
 func (i *swIf) SetAdminUp(v bool) { i.flags |= swIfAdminUp }
+func (i *swIf) Id() IfIndex       { return i.id }
 
 type interfaceMain struct {
 	hwInterfaces             []HwInterfacer
@@ -177,7 +182,14 @@ func (v *Vnet) RegisterHwInterface(hi HwInterfacer, format string, args ...inter
 	h := hi.GetHwIf()
 	h.hi = Hi(l)
 	h.si = v.NewSwIf(swIfHardware, IfIndex(h.hi))
-	h.SetIfName(fmt.Sprintf(format, args...))
+	name := fmt.Sprintf(format, args...)
+	h.SetIfName(name)
+	// Register interface input/output node.
+	v.Register(hi, format+"-data", args...)
+}
+
+func RegisterHwInterface(hi HwInterfacer, format string, args ...interface{}) {
+	defaultVnet.RegisterHwInterface(hi, format, args...)
 }
 
 type interfaceThread struct {
@@ -266,7 +278,7 @@ func (b Bandwidth) String() string {
 }
 
 type HwIfClasser interface {
-	SetRewrite(r *Rewrite)
+	SetRewrite(v *Vnet, r *Rewrite, t PacketType, dstAddr []byte)
 }
 
 type HwDevicer interface {

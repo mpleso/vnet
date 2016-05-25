@@ -1,7 +1,10 @@
 package vnet
 
 import (
+	"github.com/platinasystems/elib"
 	"github.com/platinasystems/elib/loop"
+
+	"unsafe"
 )
 
 type Ref struct{ loop.Ref }
@@ -28,7 +31,30 @@ type Rewrite struct {
 }
 
 func (r *Rewrite) SetData(d []byte) { r.dataLen = uint16(copy(r.data[:], d)) }
-func (r *Rewrite) getData() []byte  { return r.data[:r.dataLen] }
+func (r *Rewrite) AddData(p unsafe.Pointer, size uintptr) (l uintptr) {
+	l = uintptr(r.dataLen)
+	r.dataLen += uint16(size)
+	for i := uintptr(0); i < size; i++ {
+		r.data[l+i] = *(*uint8)(elib.PointerAdd(p, i))
+	}
+	return l + size
+}
+func (r *Rewrite) getData() []byte { return r.data[:r.dataLen] }
+
+func (v *Vnet) SetRewrite(rw *Rewrite, si Si, noder Noder, t PacketType, dstAddr []byte) {
+	sw := v.SwIf(si)
+	hw := v.SupHwIf(sw)
+	h := v.HwIfer(hw.hi)
+	n := noder.GetNode()
+	rw.Si = si
+	rw.NodeIndex = uint32(n.Index())
+	rw.NextIndex = uint32(loop.AddNext(noder, h))
+	rw.MaxL3PacketSize = uint16(hw.maxPacketSize)
+	h.SetRewrite(v, rw, t, dstAddr)
+}
+func SetRewrite(rw *Rewrite, si Si, noder Noder, t PacketType, dstAddr []byte) {
+	defaultVnet.SetRewrite(rw, si, noder, t, dstAddr)
+}
 
 func PerformRewrite(r0 *Ref, rw0 *Rewrite) {
 	r0.Advance(-int(rw0.dataLen))
@@ -40,13 +66,4 @@ func Perform2Rewrites(r0, r1 *Ref, rw0, rw1 *Rewrite) {
 	r1.Advance(-int(rw1.dataLen))
 	copy(r0.DataSlice(), rw0.getData())
 	copy(r1.DataSlice(), rw1.getData())
-}
-
-func (rw *Rewrite) Set(v *Vnet, si Si, n Noder, dstAddr []byte) {
-	sw := v.SwIf(si)
-	hw := v.SupHwIf(sw)
-	rw.NextIndex = ^uint32(0) // fixme
-	rw.MaxL3PacketSize = uint16(hw.maxPacketSize)
-	h := v.HwIfer(hw.hi)
-	h.SetRewrite(rw)
 }
