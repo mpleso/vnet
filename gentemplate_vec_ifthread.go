@@ -21,7 +21,7 @@ func (p *ifThreadVec) Resize(n uint) {
 	*p = (*p)[:l]
 }
 
-func (p *ifThreadVec) Validate(i uint) {
+func (p *ifThreadVec) Validate(i uint) **interfaceThread {
 	c := elib.Index(cap(*p))
 	l := elib.Index(i) + 1
 	if l > c {
@@ -33,6 +33,7 @@ func (p *ifThreadVec) Validate(i uint) {
 	if l > elib.Index(len(*p)) {
 		*p = (*p)[:l]
 	}
+	return &(*p)[i]
 }
 
 func (p ifThreadVec) Len() uint { return uint(len(p)) }

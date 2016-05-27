@@ -3,6 +3,8 @@ package ip4
 import (
 	"github.com/platinasystems/vnet"
 	"github.com/platinasystems/vnet/ip"
+
+	"fmt"
 )
 
 type Prefix struct {
@@ -10,241 +12,26 @@ type Prefix struct {
 	Len uint32
 }
 
+func (p *Prefix) SetLen(l uint) { p.Len = uint32(l) }
+func (a *Address) toPrefix() (p Prefix) {
+	p.Address = *a
+	return
+}
+
 // True if given destination matches prefix.
 func (dst *Address) MatchesPrefix(p *Prefix) bool {
 	return 0 == (dst.AsUint32()^p.Address.AsUint32())&mapFibMasks[p.Len]
 }
 
-type leaf uint32
-
-const (
-	emptyLeaf    leaf = leaf(1 + 2*ip.AdjMiss)
-	rootPlyIndex uint = 0
-)
-
-func (l leaf) isTerminal() bool    { return l&1 != 0 }
-func (l leaf) ResultIndex() ip.Adj { return ip.Adj(l >> 1) }
-func setResult(i ip.Adj) leaf      { return leaf(1 + 2*i) }
-func (l *leaf) setResult(i ip.Adj) { *l = setResult(i) }
-func (l leaf) isPly() bool         { return !l.isTerminal() }
-func (l leaf) plyIndex() uint      { return uint(l >> 1) }
-func setPlyIndex(i uint) leaf      { return leaf(0 + 2*i) }
-func (l *leaf) setPlyIndex(i uint) { *l = setPlyIndex(i) }
-
-const plyLeaves = 1 << 8
-
-type ply struct {
-	leaves [plyLeaves]leaf
-
-	// Prefix length of leaves.
-	lens [plyLeaves]uint8
-
-	// Number of non-empty leaves.
-	nNonEmpty int
-
-	poolIndex uint
-}
-
-//go:generate gentemplate -d Package=ip4 -id ply -d PoolType=plyPool -d Type=ply -d Data=plys github.com/platinasystems/elib/pool.tmpl
-
-type mtrie struct {
-	// Pool of plies.  Index zero is root ply.
-	plyPool
-
-	// Special case leaf for default route 0.0.0.0/0.
-	// This is to avoid having to paint default leaf in all plys of trie.
-	defaultLeaf leaf
-}
-
-func (m *mtrie) LookupStep(l leaf, dst byte) (lʹ leaf) {
-	pi := uint(0)
-	it := l.isTerminal()
-	if !it {
-		pi = l.plyIndex()
-	}
-	lʹ = m.plys[pi].leaves[dst]
-	if it {
-		lʹ = l
-	}
+func FromIp4Prefix(i *ip.Prefix) (p Prefix) {
+	copy(p.Address[:], i.Address[:AddressBytes])
+	p.Len = i.Len
 	return
 }
-
-func (p *ply) init(l leaf, n uint8) {
-	p.nNonEmpty = 0
-	if l != emptyLeaf {
-		p.nNonEmpty = len(p.leaves)
-	}
-	for i := 0; i < plyLeaves; i += 4 {
-		p.lens[i+0] = n
-		p.lens[i+1] = n
-		p.lens[i+2] = n
-		p.lens[i+3] = n
-		p.leaves[i+0] = l
-		p.leaves[i+1] = l
-		p.leaves[i+2] = l
-		p.leaves[i+3] = l
-	}
-}
-
-func (m *mtrie) newPly(l leaf, n uint8) (lʹ leaf, ply *ply) {
-	pi := m.plyPool.GetIndex()
-	ply = &m.plys[pi]
-	ply.poolIndex = pi
-	ply.init(l, n)
-	lʹ = setPlyIndex(pi)
+func (p *Prefix) ToIpPrefix() (i ip.Prefix) {
+	copy(i.Address[:], p.Address[:])
+	i.Len = p.Len
 	return
-}
-
-func (m *mtrie) plyForLeaf(l leaf) *ply { return &m.plys[l.plyIndex()] }
-
-func (m *mtrie) freePly(p *ply) {
-	isRoot := p.poolIndex == 0
-	for _, l := range p.leaves {
-		if !l.isTerminal() {
-			m.freePly(m.plyForLeaf(l))
-		}
-	}
-	if isRoot {
-		p.init(emptyLeaf, 0)
-	} else {
-		m.plyPool.PutIndex(p.poolIndex)
-	}
-}
-
-func (m *mtrie) Free() { m.freePly(&m.plys[0]) }
-
-func (m *mtrie) lookup(dst *Address) ip.Adj {
-	p := &m.plys[0]
-	for i := range dst {
-		l := p.leaves[dst[i]]
-		if l.isTerminal() {
-			return l.ResultIndex()
-		}
-		p = m.plyForLeaf(l)
-	}
-	panic("no terminal leaf found")
-}
-
-func (m *mtrie) setPlyWithMoreSpecificLeaf(p *ply, l leaf, n uint8) {
-	for i, pl := range p.leaves {
-		if !pl.isTerminal() {
-			m.setPlyWithMoreSpecificLeaf(m.plyForLeaf(pl), l, n)
-		} else if n >= p.lens[i] {
-			p.leaves[i] = l
-			p.lens[i] = n
-			if pl != emptyLeaf {
-				p.nNonEmpty++
-			}
-		}
-	}
-}
-
-func (p *ply) replaceLeaf(new, old leaf, i uint8) {
-	p.leaves[i] = new
-	if old != emptyLeaf {
-		p.nNonEmpty++
-	}
-}
-
-type setUnsetLeaf struct {
-	key    Address
-	keyLen uint8
-	result ip.Adj
-}
-
-func (s *setUnsetLeaf) setLeafHelper(m *mtrie, oldPlyIndex, keyByteIndex uint) {
-	nBits := int(s.keyLen) - 8*int(keyByteIndex+1)
-	k := s.key[keyByteIndex]
-	oldPly := &m.plys[oldPlyIndex]
-
-	// Number of bits next plies <= 0 => insert leaves this ply.
-	if nBits <= 0 {
-		nBits = -nBits
-		for i := k; i < k+1<<uint(nBits); i++ {
-			oldLeaf := oldPly.leaves[i]
-			oldTerm := oldLeaf.isTerminal()
-
-			// Is leaf to be inserted more specific?
-			if s.keyLen >= oldPly.lens[i] {
-				newLeaf := setResult(s.result)
-				if oldTerm {
-					oldPly.lens[i] = s.keyLen
-					oldPly.replaceLeaf(newLeaf, oldLeaf, i)
-				} else {
-					// Existing leaf points to another ply.
-					// We need to place new_leaf into all more specific slots.
-					newPly := m.plyForLeaf(oldLeaf)
-					m.setPlyWithMoreSpecificLeaf(newPly, newLeaf, s.keyLen)
-				}
-			} else if !oldTerm {
-				s.setLeafHelper(m, oldLeaf.plyIndex(), keyByteIndex+1)
-			}
-		}
-	} else {
-		oldLeaf := oldPly.leaves[k]
-		oldTerm := oldLeaf.isTerminal()
-		var newPly *ply
-		if !oldTerm {
-			newPly = m.plyForLeaf(oldLeaf)
-		} else {
-			var newLeaf leaf
-			newLeaf, newPly = m.newPly(oldLeaf, oldPly.lens[k])
-			// Refetch since newPly may move pool.
-			oldPly = &m.plys[oldPlyIndex]
-			oldPly.leaves[k] = newLeaf
-			oldPly.lens[k] = 0
-			if oldLeaf != emptyLeaf {
-				oldPly.nNonEmpty--
-			}
-			// Account for the ply we just created.
-			oldPly.nNonEmpty++
-		}
-		s.setLeafHelper(m, newPly.poolIndex, keyByteIndex+1)
-	}
-}
-
-func (s *setUnsetLeaf) unsetLeafHelper(m *mtrie, oldPlyIndex, keyByteIndex uint) (oldPlyWasDeleted bool) {
-	k := s.key[keyByteIndex]
-	nBits := int(s.keyLen) - 8*int(keyByteIndex+1)
-	if nBits <= 0 {
-		nBits = -nBits
-		k &^= 1<<uint(nBits) - 1
-		if nBits > 8 {
-			nBits = 8
-		}
-	}
-	delLeaf := setResult(s.result)
-	oldPly := &m.plys[oldPlyIndex]
-	for i := k; i < k+1<<uint(nBits); i++ {
-		oldLeaf := oldPly.leaves[i]
-		oldTerm := oldLeaf.isTerminal()
-		if oldLeaf == delLeaf ||
-			(!oldTerm && s.unsetLeafHelper(m, oldLeaf.plyIndex(), keyByteIndex+1)) {
-			oldPly.leaves[i] = emptyLeaf
-			oldPly.lens[i] = 0
-			oldPly.nNonEmpty--
-			oldPlyWasDeleted = oldPly.nNonEmpty == 0 && keyByteIndex > 0
-			if oldPlyWasDeleted {
-				m.plyPool.PutIndex(oldPly.poolIndex)
-				// Nothing more to do.
-				break
-			}
-		}
-	}
-
-	return
-}
-
-func (s *setUnsetLeaf) set(m *mtrie)        { s.setLeafHelper(m, rootPlyIndex, 0) }
-func (s *setUnsetLeaf) unset(m *mtrie) bool { return s.unsetLeafHelper(m, rootPlyIndex, 0) }
-
-func (m *mtrie) init() {
-	m.defaultLeaf = emptyLeaf
-	// Make root ply.
-	l, _ := m.newPly(emptyLeaf, 0)
-	if l.plyIndex() != 0 {
-		panic("root ply must be index 0")
-	}
 }
 
 type mapFib struct {
@@ -264,73 +51,91 @@ func init() {
 	}
 }
 
-func (a *Address) mapFibKey(l uint) uint32 { return a.AsUint32() & mapFibMasks[l] }
+func (p *Prefix) mapFibKey() uint32 { return p.Address.AsUint32() & mapFibMasks[p.Len] }
 
-func (m *mapFib) set(a *Address, l uint, r ip.Adj) {
+func (m *mapFib) set(p *Prefix, r ip.Adj) (oldAdj ip.Adj, ok bool) {
+	l := p.Len
 	if m.maps[l] == nil {
 		m.maps[l] = make(map[uint32]ip.Adj)
 	}
-	k := a.mapFibKey(l)
+	k := p.mapFibKey()
+	if oldAdj, ok = m.maps[l][k]; !ok {
+		oldAdj = ip.AdjNil
+	}
+	ok = true // set never fails
 	m.maps[l][k] = r
+	return
 }
 
-func (m *mapFib) unset(a *Address, l uint) (ok bool) {
-	k := a.mapFibKey(l)
-	if _, ok = m.maps[l][k]; ok {
-		delete(m.maps[l], k)
+func (m *mapFib) unset(p *Prefix) (oldAdj ip.Adj, ok bool) {
+	k := p.mapFibKey()
+	if oldAdj, ok = m.maps[p.Len][k]; ok {
+		delete(m.maps[p.Len], k)
+	} else {
+		oldAdj = ip.AdjNil
 	}
 	return
 }
 
-func (m *mapFib) get(a *Address, l uint) (r ip.Adj, ok bool) {
-	k := a.mapFibKey(l)
-	r, ok = m.maps[l][k]
+func (m *mapFib) get(p *Prefix) (r ip.Adj, ok bool) {
+	r, ok = m.maps[p.Len][p.mapFibKey()]
 	return
 }
 
 func (m *mapFib) lookup(a *Address) ip.Adj {
+	p := a.toPrefix()
 	for l := 32; l >= 0; l-- {
 		if m.maps[l] == nil {
 			continue
 		}
-		k := a.mapFibKey(uint(l))
-		if r, ok := m.maps[l][k]; ok {
+		p.SetLen(uint(l))
+		if r, ok := m.maps[l][p.mapFibKey()]; ok {
 			return r
 		}
 	}
 	return ip.AdjMiss
 }
 
-type FibSetUnsetHook func(a *Address, l uint, r ip.Adj, isSet bool)
-
-//go:generate gentemplate -id FibSetUnsetHook -d Package=ip4 -d DepsType=FibSetUnsetHookVec -d Type=FibSetUnsetHook -d Data=hooks github.com/platinasystems/elib/dep/dep.tmpl
-
-type Fib struct {
-	// Mtrie for fast lookups.
-	mtrie
-	// Map fib for general accounting and to maintain mtrie (e.g. setLessSpecific).
-	mapFib
-	// Hooks to call on set/unset.
-	Hooks FibSetUnsetHookVec
-}
-
-func (f *Fib) callHooks(a *Address, l uint, r ip.Adj, isSet bool) {
-	for i := range f.Hooks.hooks {
-		f.Hooks.Get(i)(a, l, r, isSet)
+// Calls function for each more specific prefix matching given key.
+func (m *mapFib) foreachMatchingPrefix(key *Prefix, fn func(p *Prefix, a ip.Adj)) {
+	p := Prefix{Address: key.Address}
+	for l := key.Len + 1; l <= 32; l++ {
+		p.Len = l
+		if a, ok := m.maps[l][p.mapFibKey()]; ok {
+			fn(&p, a)
+		}
 	}
 }
 
-func (f *Fib) setUnset(a *Address, l uint, r ip.Adj, isSet bool) {
+type Fib struct {
+	index ip.FibIndex
+
+	// Hash (Go map) fib for general accounting and to maintain mtrie (e.g. setLessSpecific).
+	mapFib
+
+	// Mtrie for fast lookups.
+	mtrie
+}
+
+type FibAddDelHook func(i ip.FibIndex, p *Prefix, r ip.Adj, isDel bool)
+type IfAddrAddDelHook func(ia ip.IfAddr, isDel bool)
+
+//go:generate gentemplate -id FibAddDelHook -d Package=ip4 -d DepsType=FibAddDelHookVec -d Type=FibAddDelHook -d Data=hooks github.com/platinasystems/elib/dep/dep.tmpl
+//go:generate gentemplate -id IfAddrAddDelHook -d Package=ip4 -d DepsType=IfAddrAddDelHookVec -d Type=IfAddrAddDelHook -d Data=hooks github.com/platinasystems/elib/dep/dep.tmpl
+
+func (f *Fib) addDel(main *Main, p *Prefix, r ip.Adj, isDel bool) (oldAdj ip.Adj, ok bool) {
 	// Call hooks before unset.
-	if !isSet {
-		f.callHooks(a, l, r, isSet)
+	if isDel {
+		for i := range main.fibAddDelHooks.hooks {
+			main.fibAddDelHooks.Get(i)(f.index, p, r, isDel)
+		}
 	}
 
 	// Add/delete in map fib.
-	if isSet {
-		f.mapFib.set(a, l, r)
+	if isDel {
+		oldAdj, ok = f.mapFib.unset(p)
 	} else {
-		f.mapFib.unset(a, l)
+		oldAdj, ok = f.mapFib.set(p, r)
 	}
 
 	// Add/delete in mtrie fib.
@@ -340,42 +145,48 @@ func (f *Fib) setUnset(a *Address, l uint, r ip.Adj, isSet bool) {
 		m.init()
 	}
 
-	s := setUnsetLeaf{
-		key:    *a,
-		keyLen: uint8(l),
+	s := addDelLeaf{
+		key:    p.Address,
+		keyLen: uint8(p.Len),
 		result: r,
 	}
-	if isSet {
-		if l == 0 {
+	if isDel {
+		if p.Len == 0 {
+			m.defaultLeaf = emptyLeaf
+		} else {
+			s.unset(m)
+			f.setLessSpecific(&p.Address)
+		}
+	} else {
+		if p.Len == 0 {
 			m.defaultLeaf = setResult(s.result)
 		} else {
 			s.set(m)
 		}
-	} else {
-		if l == 0 {
-			m.defaultLeaf = emptyLeaf
-		} else {
-			s.unset(m)
-			f.setLessSpecific(a)
+	}
+
+	// Call hooks after add.
+	if !isDel {
+		for i := range main.fibAddDelHooks.hooks {
+			main.fibAddDelHooks.Get(i)(f.index, p, r, isDel)
 		}
 	}
 
-	// Call hooks after set.
-	if isSet {
-		f.callHooks(a, l, r, isSet)
-	}
+	return
 }
 
 // Find first less specific route matching address and insert into mtrie.
 func (f *Fib) setLessSpecific(a *Address) {
+	p := a.toPrefix()
 	// No need to consider length 0 since that's not in mtrie.
 	for l := uint(32); l >= 1; l-- {
 		if f.maps[l] == nil {
 			continue
 		}
-		k := a.mapFibKey(l)
+		p.SetLen(l)
+		k := p.mapFibKey()
 		if r, ok := f.maps[l][k]; ok {
-			s := setUnsetLeaf{
+			s := addDelLeaf{
 				result: r,
 				keyLen: uint8(l),
 			}
@@ -386,9 +197,258 @@ func (f *Fib) setLessSpecific(a *Address) {
 	}
 }
 
-func (f *Fib) Set(a *Address, l uint, r ip.Adj) { f.setUnset(a, l, r, true) }
-func (f *Fib) Unset(a *Address, l uint)         { f.setUnset(a, l, ip.AdjMiss, true) }
+func (f *Fib) maybeRemapAdjacencies(m *Main) {
+	if m.NRemaps == 0 {
+		return
+	}
+	for l := 0; l <= 32; l++ {
+		for dst, adj := range f.maps[l] {
+			if newAdj, ok := m.Remaps[adj].GetAndInvalidate(); ok {
+				if newAdj == ip.AdjNil {
+					delete(f.maps[l], dst)
+				} else {
+					f.maps[l][dst] = newAdj
+				}
+				p := &Prefix{Len: uint32(l)}
+				p.Address.FromUint32(dst)
+				for i := range m.fibAddDelHooks.hooks {
+					m.fibAddDelHooks.Get(i)(f.index, p, newAdj, newAdj == ip.AdjNil /* isDel */)
+				}
+			}
+		}
+	}
+
+	f.mtrie.maybeRemapAdjacencies(m)
+	m.NRemaps = 0
+}
+
+func (f *Fib) Get(p *Prefix) (a ip.Adj, ok bool) {
+	if a, ok = f.maps[p.Len][p.mapFibKey()]; !ok {
+		a = ip.AdjNil
+	}
+	return
+}
+
+func (f *Fib) Add(m *Main, p *Prefix, r ip.Adj) (ip.Adj, bool) { return f.addDel(m, p, r, true) }
+func (f *Fib) Del(m *Main, p *Prefix) (ip.Adj, bool)           { return f.addDel(m, p, ip.AdjMiss, false) }
 func (f *Fib) Lookup(a *Address) (r ip.Adj) {
 	r = f.mtrie.lookup(a)
 	return
+}
+
+func (m *Main) setInterfaceAdjacency(a *ip.Adjacency, si vnet.Si, ia ip.IfAddr) {
+	sw := m.SwIf(si)
+	hw := m.SupHwIf(sw)
+	h := m.HwIfer(hw.Hi())
+
+	next := ip.LookupNextRewrite
+	noder := rewriteNode
+	packetType := vnet.IP4
+
+	if _, ok := h.(vnet.Arper); ok {
+		next = ip.LookupNextGlean
+		noder = arpNode
+		packetType = vnet.ARP
+		a.IfAddr = ia
+	}
+
+	a.LookupNextIndex = next
+	m.SetRewrite(&a.Rewrite, si, noder, packetType, nil /* dstAdr meaning broadcast */)
+}
+
+type Main struct {
+	*vnet.Vnet
+	ip.Ip
+	fibs FibVec
+	// Hooks to call on set/unset.
+	fibAddDelHooks      FibAddDelHookVec
+	ifRouteAdjIndexBySi map[vnet.Si]ip.Adj
+	ifAddrAddDelHooks   IfAddrAddDelHookVec
+}
+
+//go:generate gentemplate -d Package=ip4 -id Fib -d VecType=FibVec -d Type=*Fib github.com/platinasystems/elib/vec.tmpl
+
+func (m *Main) fibByIndex(i ip.FibIndex, create bool) (f *Fib) {
+	m.fibs.Validate(uint(i))
+	if create && m.fibs[i] == nil {
+		m.fibs[i] = &Fib{index: i}
+	}
+	f = m.fibs[i]
+	return
+}
+
+func (m *Main) fibById(id ip.FibId, create bool) *Fib {
+	var (
+		i  ip.FibIndex
+		ok bool
+	)
+	if i, ok = m.FibIndexForId(id); !ok {
+		i = ip.FibIndex(m.fibs.Len())
+	}
+	return m.fibByIndex(i, create)
+}
+
+func (m *Main) fibBySi(si vnet.Si) *Fib { return m.fibs[m.FibIndexForSi(si)] }
+
+func (m *Main) validateDefaultFibForSi(si vnet.Si) {
+	i := m.ValidateFibIndexForSi(si)
+	m.fibByIndex(i, true)
+}
+
+type NextHop struct {
+	Address Address
+	Si      vnet.Si
+	Weight  ip.NextHopWeight
+}
+
+func (m *Main) AddDelRouteNextHop(p *Prefix, nh *NextHop, isDel bool) (err error) {
+	f := m.fibBySi(nh.Si)
+
+	var (
+		nhAdj, oldAdj, newAdj ip.Adj
+		adjs                  []ip.Adjacency
+		ok                    bool
+	)
+
+	if !isDel && p.Len == 32 && p.Address.IsEqual(&nh.Address) {
+		err = fmt.Errorf("prefix %s matches next-hop %s", p, &nh.Address)
+		return
+	}
+
+	// Zero address means interface next hop.
+	if nh.Address.IsZero() && !isDel {
+		if nhAdj, ok = m.ifRouteAdjIndexBySi[nh.Si]; !ok {
+			nhAdj, adjs = m.NewAdj(1)
+			m.setInterfaceAdjacency(&adjs[0], nh.Si, ip.IfAddrNil)
+			m.CallAdjAddHooks(nhAdj)
+			if m.ifRouteAdjIndexBySi == nil {
+				m.ifRouteAdjIndexBySi = make(map[vnet.Si]ip.Adj)
+			}
+			m.ifRouteAdjIndexBySi[nh.Si] = nhAdj
+		}
+	} else {
+		if nhAdj, ok = f.Get(&Prefix{Address: nh.Address, Len: 32}); !ok {
+			err = fmt.Errorf("next-hop %s/32 not found in fib", &nh.Address)
+			return
+		}
+	}
+
+	oldAdj, ok = f.Get(p)
+	if isDel && !ok {
+		err = fmt.Errorf("unknown destination %s", p)
+		return
+	}
+
+	if newAdj, ok = m.AddDelNextHop(oldAdj, isDel, nhAdj, nh.Weight); !ok {
+		err = fmt.Errorf("requested next-hop %U not found in multipath", &nh.Address)
+		return
+	}
+
+	if oldAdj != newAdj {
+		f.addDel(m, p, newAdj, isDel)
+	}
+
+	return
+}
+
+func (f *Fib) deleteMatchingRoutes(m *Main, key *Prefix) {
+	f.foreachMatchingPrefix(key, func(p *Prefix, a ip.Adj) {
+		f.Del(m, p)
+	})
+	f.maybeRemapAdjacencies(m)
+}
+
+func (m *Main) addDelInterfaceRoutes(ia ip.IfAddr, isDel bool) {
+	ifa := m.GetIfAddr(ia)
+	si := ifa.Si
+	sw := m.SwIf(si)
+	hw := m.SupHwIf(sw)
+	fib := m.fibBySi(si)
+	p := FromIp4Prefix(&ifa.Prefix)
+
+	// Add interface's prefix as route tied to glean adjacency (arp for Ethernet).
+	// Suppose interface has address 1.1.1.1/8; here we add 1.0.0.0/8 tied to glean adjacency.
+	if p.Len < 32 {
+		addDelAdj := ip.AdjNil
+		if !isDel {
+			ai, as := m.NewAdj(1)
+			m.setInterfaceAdjacency(&as[0], si, ia)
+			m.CallAdjAddHooks(ai)
+			addDelAdj = ai
+		}
+		fib.addDel(m, &p, addDelAdj, isDel)
+		ifa.NeighborProbeAdj = addDelAdj
+	}
+
+	// Add 1.1.1.1/32 as a local address.
+	{
+		addDelAdj := ip.AdjNil
+		if !isDel {
+			ai, as := m.NewAdj(1)
+			as[0].LookupNextIndex = ip.LookupNextLocal
+			as[0].IfAddr = ia
+			as[0].Si = si
+			as[0].SetMaxPacketSize(hw)
+			m.CallAdjAddHooks(ai)
+			addDelAdj = ai
+		}
+		p.Len = 32
+		fib.addDel(m, &p, addDelAdj, isDel)
+	}
+
+	if isDel {
+		fib.deleteMatchingRoutes(m, &p)
+	}
+}
+
+func (m *Main) AddDelInterfaceAddress(si vnet.Si, addr *Prefix, isDel bool) (err error) {
+	if !isDel {
+		err = m.ForeachIfAddress(si, func(ia ip.IfAddr, ifa *ip.IfAddress) (err error) {
+			p := FromIp4Prefix(&ifa.Prefix)
+			if addr.Address.MatchesPrefix(&p) || p.Address.MatchesPrefix(addr) {
+				err = fmt.Errorf("%s: failed to add %s which conflicts with existing address %s",
+					si.IfName(m.Vnet), addr, p)
+			}
+			return
+		})
+		if err != nil {
+			return
+		}
+	}
+
+	pa := addr.ToIpPrefix()
+	var (
+		ia     ip.IfAddr
+		exists bool
+	)
+	if ia, exists, err = m.Ip.AddDelInterfaceAddress(si, &pa, isDel); err != nil {
+		return
+	}
+
+	if sw := m.SwIf(si); sw.IsAdminUp() {
+		m.addDelInterfaceRoutes(ia, isDel)
+	}
+
+	// Do callbacks when new address is created or old one is deleted.
+	if isDel || !exists {
+		for i := range m.ifAddrAddDelHooks.hooks {
+			m.ifAddrAddDelHooks.Get(i)(ia, isDel)
+		}
+	}
+
+	return
+}
+
+func (m *Main) swIfAdminUpDown(v *vnet.Vnet, si vnet.Si, isUp bool) {
+	m.validateDefaultFibForSi(si)
+	m.ForeachIfAddress(si, func(ia ip.IfAddr, ifa *ip.IfAddress) (err error) {
+		m.addDelInterfaceRoutes(ia, isUp)
+		return
+	})
+}
+
+func (m *Main) init(v *vnet.Vnet) {
+	m.Vnet = v
+	v.RegisterSwIfAdminUpDownHook(m.swIfAdminUpDown)
+	m.Ip.Init(v)
 }

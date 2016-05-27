@@ -36,9 +36,9 @@ type HwInterfacer interface {
 	Noder
 	loop.InputLooper
 	loop.OutputLooper
-	GetHwIf() *HwIf
 	HwIfClasser
 	HwDevicer
+	GetHwIf() *HwIf
 }
 
 func (h *HwIf) GetHwIf() *HwIf          { return h }
@@ -53,6 +53,7 @@ func (h *HwIf) SetProvisioned(v bool)   { h.unprovisioned = !v }
 func (h *HwIf) MaxPacketSize() uint     { return h.maxPacketSize }
 func (h *HwIf) SetMaxPacketSize(v uint) { h.maxPacketSize = v }
 func (h *HwIf) Si() Si                  { return h.si }
+func (h *HwIf) Hi() Hi                  { return h.hi }
 
 func (h *HwIf) SetAdminUp(v bool) {
 	s := defaultVnet.SwIf(h.si)
@@ -162,7 +163,7 @@ func (s *swIf) IfName(vn *Vnet) (v string) {
 }
 func (s Si) IfName(v *Vnet) string { return v.SwIf(s).IfName(v) }
 
-func (i *swIf) AdminUp() bool     { return i.flags&swIfAdminUp != 0 }
+func (i *swIf) IsAdminUp() bool   { return i.flags&swIfAdminUp != 0 }
 func (i *swIf) SetAdminUp(v bool) { i.flags |= swIfAdminUp }
 func (i *swIf) Id() IfIndex       { return i.id }
 
@@ -172,6 +173,11 @@ type interfaceMain struct {
 	ifThreads                ifThreadVec
 	swIfCounterNames         []string
 	swIfCombinedCounterNames []string
+	swIfAddDelHooks          SwIfAddDelHookVec
+	swIfAdminUpDownHooks     SwIfAdminUpDownHookVec
+	hwIfAddDelHooks          HwIfAddDelHookVec
+	hwIfLinkUpDownHooks      HwIfLinkUpDownHookVec
+	hwIfProvisionHooks       HwIfProvisionHookVec
 }
 
 //go:generate gentemplate -d Package=vnet -id ifThread -d VecType=ifThreadVec -d Type=*interfaceThread github.com/platinasystems/elib/vec.tmpl
@@ -282,4 +288,20 @@ type HwIfClasser interface {
 }
 
 type HwDevicer interface {
+}
+
+type SwIfAddDelHook func(v *Vnet, si Si, isDel bool)
+type SwIfAdminUpDownHook func(v *Vnet, si Si, isUp bool)
+type HwIfAddDelHook func(v *Vnet, hi Hi, isDel bool)
+type HwIfLinkUpDownHook func(v *Vnet, hi Hi, isUp bool)
+type HwIfProvisionHook func(v *Vnet, hi Hi, isProvisioned bool)
+
+//go:generate gentemplate -id SwIfAddDelHook -d Package=vnet -d DepsType=SwIfAddDelHookVec -d Type=SwIfAddDelHook -d Data=hooks github.com/platinasystems/elib/dep/dep.tmpl
+//go:generate gentemplate -id SwIfAdminUpDownHook -d Package=vnet -d DepsType=SwIfAdminUpDownHookVec -d Type=SwIfAdminUpDownHook -d Data=hooks github.com/platinasystems/elib/dep/dep.tmpl
+//go:generate gentemplate -id HwIfAddDelHook -d Package=vnet -d DepsType=HwIfAddDelHookVec -d Type=HwIfAddDelHook -d Data=hooks github.com/platinasystems/elib/dep/dep.tmpl
+//go:generate gentemplate -id HwIfLinkUpDownHook -d Package=vnet -d DepsType=HwIfLinkUpDownHookVec -d Type=HwIfLinkUpDownHook -d Data=hooks github.com/platinasystems/elib/dep/dep.tmpl
+//go:generate gentemplate -id HwIfProvisionHook -d Package=vnet -d DepsType=HwIfProvisionHookVec -d Type=HwIfProvisionHook -d Data=hooks github.com/platinasystems/elib/dep/dep.tmpl
+
+func (m *interfaceMain) RegisterSwIfAdminUpDownHook(h SwIfAdminUpDownHook) {
+	m.swIfAdminUpDownHooks.Add(h)
 }

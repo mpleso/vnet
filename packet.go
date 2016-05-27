@@ -8,4 +8,10 @@ const (
 	IP6
 	MPLS_UNICAST
 	MPLS_MULTICAST
+	ARP
 )
+
+// Interface defines SupportsArp method to enable glean adjacencies.
+type Arper interface {
+	SupportsArp()
+}

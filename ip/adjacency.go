@@ -15,35 +15,35 @@ type LookupNext uint16
 
 const (
 	// Packet does not match any route in table.
-	LookupMiss LookupNext = iota
+	LookupNextMiss LookupNext = iota
 
 	// Adjacency says to drop or punt this packet.
-	LookupDrop
-	LookupPunt
+	LookupNextDrop
+	LookupNextPunt
 
 	// This packet matches an IP address of one of our interfaces.
-	LookupLocal
+	LookupNextLocal
 
-	// This packet matches an "interface route" and packets
-	// need to be passed to ARP to find rewrite string for
-	// this destination.
-	LookupArp
+	// Glean node.
+	// This packet matches an "interface route" and packets need to be passed to ip4 ARP (or ip6 neighbor discovery)
+	// to find rewrite string for this destination.
+	LookupNextGlean
 
 	// This packet is to be rewritten and forwarded to the next
 	// processing node.  This is typically the output interface but
 	// might be another node for further output processing.
-	LookupRewrite
+	LookupNextRewrite
 
 	LookupNNext
 )
 
 var lookupNextNames = [...]string{
-	LookupMiss:    "miss",
-	LookupDrop:    "drop",
-	LookupPunt:    "punt",
-	LookupLocal:   "local",
-	LookupArp:     "arp",
-	LookupRewrite: "rewrite",
+	LookupNextMiss:    "miss",
+	LookupNextDrop:    "drop",
+	LookupNextPunt:    "punt",
+	LookupNextLocal:   "local",
+	LookupNextGlean:   "glean",
+	LookupNextRewrite: "rewrite",
 }
 
 func (n LookupNext) String() string { return elib.StringerHex(lookupNextNames[:], int(n)) }
@@ -55,17 +55,17 @@ func (n *LookupNext) Parse(s *scan.Scanner) error {
 	}
 	switch text {
 	case "miss":
-		*n = LookupMiss
+		*n = LookupNextMiss
 	case "drop":
-		*n = LookupDrop
+		*n = LookupNextDrop
 	case "punt":
-		*n = LookupPunt
+		*n = LookupNextPunt
 	case "local":
-		*n = LookupLocal
-	case "arp":
-		*n = LookupArp
+		*n = LookupNextLocal
+	case "glean":
+		*n = LookupNextGlean
 	case "rewrite":
-		*n = LookupRewrite
+		*n = LookupNextRewrite
 	default:
 		return scan.NoMatch
 	}
@@ -74,15 +74,15 @@ func (n *LookupNext) Parse(s *scan.Scanner) error {
 
 type Adjacency struct {
 	// Interface address index for local/arp adjacency.
-	ifAddr
+	IfAddr
 
 	// Number of adjecencies in block.  Greater than 1 means multipath; otherwise equal to 1.
-	nAdj uint16
+	NAdj uint16
 
 	// Next hop after ip4-lookup.
 	LookupNextIndex LookupNext
 
-	rw vnet.Rewrite
+	vnet.Rewrite
 }
 
 // Index into adjacency table.
@@ -91,15 +91,30 @@ type Adj uint32
 // Miss adjacency is always first in adjacency table.
 const (
 	AdjMiss Adj = 0
-	AdjNil  Adj = ^Adj(0)
+	AdjNil  Adj = (^Adj(0) - 1) // so AdjNil + 1 is non-zero for remaps.
 )
 
 //go:generate gentemplate -d Package=ip -id adjacencyHeap -d HeapType=adjacencyHeap -d Data=elts -d Type=Adjacency github.com/platinasystems/elib/heap.tmpl
-//go:generate gentemplate -d Package=ip -id AdjVec -d VecType=AdjVec -d Type=Adj github.com/platinasystems/elib/vec.tmpl
+//go:generate gentemplate -d Package=ip -id AdjRemapVec -d VecType=AdjRemapVec -d Type=AdjRemap github.com/platinasystems/elib/vec.tmpl
 
 type adjacencyThread struct {
 	// Packet/byte counters for each adjacency.
 	counters vnet.CombinedCounters
+}
+
+type AdjRemap Adj
+
+const AdjRemapNil AdjRemap = 0
+
+func (r AdjRemap) IsValid() bool { return r != 0 }
+func (r AdjRemap) GetAdj() Adj   { return Adj(r - 1) }
+func (r *AdjRemap) SetAdj(a Adj) { *r = AdjRemap(a + 1) }
+func (r *AdjRemap) GetAndInvalidate() (a Adj, valid bool) {
+	if valid = r.IsValid(); valid {
+		a = r.GetAdj()
+		*r = AdjRemapNil
+	}
+	return
 }
 
 type adjacencyMain struct {
@@ -107,7 +122,7 @@ type adjacencyMain struct {
 
 	multipathMain multipathMain
 
-	Remaps  AdjVec
+	Remaps  AdjRemapVec
 	NRemaps uint
 
 	threads []*adjacencyThread
@@ -119,9 +134,11 @@ type adjacencyMain struct {
 	localAdjIndex Adj
 }
 
-type adjAddDelHook func(m *adjacencyMain, adj Adj, isDel bool)
+type adjAddDelHook func(m *Ip, adj Adj, isDel bool)
 
 //go:generate gentemplate -id adjAddDelHook -d Package=ip -d DepsType=adjAddDelHookVec -d Type=adjAddDelHook -d Data=adjAddDelHooks github.com/platinasystems/elib/dep/dep.tmpl
+
+type NextHopWeight uint32
 
 // A next hop in a multipath.
 type nextHop struct {
@@ -129,7 +146,7 @@ type nextHop struct {
 	adj Adj
 
 	// Relative weight for this next hop.
-	weight uint32
+	weight NextHopWeight
 }
 
 //go:generate gentemplate -d Package=ip -id nextHopHeap -d HeapType=nextHopHeap -d Data=elts -d Type=nextHop github.com/platinasystems/elib/heap.tmpl
@@ -275,10 +292,10 @@ func (raw nextHopVec) normalizePow2(m *multipathMain, result *nextHopVec) (nAdj 
 			}
 			nLeft -= n
 			error += math.Abs(nf - float64(n))
-			t[i].weight = uint32(n)
+			t[i].weight = NextHopWeight(n)
 		}
 		// Add left over weight to largest weight next hop.
-		t[0].weight += uint32(nLeft)
+		t[0].weight += NextHopWeight(nLeft)
 
 		if error < m.multipathErrorTolerance*float64(nAdj) {
 			// Truncate any next hops with zero weight.
@@ -337,7 +354,7 @@ type multipathAdjacency struct {
 	unnormalizedNextHops nextHopBlock
 }
 
-func (m *adjacencyMain) getMpAdj(unnorm nextHopVec, create bool) (madj *multipathAdjacency, madjIndex uint, ok bool) {
+func (m *Ip) getMpAdj(unnorm nextHopVec, create bool) (madj *multipathAdjacency, madjIndex uint, ok bool) {
 	mp := &m.multipathMain
 	nAdj, norm := unnorm.normalizePow2(mp, &mp.cachedNextHopVec[1])
 
@@ -347,14 +364,14 @@ func (m *adjacencyMain) getMpAdj(unnorm nextHopVec, create bool) (madj *multipat
 	}
 
 	// Copy next hops into power of 2 adjacency block one for each weight.
-	ai, as := m.New(nAdj, nil)
+	ai, as := m.NewAdj(nAdj)
 	i := uint(0)
 	for nhi := range norm {
 		nh := &norm[nhi]
 		nextHopAdjacency := &m.adjacencyHeap.elts[nh.adj]
-		for w := uint32(0); w < nh.weight; w++ {
+		for w := NextHopWeight(0); w < nh.weight; w++ {
 			as[i] = *nextHopAdjacency
-			as[i].nAdj = uint16(nAdj)
+			as[i].NAdj = uint16(nAdj)
 			i++
 		}
 	}
@@ -371,15 +388,12 @@ func (m *adjacencyMain) getMpAdj(unnorm nextHopVec, create bool) (madj *multipat
 	i, _ = mp.nextHopHash.Set(norm)
 	mp.nextHopHeapOffsets[i] = madj.normalizedNextHops.offset
 
-	// Call adjacency add hooks.
-	for i := range m.adjAddDelHooks {
-		m.adjAddDelHookVec.Get(i)(m, ai, false)
-	}
+	m.CallAdjAddHooks(ai)
 
 	ok = true
 	return
 }
-func (m *adjacencyMain) createMpAdj(unnorm nextHopVec) (*multipathAdjacency, uint, bool) {
+func (m *Ip) createMpAdj(unnorm nextHopVec) (*multipathAdjacency, uint, bool) {
 	return m.getMpAdj(unnorm, true)
 }
 
@@ -394,7 +408,7 @@ func (m *adjacencyMain) mpAdjForAdj(a Adj, validate bool) (ma *multipathAdjacenc
 	return
 }
 
-func (m *adjacencyMain) addDelNextHop(oldAdj Adj, isDel bool, nextHopAdj Adj, nextHopWeight uint) (newAdj Adj, ok bool) {
+func (m *Ip) AddDelNextHop(oldAdj Adj, isDel bool, nextHopAdj Adj, nextHopWeight NextHopWeight) (newAdj Adj, ok bool) {
 	mm := &m.multipathMain
 	var (
 		old, new   *multipathAdjacency
@@ -423,12 +437,13 @@ func (m *adjacencyMain) addDelNextHop(oldAdj Adj, isDel bool, nextHopAdj Adj, ne
 	t.Validate(nnh + 1)
 	mm.cachedNextHopVec[0] = t // save for next call
 
+	newAdj = AdjNil
 	if isDel {
 		t = mm.delNextHop(nhs, t, nhi)
 	} else {
 		// If next hop is already there with the same weight, we have nothing to do.
-		if nhi < nnh && nhs[nhi].weight == uint32(nextHopWeight) {
-			newAdj = AdjNil
+		if nhi < nnh && nhs[nhi].weight == nextHopWeight {
+			newAdj = oldAdj
 			ok = true
 			return
 		}
@@ -446,7 +461,7 @@ func (m *adjacencyMain) addDelNextHop(oldAdj Adj, isDel bool, nextHopAdj Adj, ne
 			nh.adj = nextHopAdj
 		}
 		// In either case set next hop weight.
-		nh.weight = uint32(nextHopWeight)
+		nh.weight = nextHopWeight
 	}
 
 	if len(t) > 0 {
@@ -480,14 +495,14 @@ func (m *adjacencyMain) PoisonAdj(a Adj) {
 	elib.PointerPoison(unsafe.Pointer(&as[0]), uintptr(len(as))*unsafe.Sizeof(as[0]))
 }
 
-func (m *adjacencyMain) FreeAdj(a Adj, delMultipath bool) {
+func (m *Ip) FreeAdj(a Adj, delMultipath bool) {
 	if delMultipath {
 		m.delMultipathAdj(a)
 	}
 	m.adjacencyHeap.Put(uint(a))
 }
 
-func (m *adjacencyMain) Del(a Adj) { m.FreeAdj(a, true) }
+func (m *Ip) DelAdj(a Adj) { m.FreeAdj(a, true) }
 
 func (nhs nextHopVec) find(target Adj) (i uint, ok bool) {
 	for i = 0; i < uint(len(nhs)); i++ {
@@ -512,7 +527,7 @@ func (m *multipathMain) delNextHop(nhs nextHopVec, result nextHopVec, nhi uint) 
 	return r
 }
 
-func (m *adjacencyMain) delMultipathAdj(toDel Adj) {
+func (m *Ip) delMultipathAdj(toDel Adj) {
 	mm := &m.multipathMain
 
 	m.Remaps.Validate(uint(len(m.adjacencyHeap.elts)))
@@ -540,9 +555,9 @@ func (m *adjacencyMain) delMultipathAdj(toDel Adj) {
 			newMa, newMaIndex, _ = m.createMpAdj(t)
 		}
 
-		m.Remaps[ma.adj] = AdjNil
+		m.Remaps[ma.adj] = AdjRemapNil
 		if newMaIndex != maIndex && newMa != nil {
-			m.Remaps[ma.adj] = 1 + newMa.adj
+			m.Remaps[ma.adj].SetAdj(newMa.adj)
 			m.NRemaps++
 		}
 		ma.free(m)
@@ -552,11 +567,16 @@ func (m *adjacencyMain) delMultipathAdj(toDel Adj) {
 func (a *multipathAdjacency) invalidate()   { a.nAdj = 0 }
 func (a *multipathAdjacency) isValid() bool { return a.nAdj != 0 }
 
-func (ma *multipathAdjacency) free(m *adjacencyMain) {
-	// Call adjacency del hooks.
+func (m *Ip) callAdjAddDelHooks(a Adj, isDel bool) {
 	for i := range m.adjAddDelHooks {
-		m.adjAddDelHookVec.Get(i)(m, ma.adj, true)
+		m.adjAddDelHookVec.Get(i)(m, a, isDel)
 	}
+}
+func (m *Ip) CallAdjAddHooks(a Adj) { m.callAdjAddDelHooks(a, false) }
+func (m *Ip) CallAdjDelHooks(a Adj) { m.callAdjAddDelHooks(a, true) }
+
+func (ma *multipathAdjacency) free(m *Ip) {
+	m.CallAdjDelHooks(ma.adj)
 
 	mm := &m.multipathMain
 	nhs := nextHopVec(mm.getNextHopBlock(&ma.unnormalizedNextHops))
@@ -589,7 +609,7 @@ func (m *adjacencyMain) clearCounter(a Adj) {
 
 func (m *adjacencyMain) Get(a Adj) (as []Adjacency) { return m.adjacencyHeap.Slice(uint(a)) }
 
-func (m *adjacencyMain) New(n uint, template *Adjacency) (ai Adj, as []Adjacency) {
+func (m *adjacencyMain) NewAdjWithTemplate(n uint, template *Adjacency) (ai Adj, as []Adjacency) {
 	ai = Adj(m.adjacencyHeap.Get(n))
 	m.validateCounter(ai)
 	as = m.Get(ai)
@@ -597,12 +617,13 @@ func (m *adjacencyMain) New(n uint, template *Adjacency) (ai Adj, as []Adjacency
 		if template != nil {
 			as[i] = *template
 		}
-		as[i].rw.Si = vnet.SiNil
-		as[i].nAdj = uint16(n)
+		as[i].Si = vnet.SiNil
+		as[i].NAdj = uint16(n)
 		m.clearCounter(ai + Adj(i))
 	}
 	return
 }
+func (m *adjacencyMain) NewAdj(n uint) (Adj, []Adjacency) { return m.NewAdjWithTemplate(n, nil) }
 
 func (m *multipathMain) init() {
 	m.nextHopHash.Init(m, 32)
@@ -612,18 +633,18 @@ func (m *adjacencyMain) init() {
 	var as []Adjacency
 
 	// Build miss, drop and local adjacencies.
-	m.missAdjIndex, as = m.New(1, nil)
-	as[0].LookupNextIndex = LookupMiss
+	m.missAdjIndex, as = m.NewAdj(1)
+	as[0].LookupNextIndex = LookupNextMiss
 	if m.missAdjIndex != AdjMiss {
 		panic("miss adjacency must be index 0")
 	}
 
-	m.dropAdjIndex, as = m.New(1, nil)
-	as[0].LookupNextIndex = LookupDrop
+	m.dropAdjIndex, as = m.NewAdj(1)
+	as[0].LookupNextIndex = LookupNextDrop
 
-	m.localAdjIndex, as = m.New(1, nil)
-	as[0].LookupNextIndex = LookupLocal
-	as[0].ifAddr = ifAddrNone
+	m.localAdjIndex, as = m.NewAdj(1)
+	as[0].LookupNextIndex = LookupNextLocal
+	as[0].IfAddr = IfAddrNil
 
 	m.multipathMain.init()
 }

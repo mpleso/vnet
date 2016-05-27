@@ -91,6 +91,10 @@ type HwInterfacer interface {
 	vnet.HwInterfacer
 }
 
+// See vnet.Arper interface.
+// Dummy function to mark ethernet interfaces as supporting ARP.
+func (i *Interface) SupportsArp() {}
+
 func RegisterInterface(hi HwInterfacer, config *InterfaceConfig, format string, args ...interface{}) {
 	i := hi.GetInterface()
 	i.InterfaceConfig = *config
@@ -121,7 +125,11 @@ func (hi *Interface) SetRewrite(v *vnet.Vnet, rw *vnet.Rewrite, packetType vnet.
 	} else {
 		h.Type = t
 	}
-	copy(h.Dst[:], da)
+	if len(da) > 0 {
+		copy(h.Dst[:], da)
+	} else {
+		h.Dst = BroadcastAddr
+	}
 	copy(h.Src[:], hi.Address[:])
 	rw.AddData(unsafe.Pointer(&h), size)
 }

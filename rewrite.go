@@ -7,8 +7,6 @@ import (
 	"unsafe"
 )
 
-type Ref struct{ loop.Ref }
-
 type Rewrite struct {
 	// Software interface to mark re-written packets with.
 	Si Si
@@ -39,7 +37,8 @@ func (r *Rewrite) AddData(p unsafe.Pointer, size uintptr) (l uintptr) {
 	}
 	return l + size
 }
-func (r *Rewrite) getData() []byte { return r.data[:r.dataLen] }
+func (r *Rewrite) getData() []byte           { return r.data[:r.dataLen] }
+func (r *Rewrite) SetMaxPacketSize(hw *HwIf) { r.MaxL3PacketSize = uint16(hw.maxPacketSize) }
 
 func (v *Vnet) SetRewrite(rw *Rewrite, si Si, noder Noder, t PacketType, dstAddr []byte) {
 	sw := v.SwIf(si)
@@ -52,16 +51,17 @@ func (v *Vnet) SetRewrite(rw *Rewrite, si Si, noder Noder, t PacketType, dstAddr
 	rw.MaxL3PacketSize = uint16(hw.maxPacketSize)
 	h.SetRewrite(v, rw, t, dstAddr)
 }
+
 func SetRewrite(rw *Rewrite, si Si, noder Noder, t PacketType, dstAddr []byte) {
 	defaultVnet.SetRewrite(rw, si, noder, t, dstAddr)
 }
 
-func PerformRewrite(r0 *Ref, rw0 *Rewrite) {
+func PerformRewrite(r0 *loop.Ref, rw0 *Rewrite) {
 	r0.Advance(-int(rw0.dataLen))
 	copy(r0.DataSlice(), rw0.getData())
 }
 
-func Perform2Rewrites(r0, r1 *Ref, rw0, rw1 *Rewrite) {
+func Perform2Rewrites(r0, r1 *loop.Ref, rw0, rw1 *Rewrite) {
 	r0.Advance(-int(rw0.dataLen))
 	r1.Advance(-int(rw1.dataLen))
 	copy(r0.DataSlice(), rw0.getData())

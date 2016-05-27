@@ -21,7 +21,7 @@ func (p *CombinedCountersVec) Resize(n uint) {
 	*p = (*p)[:l]
 }
 
-func (p *CombinedCountersVec) Validate(i uint) {
+func (p *CombinedCountersVec) Validate(i uint) *CombinedCounters {
 	c := elib.Index(cap(*p))
 	l := elib.Index(i) + 1
 	if l > c {
@@ -33,6 +33,7 @@ func (p *CombinedCountersVec) Validate(i uint) {
 	if l > elib.Index(len(*p)) {
 		*p = (*p)[:l]
 	}
+	return &(*p)[i]
 }
 
 func (p CombinedCountersVec) Len() uint { return uint(len(p)) }

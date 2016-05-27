@@ -21,7 +21,7 @@ func (p *miniCombinedCounterVec) Resize(n uint) {
 	*p = (*p)[:l]
 }
 
-func (p *miniCombinedCounterVec) Validate(i uint) {
+func (p *miniCombinedCounterVec) Validate(i uint) *miniCombinedCounter {
 	c := elib.Index(cap(*p))
 	l := elib.Index(i) + 1
 	if l > c {
@@ -33,6 +33,7 @@ func (p *miniCombinedCounterVec) Validate(i uint) {
 	if l > elib.Index(len(*p)) {
 		*p = (*p)[:l]
 	}
+	return &(*p)[i]
 }
 
 func (p miniCombinedCounterVec) Len() uint { return uint(len(p)) }
