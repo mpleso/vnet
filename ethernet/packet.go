@@ -4,8 +4,6 @@ import (
 	"github.com/platinasystems/vnet"
 
 	"bytes"
-	"fmt"
-	"net"
 	"unsafe"
 )
 
@@ -13,7 +11,7 @@ import (
 type Header struct {
 	Dst  Address
 	Src  Address
-	Type vnet.Uint16
+	Type Type
 }
 
 type Vlan vnet.Uint16
@@ -24,16 +22,14 @@ type VlanHeader struct {
 	Priority_cfi_and_id vnet.Uint16
 
 	/* Inner ethernet type. */
-	Type vnet.Uint16
+	Type Type
 }
 
 // Packet type from ethernet header.
-type Type uint16
+type Type vnet.Uint16
 
-func (h *Header) GetType() Type      { return Type(h.Type.ToHost()) }
-func (t Type) FromHost() vnet.Uint16 { return vnet.Uint16(t).FromHost() }
-
-//go:generate stringer -type=Type
+func (h *Header) GetType() Type { return Type(vnet.Uint16(h.Type).ToHost()) }
+func (t Type) FromHost() Type   { return Type(vnet.Uint16(t).FromHost()) }
 
 const (
 	AddressBytes    = 6
@@ -44,8 +40,6 @@ const (
 type Address [AddressBytes]byte
 
 var BroadcastAddr = Address{0xff, 0xff, 0xff, 0xff, 0xff, 0xff}
-
-const hexDigit = "0123456789abcdef"
 
 func (a *Address) IsBroadcast() bool {
 	return a[0]&1 != 0
@@ -89,18 +83,6 @@ func (a *Address) ToUint64() (x uint64) {
 	return
 }
 
-func (a *Address) String() string {
-	buf := make([]byte, 0, len(a)*3-1)
-	for i, b := range a {
-		if i > 0 {
-			buf = append(buf, ':')
-		}
-		buf = append(buf, hexDigit[b>>4])
-		buf = append(buf, hexDigit[b&0xF])
-	}
-	return string(buf)
-}
-
 func (a *Address) Equal(b Address) bool {
 	for i := range a {
 		if a[i] != b[i] {
@@ -108,25 +90,6 @@ func (a *Address) Equal(b Address) bool {
 		}
 	}
 	return true
-}
-
-func (a *Address) Parse(s string) (err error) {
-	ha, err := net.ParseMAC(s)
-	if err != nil {
-		return
-	}
-	if len(ha) != len(a) {
-		err = &net.AddrError{Err: "expected 6 bytes", Addr: s}
-		return
-	}
-	for i := 0; i < len(a); i++ {
-		a[i] = ha[i]
-	}
-	return
-}
-
-func (h *Header) String() (s string) {
-	return fmt.Sprintf("%s: %s -> %s", h.GetType().String(), h.Src.String(), h.Dst.String())
 }
 
 // Implement vnet.Header interface.

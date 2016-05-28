@@ -1,5 +1,10 @@
 package ethernet
 
+import (
+	"github.com/platinasystems/elib"
+	"github.com/platinasystems/elib/scan"
+)
+
 const (
 	// Types < 0x600 (1536) are LLC packet lengths.
 	LLC_LENGTH              Type = 0x600
@@ -65,3 +70,89 @@ const (
 	SRP_ISIS                Type = 0xFEFE
 	RESERVED                Type = 0xFFFF
 )
+
+var typeStrings = [...]string{
+	XNS_IDP:                 "XNS_IDP",
+	IP4:                     "IP4",
+	ARP:                     "ARP",
+	VINES_IP:                "VINES_IP",
+	VINES_LOOPBACK:          "VINES_LOOPBACK",
+	VINES_ECHO:              "VINES_ECHO",
+	TRAIN:                   "TRAIN",
+	CDP:                     "CDP",
+	CGMP:                    "CGMP",
+	SRP_CONTROL:             "SRP_CONTROL",
+	CENTRINO_PROMISC:        "CENTRINO_PROMISC",
+	DECNET:                  "DECNET",
+	DECNET_DUMP_LOAD:        "DECNET_DUMP_LOAD",
+	DECNET_REMOTE_CONSOLE:   "DECNET_REMOTE_CONSOLE",
+	DECNET_ROUTE:            "DECNET_ROUTE",
+	DEC_LAT:                 "DEC_LAT",
+	DEC_DIAGNOSTIC:          "DEC_DIAGNOSTIC",
+	DEC_CUSTOMER:            "DEC_CUSTOMER",
+	DEC_SCA:                 "DEC_SCA",
+	TRANSPARENT_BRIDGING:    "TRANSPARENT_BRIDGING",
+	RAW_FRAME_RELAY:         "RAW_FRAME_RELAY",
+	REVERSE_ARP:             "REVERSE_ARP",
+	DEC_LAN_BRIDGE:          "DEC_LAN_BRIDGE",
+	DEC_ETHERNET_ENCRYPTION: "DEC_ETHERNET_ENCRYPTION",
+	DEC_LAN_TRAFFIC_MONITOR: "DEC_LAN_TRAFFIC_MONITOR",
+	DEC_LAST:                "DEC_LAST",
+	APPLETALK:               "APPLETALK",
+	IBM_SNA:                 "IBM_SNA",
+	APPLETALK_AARP:          "APPLETALK_AARP",
+	WELLFLEET_COMPRESSION:   "WELLFLEET_COMPRESSION",
+	VLAN:                   "VLAN",
+	VLAN_IN_VLAN:           "VLAN_IN_VLAN",
+	IPX:                    "IPX",
+	SNMP:                   "SNMP",
+	CABLETRON_ISMP:         "CABLETRON_ISMP",
+	CABLETRON_ISMP_TBFLOOD: "CABLETRON_ISMP_TBFLOOD",
+	IP6:                     "IP6",
+	ATOMIC:                  "ATOMIC",
+	TCP_IP_COMPRESSION:      "TCP_IP_COMPRESSION",
+	IP_AUTONOMOUS_SYSTEMS:   "IP_AUTONOMOUS_SYSTEMS",
+	SECURE_DATA:             "SECURE_DATA",
+	MAC_CONTROL:             "MAC_CONTROL",
+	SLOW_PROTOCOLS:          "SLOW_PROTOCOLS",
+	PPP:                     "PPP",
+	MPLS_UNICAST:            "MPLS_UNICAST",
+	MPLS_MULTICAST:          "MPLS_MULTICAST",
+	PPPOE_DISCOVERY:         "PPPOE_DISCOVERY",
+	PPPOE_SESSION:           "PPPOE_SESSION",
+	INTEL_ANS:               "INTEL_ANS",
+	MICROSOFT_NLB_HEARTBEAT: "MICROSOFT_NLB_HEARTBEAT",
+	CDMA_2000:               "CDMA_2000",
+	PROFINET:                "PROFINET",
+	HYPERSCSI:               "HYPERSCSI",
+	AOE:                     "AOE",
+	BRDWALK:                 "BRDWALK",
+	LOOPBACK:                "LOOPBACK",
+	RTNET_MAC:               "RTNET_MAC",
+	RTNET_CONFIG:            "RTNET_CONFIG",
+	PGLAN:                   "PGLAN",
+	SRP_ISIS:                "SRP_ISIS",
+	RESERVED:                "RESERVED",
+}
+
+func (t Type) String() string {
+	return elib.StringerHex(typeStrings[:], int(t))
+}
+
+var typeMap map[string]int = getTypeMap()
+
+func getTypeMap() (m map[string]int) {
+	m = make(map[string]int)
+	for i, v := range typeStrings {
+		m[v] = i
+	}
+	return
+}
+
+func (t *Type) Parse(s *scan.Scanner) (err error) {
+	var i int
+	if i, err = (scan.StringMap)(typeMap).Parse(s); err == nil {
+		*t = Type(i).FromHost()
+	}
+	return err
+}

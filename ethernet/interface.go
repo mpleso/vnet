@@ -101,7 +101,7 @@ func RegisterInterface(hi HwInterfacer, config *InterfaceConfig, format string, 
 	vnet.RegisterHwInterface(hi, format, args...)
 }
 
-var typeMap = [...]Type{
+var rewriteTypeMap = [...]Type{
 	vnet.IP4:            IP4,
 	vnet.IP6:            IP6,
 	vnet.MPLS_UNICAST:   MPLS_UNICAST,
@@ -115,7 +115,7 @@ func (hi *Interface) SetRewrite(v *vnet.Vnet, rw *vnet.Rewrite, packetType vnet.
 	}
 	sw := v.SwIf(rw.Si)
 	sup := v.SupSwIf(sw)
-	t := typeMap[packetType].FromHost()
+	t := rewriteTypeMap[packetType].FromHost()
 	size := uintptr(HeaderBytes)
 	if sw != sup {
 		h.Type = VLAN.FromHost()
