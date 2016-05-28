@@ -2,6 +2,7 @@ package vnet
 
 import (
 	"github.com/platinasystems/elib/loop"
+	"github.com/platinasystems/elib/scan"
 
 	"fmt"
 )
@@ -28,6 +29,8 @@ type HwIf struct {
 
 	// Max size of packet in bytes (MTU)
 	maxPacketSize uint
+
+	subSiById map[IfIndex]Si
 }
 
 type IfIndex uint32
@@ -43,7 +46,6 @@ type HwInterfacer interface {
 
 func (h *HwIf) GetHwIf() *HwIf          { return h }
 func (h *HwIf) IfName() string          { return h.ifName }
-func (h *HwIf) SetIfName(v string)      { h.ifName = v }
 func (h *HwIf) Speed() Bandwidth        { return h.speed }
 func (h *HwIf) SetSpeed(v Bandwidth)    { h.speed = v }
 func (h *HwIf) LinkUp() bool            { return h.linkUp }
@@ -55,9 +57,21 @@ func (h *HwIf) SetMaxPacketSize(v uint) { h.maxPacketSize = v }
 func (h *HwIf) Si() Si                  { return h.si }
 func (h *HwIf) Hi() Hi                  { return h.hi }
 
-func (h *HwIf) SetAdminUp(v bool) {
-	s := defaultVnet.SwIf(h.si)
-	s.SetAdminUp(v)
+func (h *HwIf) SetIfName(v *Vnet, name string) {
+	h.ifName = name
+	v.hwIfIndexByName.Set(name, uint(h.hi))
+}
+
+func (h *HwIf) SetSubInterface(id IfIndex, si Si) {
+	if h.subSiById == nil {
+		h.subSiById = make(map[IfIndex]Si)
+	}
+	h.subSiById[id] = si
+}
+
+func (h *HwIf) SetAdminUp(v *Vnet, isUp bool) {
+	s := v.SwIf(h.si)
+	s.SetAdminUp(isUp)
 }
 
 func (h *HwIf) LinkString() (s string) {
@@ -169,6 +183,7 @@ func (i *swIf) Id() IfIndex       { return i.id }
 
 type interfaceMain struct {
 	hwInterfaces             []HwInterfacer
+	hwIfIndexByName          scan.StringMap
 	swInterfaces             swIfPool
 	ifThreads                ifThreadVec
 	swIfCounterNames         []string
@@ -189,7 +204,7 @@ func (v *Vnet) RegisterHwInterface(hi HwInterfacer, format string, args ...inter
 	h.hi = Hi(l)
 	h.si = v.NewSwIf(swIfHardware, IfIndex(h.hi))
 	name := fmt.Sprintf(format, args...)
-	h.SetIfName(name)
+	h.SetIfName(v, name)
 	// Register interface input/output node.
 	v.Register(hi, format+"-data", args...)
 }

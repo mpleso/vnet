@@ -142,7 +142,7 @@ func (t Type) String() string {
 var typeMap = scan.NewStringMap(typeStrings[:])
 
 func (t *Type) Parse(s *scan.Scanner) (err error) {
-	var i int
+	var i uint
 	if i, err = typeMap.Parse(s); err == nil {
 		*t = Type(i).FromHost()
 	}
