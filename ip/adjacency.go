@@ -51,7 +51,7 @@ func (n LookupNext) String() string { return elib.StringerHex(lookupNextNames[:]
 func (n *LookupNext) Parse(s *scan.Scanner) error {
 	tok, text := s.Next()
 	if tok != scan.Ident {
-		return s.UnexpectedError(scan.Ident, text)
+		return s.UnexpectedError(scan.Ident, tok, text)
 	}
 	switch text {
 	case "miss":

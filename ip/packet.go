@@ -1,5 +1,10 @@
 package ip
 
+import (
+	"github.com/platinasystems/elib"
+	"github.com/platinasystems/elib/scan"
+)
+
 // 8-bit protocol field from IP 4/6 headers.
 type Protocol uint8
 
@@ -47,8 +52,8 @@ const (
 	IL                      Protocol = 40
 	IP6_IN_IP               Protocol = 41
 	SDRP                    Protocol = 42
-	IPV6_ROUTE              Protocol = 43
-	IPV6_FRAGMENTATION      Protocol = 44
+	IP6_ROUTE               Protocol = 43
+	IP6_FRAGMENTATION       Protocol = 44
 	IDRP                    Protocol = 45
 	RSVP                    Protocol = 46
 	GRE                     Protocol = 47
@@ -140,4 +145,161 @@ const (
 	RESERVED                Protocol = 255
 )
 
-//go:generate stringer -type=Protocol
+var protocolStrings = [...]string{
+	IP6_HOP_BY_HOP_OPTIONS: "IP6 HOP BY HOP OPTIONS",
+	ICMP:                    "ICMP",
+	IGMP:                    "IGMP",
+	GGP:                     "GGP",
+	IP_IN_IP:                "IP IN IP",
+	ST:                      "ST",
+	TCP:                     "TCP",
+	CBT:                     "CBT",
+	EGP:                     "EGP",
+	IGP:                     "IGP",
+	BBN_RCC_MON:             "BBN RCC MON",
+	NVP_II:                  "NVP II",
+	PUP:                     "PUP",
+	ARGUS:                   "ARGUS",
+	EMCON:                   "EMCON",
+	XNET:                    "XNET",
+	CHAOS:                   "CHAOS",
+	UDP:                     "UDP",
+	MUX:                     "MUX",
+	DCN_MEAS:                "DCN MEAS",
+	HMP:                     "HMP",
+	PRM:                     "PRM",
+	XNS_IDP:                 "XNS IDP",
+	TRUNK_1:                 "TRUNK 1",
+	TRUNK_2:                 "TRUNK 2",
+	LEAF_1:                  "LEAF 1",
+	LEAF_2:                  "LEAF 2",
+	RDP:                     "RDP",
+	IRTP:                    "IRTP",
+	ISO_TP4:                 "ISO TP4",
+	NETBLT:                  "NETBLT",
+	MFE_NSP:                 "MFE NSP",
+	MERIT_INP:               "MERIT INP",
+	SEP:                     "SEP",
+	_3PC:                    " 3PC",
+	IDPR:                    "IDPR",
+	XTP:                     "XTP",
+	DDP:                     "DDP",
+	IDPR_CMTP:               "IDPR CMTP",
+	TP:                      "TP",
+	IL:                      "IL",
+	IP6_IN_IP:               "IP6 IN IP",
+	SDRP:                    "SDRP",
+	IP6_ROUTE:               "IP6 ROUTE",
+	IP6_FRAGMENTATION:       "IP6 FRAGMENTATION",
+	IDRP:                    "IDRP",
+	RSVP:                    "RSVP",
+	GRE:                     "GRE",
+	MHRP:                    "MHRP",
+	BNA:                     "BNA",
+	IPSEC_ESP:               "IPSECESP",
+	IPSEC_AH:                "IPSEC AH",
+	I_NLSP:                  "I NLSP",
+	SWIPE:                   "SWIPE",
+	NARP:                    "NARP",
+	MOBILE:                  "MOBILE",
+	TLSP:                    "TLSP",
+	SKIP:                    "SKIP",
+	ICMP6:                   "ICMP6",
+	IP6_NONXT:               "IP6 NONXT",
+	IP6_DESTINATION_OPTIONS: "IP6 DESTINATION OPTIONS",
+	CFTP:            "CFTP",
+	SAT_EXPAK:       "SAT EXPAK",
+	KRYPTOLAN:       "KRYPTOLAN",
+	RVD:             "RVD",
+	IPPC:            "IPPC",
+	SAT_MON:         "SAT MON",
+	VISA:            "VISA",
+	IPCV:            "IPCV",
+	CPNX:            "CPNX",
+	CPHB:            "CPHB",
+	WSN:             "WSN",
+	PVP:             "PVP",
+	BR_SAT_MON:      "BR SAT MON",
+	SUN_ND:          "SUN ND",
+	WB_MON:          "WB MON",
+	WB_EXPAK:        "WB EXPAK",
+	ISO_IP:          "ISO IP",
+	VMTP:            "VMTP",
+	SECURE_VMTP:     "SECURE VMTP",
+	VINES:           "VINES",
+	TTP:             "TTP",
+	NSFNET_IGP:      "NSFNET IGP",
+	DGP:             "DGP",
+	TCF:             "TCF",
+	EIGRP:           "EIGRP",
+	OSPF:            "OSPF",
+	SPRITE_RPC:      "SPRITE RPC",
+	LARP:            "LARP",
+	MTP:             "MTP",
+	AX:              "AX",
+	IPIP:            "IPIP",
+	MICP:            "MICP",
+	SCC_SP:          "SCC SP",
+	ETHERIP:         "ETHERIP",
+	ENCAP:           "ENCAP",
+	GMTP:            "GMTP",
+	IFMP:            "IFMP",
+	PNNI:            "PNNI",
+	PIM:             "PIM",
+	ARIS:            "ARIS",
+	SCPS:            "SCPS",
+	QNX:             "QNX",
+	A:               "A",
+	IPCOMP:          "IPCOMP",
+	SNP:             "SNP",
+	COMPAQ_PEER:     "COMPAQ PEER",
+	IPX_IN_IP:       "IPX IN IP",
+	VRRP:            "VRRP",
+	PGM:             "PGM",
+	L2TP:            "L2TP",
+	DDX:             "DDX",
+	IATP:            "IATP",
+	STP:             "STP",
+	SRP:             "SRP",
+	UTI:             "UTI",
+	SMP:             "SMP",
+	SM:              "SM",
+	PTP:             "PTP",
+	ISIS:            "ISIS",
+	FIRE:            "FIRE",
+	CRTP:            "CRTP",
+	CRUDP:           "CRUDP",
+	SSCOPMCE:        "SSCOPMCE",
+	IPLT:            "IPLT",
+	SPS:             "SPS",
+	PIPE:            "PIPE",
+	SCTP:            "SCTP",
+	FC:              "FC",
+	RSVP_E2E_IGNORE: "RSVP E2E IGNORE",
+	MOBILITY:        "MOBILITY",
+	UDP_LITE:        "UDP LITE",
+	MPLS_IN_IP:      "MPLS IN IP",
+	RESERVED:        "RESERVED",
+}
+
+func (p *Protocol) String() string {
+	return elib.StringerHex(protocolStrings[:], int(*p))
+}
+
+var protocolMap map[string]int = protoMap()
+
+func protoMap() (m map[string]int) {
+	m = make(map[string]int)
+	for i, v := range protocolStrings {
+		m[v] = i
+	}
+	return
+}
+
+func (p *Protocol) Parse(s *scan.Scanner) (err error) {
+	var i int
+	if i, err = (scan.StringMap)(protocolMap).Parse(s); err == nil {
+		*p = Protocol(i)
+	}
+	return err
+}

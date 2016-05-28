@@ -5,7 +5,6 @@ import (
 	"github.com/platinasystems/vnet/ip"
 
 	"bytes"
-	"fmt"
 	"unsafe"
 )
 
@@ -54,21 +53,6 @@ type Header struct {
 
 	// Source and destination address.
 	Src, Dst Address
-}
-
-func (h *Header) String() (s string) {
-	s = fmt.Sprintf("%s: %s -> %s", h.Protocol.String(), h.Src.String(), h.Dst.String())
-	if h.Ip_version_and_header_length != 0x45 {
-		s += fmt.Sprintf(", version: 0x%02x", h.Ip_version_and_header_length)
-	}
-	if got, want := h.Checksum, h.ComputeChecksum(); got != want {
-		s += fmt.Sprintf(", checksum: 0x%04x (should be 0x%04x)", got.ToHost(), want.ToHost())
-	}
-	return
-}
-
-func (a *Address) String() string {
-	return fmt.Sprintf("%d.%d.%d.%d", a[0], a[1], a[2], a[3])
 }
 
 func (a *Address) AsUint32() uint32        { return *(*uint32)(unsafe.Pointer(&a[0])) }
