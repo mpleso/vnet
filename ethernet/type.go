@@ -139,19 +139,11 @@ func (t Type) String() string {
 	return elib.StringerHex(typeStrings[:], int(t))
 }
 
-var typeMap map[string]int = getTypeMap()
-
-func getTypeMap() (m map[string]int) {
-	m = make(map[string]int)
-	for i, v := range typeStrings {
-		m[v] = i
-	}
-	return
-}
+var typeMap = scan.NewStringMap(typeStrings[:])
 
 func (t *Type) Parse(s *scan.Scanner) (err error) {
 	var i int
-	if i, err = (scan.StringMap)(typeMap).Parse(s); err == nil {
+	if i, err = typeMap.Parse(s); err == nil {
 		*t = Type(i).FromHost()
 	}
 	return err

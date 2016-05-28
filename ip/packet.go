@@ -286,19 +286,11 @@ func (p *Protocol) String() string {
 	return elib.StringerHex(protocolStrings[:], int(*p))
 }
 
-var protocolMap map[string]int = protoMap()
-
-func protoMap() (m map[string]int) {
-	m = make(map[string]int)
-	for i, v := range protocolStrings {
-		m[v] = i
-	}
-	return
-}
+var protocolMap = scan.NewStringMap(protocolStrings[:])
 
 func (p *Protocol) Parse(s *scan.Scanner) (err error) {
 	var i int
-	if i, err = (scan.StringMap)(protocolMap).Parse(s); err == nil {
+	if i, err = protocolMap.Parse(s); err == nil {
 		*p = Protocol(i)
 	}
 	return err
