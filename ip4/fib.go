@@ -439,12 +439,13 @@ func (m *Main) AddDelInterfaceAddress(si vnet.Si, addr *Prefix, isDel bool) (err
 	return
 }
 
-func (m *Main) swIfAdminUpDown(v *vnet.Vnet, si vnet.Si, isUp bool) {
+func (m *Main) swIfAdminUpDown(v *vnet.Vnet, si vnet.Si, isUp bool) (err error) {
 	m.validateDefaultFibForSi(si)
 	m.ForeachIfAddress(si, func(ia ip.IfAddr, ifa *ip.IfAddress) (err error) {
 		m.addDelInterfaceRoutes(ia, isUp)
 		return
 	})
+	return
 }
 
 func (m *Main) init(v *vnet.Vnet) {

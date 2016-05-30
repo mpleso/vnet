@@ -8,8 +8,6 @@ import (
 	"github.com/platinasystems/vnet/ethernet"
 	"github.com/platinasystems/vnet/ip"
 	"github.com/platinasystems/vnet/ip4"
-
-	"fmt"
 )
 
 type myNode struct {
@@ -22,10 +20,31 @@ type myNode struct {
 var MyNode = &myNode{}
 
 func init() {
-	config := &ethernet.InterfaceConfig{
-		Address: ethernet.Address{1, 2, 3, 4, 5, 6},
-	}
-	ethernet.RegisterInterface(MyNode, config, "my-node")
+	vnet.AddInit(func(v *vnet.Vnet) {
+		config := &ethernet.InterfaceConfig{
+			Address: ethernet.Address{1, 2, 3, 4, 5, 6},
+		}
+		ethernet.RegisterInterface(v, MyNode, config, "my-node")
+
+		v.CliAdd(&cli.Command{
+			Name:      "a",
+			ShortHelp: "a short help",
+			Action: func(c cli.Commander, w cli.Writer, s *cli.Scanner) (err error) {
+				n := uint(1)
+				if s.Peek() != cli.EOF {
+					if err = s.Parse("%d", &n); err != nil {
+						return
+					}
+				}
+				if n == 0 {
+					MyNode.Activate(true)
+				} else {
+					MyNode.ActivateCount(n)
+				}
+				return
+			},
+		})
+	})
 }
 
 type out struct {
@@ -89,7 +108,7 @@ func (n *myNode) LoopInit(l *loop.Loop) {
 				Header: arp.Header{
 					Opcode:          arp.Request.FromHost(),
 					L2Type:          arp.L2TypeEthernet.FromHost(),
-					L3Type:          ethernet.IP4.FromHost(),
+					L3Type:          vnet.Uint16(ethernet.IP4.FromHost()),
 					NL2AddressBytes: ethernet.AddressBytes,
 					NL3AddressBytes: ip4.AddressBytes,
 				},
@@ -146,27 +165,4 @@ func (n *myNode) LoopOutput(l *loop.Loop, li loop.LooperIn) {
 	panic("not yet")
 }
 
-func init() {
-	loop.CliAdd(&cli.Command{
-		Name:      "a",
-		ShortHelp: "a short help",
-		Action: func(c cli.Commander, w cli.Writer, s *cli.Scanner) {
-			n := uint(1)
-			if s.Peek() != cli.EOF {
-				if err := s.Parse("%d", &n); err != nil {
-					fmt.Fprintln(w, "parse error")
-					return
-				}
-			}
-			if n == 0 {
-				MyNode.Activate(true)
-			} else {
-				MyNode.ActivateCount(n)
-			}
-		},
-	})
-}
-
-func main() {
-	loop.Run()
-}
+func main() { vnet.Run() }

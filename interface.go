@@ -4,10 +4,13 @@ import (
 	"github.com/platinasystems/elib/loop"
 	"github.com/platinasystems/elib/scan"
 
+	"errors"
 	"fmt"
 )
 
 type HwIf struct {
+	vnet *Vnet
+
 	ifName string
 
 	hi Hi
@@ -48,10 +51,6 @@ func (h *HwIf) GetHwIf() *HwIf          { return h }
 func (h *HwIf) IfName() string          { return h.ifName }
 func (h *HwIf) Speed() Bandwidth        { return h.speed }
 func (h *HwIf) SetSpeed(v Bandwidth)    { h.speed = v }
-func (h *HwIf) LinkUp() bool            { return h.linkUp }
-func (h *HwIf) SetLinkUp(v bool)        { h.linkUp = v }
-func (h *HwIf) IsProvisioned() bool     { return !h.unprovisioned }
-func (h *HwIf) SetProvisioned(v bool)   { h.unprovisioned = !v }
 func (h *HwIf) MaxPacketSize() uint     { return h.maxPacketSize }
 func (h *HwIf) SetMaxPacketSize(v uint) { h.maxPacketSize = v }
 func (h *HwIf) Si() Si                  { return h.si }
@@ -67,11 +66,6 @@ func (h *HwIf) SetSubInterface(id IfIndex, si Si) {
 		h.subSiById = make(map[IfIndex]Si)
 	}
 	h.subSiById[id] = si
-}
-
-func (h *HwIf) SetAdminUp(v *Vnet, isUp bool) {
-	s := v.SwIf(h.si)
-	s.SetAdminUp(isUp)
 }
 
 func (h *HwIf) LinkString() (s string) {
@@ -129,11 +123,11 @@ type swIf struct {
 	flags swIfFlag
 
 	// Pool index for this interface.
-	swIf Si
+	si Si
 
 	// Software interface index of super-interface.
 	// Equal to index if this interface is not a sub-interface.
-	supSwIf Si
+	supSi Si
 
 	// For hardware interface: HwIfIndex
 	// For sub interface: sub interface id (e.g. vlan/vc number).
@@ -146,8 +140,8 @@ func (m *interfaceMain) NewSwIf(kind swIfKind, id IfIndex) (si Si) {
 	si = Si(m.swInterfaces.GetIndex())
 	s := m.SwIf(si)
 	s.kind = kind
-	s.swIf = si
-	s.supSwIf = si
+	s.si = si
+	s.supSi = si
 	s.id = id
 	m.counterValidate(si)
 	return
@@ -156,8 +150,8 @@ func (m *interfaceMain) NewSwIf(kind swIfKind, id IfIndex) (si Si) {
 func (m *interfaceMain) SwIf(i Si) *swIf { return &m.swInterfaces.elts[i] }
 func (m *interfaceMain) SupSwIf(s *swIf) (sup *swIf) {
 	sup = s
-	if s.supSwIf != s.swIf {
-		sup = m.SwIf(s.supSwIf)
+	if s.supSi != s.si {
+		sup = m.SwIf(s.supSi)
 	}
 	return
 }
@@ -177,9 +171,69 @@ func (s *swIf) IfName(vn *Vnet) (v string) {
 }
 func (s Si) IfName(v *Vnet) string { return v.SwIf(s).IfName(v) }
 
-func (i *swIf) IsAdminUp() bool   { return i.flags&swIfAdminUp != 0 }
-func (i *swIf) SetAdminUp(v bool) { i.flags |= swIfAdminUp }
-func (i *swIf) Id() IfIndex       { return i.id }
+func (i *swIf) Id() IfIndex { return i.id }
+
+func (i *swIf) IsAdminUp() bool { return i.flags&swIfAdminUp != 0 }
+
+func (sw *swIf) SetAdminUp(v *Vnet, wantUp bool) (err error) {
+	isUp := sw.flags&swIfAdminUp != 0
+	if isUp == wantUp {
+		return
+	}
+	sw.flags |= swIfAdminUp
+	for i := range v.swIfAdminUpDownHooks.hooks {
+		err = v.swIfAdminUpDownHooks.Get(i)(v, sw.si, wantUp)
+		if err != nil {
+			return
+		}
+	}
+	return
+}
+
+func (h *HwIf) SetAdminUp(isUp bool) (err error) {
+	if h.unprovisioned {
+		err = errors.New("hardware interface is unprovisioned")
+		return
+	}
+
+	s := h.vnet.SwIf(h.si)
+	err = s.SetAdminUp(h.vnet, isUp)
+	return
+}
+
+func (h *HwIf) IsProvisioned() bool { return !h.unprovisioned }
+
+func (h *HwIf) SetProvisioned(v bool) (err error) {
+	if !h.unprovisioned == v {
+		return
+	}
+	h.unprovisioned = !v
+	vn := h.vnet
+	for i := range vn.hwIfProvisionHooks.hooks {
+		err = vn.hwIfProvisionHooks.Get(i)(vn, h.hi, v)
+		if err != nil {
+			return
+		}
+	}
+	return
+}
+
+func (h *HwIf) LinkUp() bool { return h.linkUp }
+
+func (h *HwIf) SetLinkUp(v bool) (err error) {
+	if h.linkUp == v {
+		return
+	}
+	h.linkUp = v
+	vn := h.vnet
+	for i := range vn.hwIfLinkUpDownHooks.hooks {
+		err = vn.hwIfLinkUpDownHooks.Get(i)(vn, h.hi, v)
+		if err != nil {
+			return
+		}
+	}
+	return
+}
 
 type interfaceMain struct {
 	hwInterfaces             []HwInterfacer
@@ -201,16 +255,13 @@ func (v *Vnet) RegisterHwInterface(hi HwInterfacer, format string, args ...inter
 	l := len(v.hwInterfaces)
 	v.hwInterfaces = append(v.hwInterfaces, hi)
 	h := hi.GetHwIf()
+	h.vnet = v
 	h.hi = Hi(l)
 	h.si = v.NewSwIf(swIfHardware, IfIndex(h.hi))
 	name := fmt.Sprintf(format, args...)
 	h.SetIfName(v, name)
 	// Register interface input/output node.
 	v.Register(hi, format+"-data", args...)
-}
-
-func RegisterHwInterface(hi HwInterfacer, format string, args ...interface{}) {
-	defaultVnet.RegisterHwInterface(hi, format, args...)
 }
 
 type interfaceThread struct {
@@ -233,7 +284,7 @@ func (v *Vnet) GetIfThread(id uint) (t *interfaceThread) {
 	}
 	return
 }
-func (n *Node) GetIfThread() *interfaceThread { return defaultVnet.GetIfThread(n.ThreadId()) }
+func (n *Node) GetIfThread() *interfaceThread { return n.Vnet.GetIfThread(n.ThreadId()) }
 
 // Interface ordering for output.
 func (m *interfaceMain) HwLessThan(a, b *HwIf) bool {
@@ -298,6 +349,15 @@ func (b Bandwidth) String() string {
 	return fmt.Sprintf("%g%sbps", b, prefix)
 }
 
+func (b *Bandwidth) Parse(s *scan.Scanner) (err error) {
+	var f scan.Float64
+	if err = f.Parse(s); err == nil {
+		*b = Bandwidth(f)
+		return
+	}
+	return
+}
+
 type HwIfClasser interface {
 	SetRewrite(v *Vnet, r *Rewrite, t PacketType, dstAddr []byte)
 }
@@ -305,11 +365,11 @@ type HwIfClasser interface {
 type HwDevicer interface {
 }
 
-type SwIfAddDelHook func(v *Vnet, si Si, isDel bool)
-type SwIfAdminUpDownHook func(v *Vnet, si Si, isUp bool)
-type HwIfAddDelHook func(v *Vnet, hi Hi, isDel bool)
-type HwIfLinkUpDownHook func(v *Vnet, hi Hi, isUp bool)
-type HwIfProvisionHook func(v *Vnet, hi Hi, isProvisioned bool)
+type SwIfAddDelHook func(v *Vnet, si Si, isDel bool) error
+type SwIfAdminUpDownHook func(v *Vnet, si Si, isUp bool) error
+type HwIfAddDelHook func(v *Vnet, hi Hi, isDel bool) error
+type HwIfLinkUpDownHook func(v *Vnet, hi Hi, isUp bool) error
+type HwIfProvisionHook func(v *Vnet, hi Hi, isProvisioned bool) error
 
 //go:generate gentemplate -id SwIfAddDelHook -d Package=vnet -d DepsType=SwIfAddDelHookVec -d Type=SwIfAddDelHook -d Data=hooks github.com/platinasystems/elib/dep/dep.tmpl
 //go:generate gentemplate -id SwIfAdminUpDownHook -d Package=vnet -d DepsType=SwIfAdminUpDownHookVec -d Type=SwIfAdminUpDownHook -d Data=hooks github.com/platinasystems/elib/dep/dep.tmpl

@@ -17,6 +17,7 @@ func (v *Vnet) ParseHwIf(s *scan.Scanner) (hi Hi, err error) {
 func (v *Vnet) ParseSwIf(s *scan.Scanner) (si Si, err error) {
 	var hi Hi
 	if hi, err = v.ParseHwIf(s); err != nil {
+		err = fmt.Errorf("unknown hardware interface: %s", err)
 		return
 	}
 	// Initially get software interface from hardware interface.
@@ -34,5 +35,15 @@ func (v *Vnet) ParseSwIf(s *scan.Scanner) (si Si, err error) {
 			err = fmt.Errorf("unkown sub interface id: %d", id)
 		}
 	}
+	return
+}
+
+type SwIfParse struct {
+	vnet *Vnet
+	si   Si
+}
+
+func (x *SwIfParse) Parse(s *scan.Scanner) (err error) {
+	x.si, err = x.vnet.ParseSwIf(s)
 	return
 }

@@ -47,13 +47,9 @@ func (v *Vnet) SetRewrite(rw *Rewrite, si Si, noder Noder, t PacketType, dstAddr
 	n := noder.GetNode()
 	rw.Si = si
 	rw.NodeIndex = uint32(n.Index())
-	rw.NextIndex = uint32(loop.AddNext(noder, h))
+	rw.NextIndex = uint32(v.loop.AddNext(noder, h))
 	rw.MaxL3PacketSize = uint16(hw.maxPacketSize)
 	h.SetRewrite(v, rw, t, dstAddr)
-}
-
-func SetRewrite(rw *Rewrite, si Si, noder Noder, t PacketType, dstAddr []byte) {
-	defaultVnet.SetRewrite(rw, si, noder, t, dstAddr)
 }
 
 func PerformRewrite(r0 *loop.Ref, rw0 *Rewrite) {

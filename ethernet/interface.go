@@ -95,10 +95,10 @@ type HwInterfacer interface {
 // Dummy function to mark ethernet interfaces as supporting ARP.
 func (i *Interface) SupportsArp() {}
 
-func RegisterInterface(hi HwInterfacer, config *InterfaceConfig, format string, args ...interface{}) {
+func RegisterInterface(v *vnet.Vnet, hi HwInterfacer, config *InterfaceConfig, format string, args ...interface{}) {
 	i := hi.GetInterface()
 	i.InterfaceConfig = *config
-	vnet.RegisterHwInterface(hi, format, args...)
+	v.RegisterHwInterface(hi, format, args...)
 }
 
 var rewriteTypeMap = [...]Type{

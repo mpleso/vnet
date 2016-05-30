@@ -3,7 +3,7 @@ package vnet
 import (
 	"github.com/platinasystems/elib"
 	"github.com/platinasystems/elib/cli"
-	"github.com/platinasystems/elib/loop"
+	"github.com/platinasystems/elib/scan"
 
 	"sort"
 )
@@ -34,7 +34,7 @@ type showSwIf struct {
 }
 type showSwIfs []showSwIf
 
-func (v *Vnet) showSwIfs(c cli.Commander, w cli.Writer, s *cli.Scanner) {
+func (v *Vnet) showSwIfs(c cli.Commander, w cli.Writer, s *cli.Scanner) (err error) {
 	swIfs := &swIfIndices{}
 	swIfs.Init(v)
 	sort.Sort(swIfs)
@@ -44,7 +44,7 @@ func (v *Vnet) showSwIfs(c cli.Commander, w cli.Writer, s *cli.Scanner) {
 	for i := range swIfs.ifs {
 		si := v.SwIf(swIfs.ifs[i])
 		first := true
-		v.foreachCounter(verbose, si.swIf, func(counter string, count uint64) {
+		v.foreachCounter(verbose, si.si, func(counter string, count uint64) {
 			s := showSwIf{
 				Counter: counter,
 				Count:   count,
@@ -58,10 +58,12 @@ func (v *Vnet) showSwIfs(c cli.Commander, w cli.Writer, s *cli.Scanner) {
 		})
 	}
 	elib.TabulateWrite(w, sifs)
+	return
 }
 
-func (v *Vnet) clearSwIfs(c cli.Commander, w cli.Writer, s *cli.Scanner) {
+func (v *Vnet) clearSwIfs(c cli.Commander, w cli.Writer, s *cli.Scanner) (err error) {
 	v.clearIfCounters()
+	return
 }
 
 type showHwIf struct {
@@ -75,7 +77,7 @@ func (ns showHwIfs) Less(i, j int) bool { return ns[i].Name < ns[j].Name }
 func (ns showHwIfs) Swap(i, j int)      { ns[i], ns[j] = ns[j], ns[i] }
 func (ns showHwIfs) Len() int           { return len(ns) }
 
-func (v *Vnet) showHwIfs(c cli.Commander, w cli.Writer, s *cli.Scanner) {
+func (v *Vnet) showHwIfs(c cli.Commander, w cli.Writer, s *cli.Scanner) (err error) {
 	ifs := showHwIfs{}
 	for _, hi := range v.hwInterfaces {
 		h := hi.GetHwIf()
@@ -90,27 +92,57 @@ func (v *Vnet) showHwIfs(c cli.Commander, w cli.Writer, s *cli.Scanner) {
 	}
 	sort.Sort(ifs)
 	elib.TabulateWrite(w, ifs)
+	return
+}
+
+func (v *Vnet) setSwIf(c cli.Commander, w cli.Writer, s *cli.Scanner) (err error) {
+	var (
+		isUp scan.UpDown
+	)
+	x := SwIfParse{vnet: v}
+	if err = s.Parse("state % %", &x, &isUp); err == nil {
+		s := v.SwIf(x.si)
+		err = s.SetAdminUp(v, bool(isUp))
+		return
+	}
+	return
+}
+
+func (v *Vnet) setHwIf(c cli.Commander, w cli.Writer, s *cli.Scanner) (err error) {
+	return
 }
 
 func init() {
-	cmds := [...]cli.Command{
-		cli.Command{
-			Name:      "show interfaces",
-			ShortHelp: "show interface statistics",
-			Action:    defaultVnet.showSwIfs,
-		},
-		cli.Command{
-			Name:      "clear interfaces",
-			ShortHelp: "clear interface statistics",
-			Action:    defaultVnet.clearSwIfs,
-		},
-		cli.Command{
-			Name:      "show hardware-interfaces",
-			ShortHelp: "show hardware interface statistics",
-			Action:    defaultVnet.showHwIfs,
-		},
-	}
-	for i := range cmds {
-		loop.CliAdd(&cmds[i])
-	}
+	AddInit(func(v *Vnet) {
+		cmds := [...]cli.Command{
+			cli.Command{
+				Name:      "show interfaces",
+				ShortHelp: "show interface statistics",
+				Action:    v.showSwIfs,
+			},
+			cli.Command{
+				Name:      "clear interfaces",
+				ShortHelp: "clear interface statistics",
+				Action:    v.clearSwIfs,
+			},
+			cli.Command{
+				Name:      "show hardware-interfaces",
+				ShortHelp: "show hardware interface statistics",
+				Action:    v.showHwIfs,
+			},
+			cli.Command{
+				Name:      "set interface",
+				ShortHelp: "set interface commands",
+				Action:    v.setSwIf,
+			},
+			cli.Command{
+				Name:      "set hardware-interface",
+				ShortHelp: "set hardware interface commands",
+				Action:    v.setHwIf,
+			},
+		}
+		for i := range cmds {
+			v.CliAdd(&cmds[i])
+		}
+	})
 }
