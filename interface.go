@@ -180,7 +180,7 @@ func (sw *swIf) SetAdminUp(v *Vnet, wantUp bool) (err error) {
 	if isUp == wantUp {
 		return
 	}
-	sw.flags |= swIfAdminUp
+	sw.flags ^= swIfAdminUp
 	for i := range v.swIfAdminUpDownHooks.hooks {
 		err = v.swIfAdminUpDownHooks.Get(i)(v, sw.si, wantUp)
 		if err != nil {
