@@ -132,7 +132,7 @@ type swIf struct {
 
 //go:generate gentemplate -d Package=vnet -id swIf -d PoolType=swIfPool -d Type=swIf -d Data=elts github.com/platinasystems/elib/pool.tmpl
 
-func (m *interfaceMain) NewSwIf(kind swIfKind, id IfIndex) (si Si) {
+func (m *Vnet) NewSwIf(kind swIfKind, id IfIndex) (si Si, err error) {
 	si = Si(m.swInterfaces.GetIndex())
 	s := m.SwIf(si)
 	s.kind = kind
@@ -140,6 +140,14 @@ func (m *interfaceMain) NewSwIf(kind swIfKind, id IfIndex) (si Si) {
 	s.supSi = si
 	s.id = id
 	m.counterValidate(si)
+
+	for i := range m.swIfAddDelHooks.hooks {
+		err = m.swIfAddDelHooks.Get(i)(m, s.si, false)
+		if err != nil {
+			return
+		}
+	}
+
 	return
 }
 
@@ -263,17 +271,21 @@ type interfaceMain struct {
 
 //go:generate gentemplate -d Package=vnet -id ifThread -d VecType=ifThreadVec -d Type=*interfaceThread github.com/platinasystems/elib/vec.tmpl
 
-func (v *Vnet) RegisterHwInterface(hi HwInterfacer, format string, args ...interface{}) {
+func (v *Vnet) RegisterHwInterface(hi HwInterfacer, format string, args ...interface{}) (err error) {
 	l := len(v.hwInterfaces)
 	v.hwInterfaces = append(v.hwInterfaces, hi)
 	h := hi.GetHwIf()
 	h.vnet = v
 	h.hi = Hi(l)
-	h.si = v.NewSwIf(swIfHardware, IfIndex(h.hi))
+	h.si, err = v.NewSwIf(swIfHardware, IfIndex(h.hi))
+	if err != nil {
+		return
+	}
 	name := fmt.Sprintf(format, args...)
 	h.SetIfName(v, name)
 	// Register interface input/output node.
 	v.Register(hi, format+"-data", args...)
+	return
 }
 
 type interfaceThread struct {
@@ -404,6 +416,12 @@ type HwIfProvisionHook func(v *Vnet, hi Hi, isProvisioned bool) error
 //go:generate gentemplate -id HwIfLinkUpDownHook -d Package=vnet -d DepsType=HwIfLinkUpDownHookVec -d Type=HwIfLinkUpDownHook -d Data=hooks github.com/platinasystems/elib/dep/dep.tmpl
 //go:generate gentemplate -id HwIfProvisionHook -d Package=vnet -d DepsType=HwIfProvisionHookVec -d Type=HwIfProvisionHook -d Data=hooks github.com/platinasystems/elib/dep/dep.tmpl
 
+func (m *interfaceMain) RegisterSwIfAddDelHook(h SwIfAddDelHook) {
+	m.swIfAddDelHooks.Add(h)
+}
 func (m *interfaceMain) RegisterSwIfAdminUpDownHook(h SwIfAdminUpDownHook) {
 	m.swIfAdminUpDownHooks.Add(h)
+}
+func (m *interfaceMain) RegisterHwIfAddDelHook(h HwIfAddDelHook) {
+	m.hwIfAddDelHooks.Add(h)
 }

@@ -453,3 +453,12 @@ func (m *Main) init(v *vnet.Vnet) {
 	v.RegisterSwIfAdminUpDownHook(m.swIfAdminUpDown)
 	m.Ip.Init(v)
 }
+
+var mainIndex uint = ^uint(0)
+
+func init() {
+	vnet.AddInit(func(v *vnet.Vnet) {
+		m := &Main{}
+		m.init(v)
+	})
+}

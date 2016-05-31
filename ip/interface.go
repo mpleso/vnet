@@ -55,10 +55,18 @@ type ifAddressMain struct {
 	addrMap map[Address]IfAddr
 
 	// Head of doubly-linked list indexed by software interface.
-	headBySwIf []IfAddr
+	headBySwIf IfAddrVec
 }
 
-func (m *ifAddressMain) init(v *vnet.Vnet) { m.Vnet = v }
+func (m *ifAddressMain) swIfAddDel(v *vnet.Vnet, si vnet.Si, isDel bool) (err error) {
+	m.headBySwIf.ValidateInit(uint(si), IfAddrNil)
+	return
+}
+
+func (m *ifAddressMain) init(v *vnet.Vnet) {
+	m.Vnet = v
+	v.RegisterSwIfAddDelHook(m.swIfAddDel)
+}
 
 func (m *ifAddressMain) GetIfAddress(a []uint8) (ia *IfAddress) {
 	var k Address
