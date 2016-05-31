@@ -47,14 +47,10 @@ type HwInterfacer interface {
 	GetHwIf() *HwIf
 }
 
-func (h *HwIf) GetHwIf() *HwIf          { return h }
-func (h *HwIf) IfName() string          { return h.ifName }
-func (h *HwIf) Speed() Bandwidth        { return h.speed }
-func (h *HwIf) SetSpeed(v Bandwidth)    { h.speed = v }
-func (h *HwIf) MaxPacketSize() uint     { return h.maxPacketSize }
-func (h *HwIf) SetMaxPacketSize(v uint) { h.maxPacketSize = v }
-func (h *HwIf) Si() Si                  { return h.si }
-func (h *HwIf) Hi() Hi                  { return h.hi }
+func (h *HwIf) GetHwIf() *HwIf { return h }
+func (h *HwIf) IfName() string { return h.ifName }
+func (h *HwIf) Si() Si         { return h.si }
+func (h *HwIf) Hi() Hi         { return h.hi }
 
 func (h *HwIf) SetIfName(v *Vnet, name string) {
 	h.ifName = name
@@ -235,6 +231,22 @@ func (h *HwIf) SetLinkUp(v bool) (err error) {
 	return
 }
 
+func (h *HwIf) MaxPacketSize() uint { return h.maxPacketSize }
+
+func (h *HwIf) SetMaxPacketSize(v uint) (err error) {
+	h.maxPacketSize = v
+	// fixme call hooks
+	return
+}
+
+func (h *HwIf) Speed() Bandwidth { return h.speed }
+
+func (h *HwIf) SetSpeed(v Bandwidth) (err error) {
+	h.speed = v
+	// fixme call hooks
+	return
+}
+
 type interfaceMain struct {
 	hwInterfaces             []HwInterfacer
 	hwIfIndexByName          scan.StringMap
@@ -313,7 +325,7 @@ const (
 
 // To clarify units: 1e9 * vnet.Bps
 const (
-	Bps    = 1
+	Bps    = 1e0
 	Kbps   = 1e3
 	Mbps   = 1e6
 	Gbps   = 1e9
@@ -352,7 +364,22 @@ func (b Bandwidth) String() string {
 func (b *Bandwidth) Parse(s *scan.Scanner) (err error) {
 	var f scan.Float64
 	if err = f.Parse(s); err == nil {
-		*b = Bandwidth(f)
+		unit := Bps
+		switch {
+		case s.AdvanceIf('K', 'k'):
+			unit = Kbps
+		case s.AdvanceIf('M', 'm'):
+			unit = Mbps
+		case s.AdvanceIf('G', 'g'):
+			unit = Gbps
+		case s.AdvanceIf('T', 't'):
+			unit = Tbps
+		case s.Peek() != scan.EOF:
+			tok, text := s.Scan()
+			err = s.UnexpectedError(scan.EOF, tok, text)
+			return
+		}
+		*b = Bandwidth(float64(f) * unit)
 		return
 	}
 	return

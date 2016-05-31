@@ -49,7 +49,7 @@ var lookupNextNames = [...]string{
 func (n LookupNext) String() string { return elib.StringerHex(lookupNextNames[:], int(n)) }
 
 func (n *LookupNext) Parse(s *scan.Scanner) error {
-	tok, text := s.Next()
+	tok, text := s.ScanSkipWhite()
 	if tok != scan.Ident {
 		return s.UnexpectedError(scan.Ident, tok, text)
 	}

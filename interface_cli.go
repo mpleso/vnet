@@ -109,7 +109,30 @@ func (v *Vnet) setSwIf(c cli.Commander, w cli.Writer, s *cli.Scanner) (err error
 }
 
 func (v *Vnet) setHwIf(c cli.Commander, w cli.Writer, s *cli.Scanner) (err error) {
-	return
+	x := HwIfParse{vnet: v}
+
+	var mtu uint
+	if err = s.Parse("mtu % %d", &x, &mtu); err == nil {
+		h := v.HwIf(x.hi)
+		err = h.SetMaxPacketSize(mtu)
+		return
+	}
+
+	var bw Bandwidth
+	if err = s.Parse("speed % %", &x, &bw); err == nil {
+		h := v.HwIf(x.hi)
+		err = h.SetSpeed(bw)
+		return
+	}
+
+	var provision scan.Enable
+	if err = s.Parse("provision % %", &x, &provision); err == nil {
+		h := v.HwIf(x.hi)
+		err = h.SetProvisioned(bool(provision))
+		return
+	}
+
+	return scan.ParseError
 }
 
 func init() {

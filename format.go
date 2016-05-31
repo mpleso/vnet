@@ -14,6 +14,16 @@ func (v *Vnet) ParseHwIf(s *scan.Scanner) (hi Hi, err error) {
 	return
 }
 
+type HwIfParse struct {
+	vnet *Vnet
+	hi   Hi
+}
+
+func (x *HwIfParse) Parse(s *scan.Scanner) (err error) {
+	x.hi, err = x.vnet.ParseHwIf(s)
+	return
+}
+
 func (v *Vnet) ParseSwIf(s *scan.Scanner) (si Si, err error) {
 	var hi Hi
 	if hi, err = v.ParseHwIf(s); err != nil {
