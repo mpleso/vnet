@@ -21,19 +21,26 @@ func (p *FibIndexVec) Resize(n uint) {
 	*p = (*p)[:l]
 }
 
-func (p *FibIndexVec) Validate(i uint) *FibIndex {
+func (p *FibIndexVec) validate(i uint, zero *FibIndex) *FibIndex {
 	c := elib.Index(cap(*p))
 	l := elib.Index(i) + 1
 	if l > c {
-		c = elib.NextResizeCap(l)
-		q := make([]FibIndex, l, c)
+		cNext := elib.NextResizeCap(l)
+		q := make([]FibIndex, cNext, cNext)
 		copy(q, *p)
-		*p = q
+		if zero != nil {
+			for i := c; i < cNext; i++ {
+				q[i] = *zero
+			}
+		}
+		*p = q[:l]
 	}
 	if l > elib.Index(len(*p)) {
 		*p = (*p)[:l]
 	}
 	return &(*p)[i]
 }
+func (p *FibIndexVec) Validate(i uint) *FibIndex                    { return p.validate(i, (*FibIndex)(nil)) }
+func (p *FibIndexVec) ValidateInit(i uint, zero FibIndex) *FibIndex { return p.validate(i, &zero) }
 
 func (p FibIndexVec) Len() uint { return uint(len(p)) }

@@ -21,19 +21,26 @@ func (p *IfAddrVec) Resize(n uint) {
 	*p = (*p)[:l]
 }
 
-func (p *IfAddrVec) Validate(i uint) *IfAddr {
+func (p *IfAddrVec) validate(i uint, zero *IfAddr) *IfAddr {
 	c := elib.Index(cap(*p))
 	l := elib.Index(i) + 1
 	if l > c {
-		c = elib.NextResizeCap(l)
-		q := make([]IfAddr, l, c)
+		cNext := elib.NextResizeCap(l)
+		q := make([]IfAddr, cNext, cNext)
 		copy(q, *p)
-		*p = q
+		if zero != nil {
+			for i := c; i < cNext; i++ {
+				q[i] = *zero
+			}
+		}
+		*p = q[:l]
 	}
 	if l > elib.Index(len(*p)) {
 		*p = (*p)[:l]
 	}
 	return &(*p)[i]
 }
+func (p *IfAddrVec) Validate(i uint) *IfAddr                  { return p.validate(i, (*IfAddr)(nil)) }
+func (p *IfAddrVec) ValidateInit(i uint, zero IfAddr) *IfAddr { return p.validate(i, &zero) }
 
 func (p IfAddrVec) Len() uint { return uint(len(p)) }

@@ -21,19 +21,26 @@ func (p *nextHopVec) Resize(n uint) {
 	*p = (*p)[:l]
 }
 
-func (p *nextHopVec) Validate(i uint) *nextHop {
+func (p *nextHopVec) validate(i uint, zero *nextHop) *nextHop {
 	c := elib.Index(cap(*p))
 	l := elib.Index(i) + 1
 	if l > c {
-		c = elib.NextResizeCap(l)
-		q := make([]nextHop, l, c)
+		cNext := elib.NextResizeCap(l)
+		q := make([]nextHop, cNext, cNext)
 		copy(q, *p)
-		*p = q
+		if zero != nil {
+			for i := c; i < cNext; i++ {
+				q[i] = *zero
+			}
+		}
+		*p = q[:l]
 	}
 	if l > elib.Index(len(*p)) {
 		*p = (*p)[:l]
 	}
 	return &(*p)[i]
 }
+func (p *nextHopVec) Validate(i uint) *nextHop                   { return p.validate(i, (*nextHop)(nil)) }
+func (p *nextHopVec) ValidateInit(i uint, zero nextHop) *nextHop { return p.validate(i, &zero) }
 
 func (p nextHopVec) Len() uint { return uint(len(p)) }

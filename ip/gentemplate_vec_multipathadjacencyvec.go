@@ -21,19 +21,30 @@ func (p *multipathAdjacencyVec) Resize(n uint) {
 	*p = (*p)[:l]
 }
 
-func (p *multipathAdjacencyVec) Validate(i uint) *multipathAdjacency {
+func (p *multipathAdjacencyVec) validate(i uint, zero *multipathAdjacency) *multipathAdjacency {
 	c := elib.Index(cap(*p))
 	l := elib.Index(i) + 1
 	if l > c {
-		c = elib.NextResizeCap(l)
-		q := make([]multipathAdjacency, l, c)
+		cNext := elib.NextResizeCap(l)
+		q := make([]multipathAdjacency, cNext, cNext)
 		copy(q, *p)
-		*p = q
+		if zero != nil {
+			for i := c; i < cNext; i++ {
+				q[i] = *zero
+			}
+		}
+		*p = q[:l]
 	}
 	if l > elib.Index(len(*p)) {
 		*p = (*p)[:l]
 	}
 	return &(*p)[i]
+}
+func (p *multipathAdjacencyVec) Validate(i uint) *multipathAdjacency {
+	return p.validate(i, (*multipathAdjacency)(nil))
+}
+func (p *multipathAdjacencyVec) ValidateInit(i uint, zero multipathAdjacency) *multipathAdjacency {
+	return p.validate(i, &zero)
 }
 
 func (p multipathAdjacencyVec) Len() uint { return uint(len(p)) }
