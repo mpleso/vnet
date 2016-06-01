@@ -378,13 +378,13 @@ func (b *Bandwidth) Parse(s *scan.Scanner) (err error) {
 	if err = f.Parse(s); err == nil {
 		unit := Bps
 		switch {
-		case s.AdvanceIf('K', 'k'):
+		case s.AdvanceIfMulti('K', 'k'):
 			unit = Kbps
-		case s.AdvanceIf('M', 'm'):
+		case s.AdvanceIfMulti('M', 'm'):
 			unit = Mbps
-		case s.AdvanceIf('G', 'g'):
+		case s.AdvanceIfMulti('G', 'g'):
 			unit = Gbps
-		case s.AdvanceIf('T', 't'):
+		case s.AdvanceIfMulti('T', 't'):
 			unit = Tbps
 		case s.Peek() != scan.EOF:
 			tok, text := s.Scan()
