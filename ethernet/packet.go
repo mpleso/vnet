@@ -44,6 +44,9 @@ var BroadcastAddr = Address{0xff, 0xff, 0xff, 0xff, 0xff, 0xff}
 func (a *Address) IsBroadcast() bool {
 	return a[0]&1 != 0
 }
+func (a *Address) IsLocallyAdministered() bool {
+	return a[0]&2 != 0
+}
 func (a *Address) IsUnicast() bool {
 	return !a.IsBroadcast()
 }
