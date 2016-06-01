@@ -46,8 +46,8 @@ type Vnet struct {
 	interfaceMain
 }
 
-func (v *Vnet) Register(n Noder, format string, args ...interface{}) {
-	v.loop.Register(n, format, args...)
+func (v *Vnet) RegisterNode(n Noder, format string, args ...interface{}) {
+	v.loop.RegisterNode(n, format, args...)
 	x := n.GetVnetNode()
 	x.Vnet = v
 }

@@ -133,3 +133,72 @@ func (hi *Interface) SetRewrite(v *vnet.Vnet, rw *vnet.Rewrite, packetType vnet.
 	copy(h.Src[:], hi.Address[:])
 	rw.AddData(unsafe.Pointer(&h), size)
 }
+
+// Block of ethernet addresses for allocation by a switch.
+type AddressBlock struct {
+	// Base ethernet address (stored in board's EEPROM).
+	Base Address
+
+	// Number of addresses starting at base.
+	Count uint32
+
+	nAlloc  uint32
+	freeMap map[uint32]struct{}
+}
+
+func (a *Address) add(offset uint32) {
+	for i, o := 0, offset; o != 0 && i < AddressBytes; i++ {
+		j := AddressBytes - 1 - i
+		x := uint8(o)
+		y := a[j]
+		y += x
+		a[j] = y
+		o >>= 8
+		// Add in carry.
+		if y < x {
+			o++
+		}
+	}
+}
+
+func (b *AddressBlock) Alloc() (Address, bool) {
+	a := b.Base
+	ok := false
+	var offset uint32
+	for o, _ := range b.freeMap {
+		delete(b.freeMap, o)
+		offset = o
+		ok = true
+		break
+	}
+	if !ok {
+		if ok = b.nAlloc < b.Count; ok {
+			offset = b.nAlloc
+			b.nAlloc++
+		}
+	}
+	if ok {
+		a.add(offset)
+	}
+	return a, ok
+}
+
+func (b *AddressBlock) Free(a *Address) {
+	offset := uint64(0)
+	for i := range a {
+		j := AddressBytes - 1 - i
+		offset += uint64(a[j]-b.Base[j]) << uint64(8*i)
+	}
+
+	if b.freeMap == nil {
+		b.freeMap = make(map[uint32]struct{})
+	}
+	o := uint32(offset)
+	if o >= b.Count {
+		panic("bad free")
+	}
+	if _, ok := b.freeMap[o]; ok {
+		panic("duplicate free")
+	}
+	b.freeMap[o] = struct{}{}
+}

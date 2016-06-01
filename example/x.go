@@ -25,6 +25,7 @@ func init() {
 			Address: ethernet.Address{1, 2, 3, 4, 5, 6},
 		}
 		ethernet.RegisterInterface(v, MyNode, config, "my-node")
+		v.RegisterNode(MyNode, "my-node")
 
 		v.CliAdd(&cli.Command{
 			Name:      "a",

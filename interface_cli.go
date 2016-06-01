@@ -85,7 +85,7 @@ func (v *Vnet) showHwIfs(c cli.Commander, w cli.Writer, s *cli.Scanner) (err err
 			continue
 		}
 		ifs = append(ifs, showHwIf{
-			Name:     h.ifName,
+			Name:     h.name,
 			Link:     h.LinkString(),
 			Hardware: "tbd",
 		})

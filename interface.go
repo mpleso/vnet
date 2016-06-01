@@ -11,13 +11,12 @@ import (
 type HwIf struct {
 	vnet *Vnet
 
-	ifName string
+	name string
 
 	hi Hi
 	si Si
 
-	hwInstance  uint32
-	devInstance uint32
+	devicer Devicer
 
 	// Hardware link state: up or down
 	linkUp bool
@@ -39,21 +38,17 @@ type HwIf struct {
 type IfIndex uint32
 
 type HwInterfacer interface {
-	Noder
-	loop.InputLooper
-	loop.OutputLooper
 	HwIfClasser
-	HwDevicer
 	GetHwIf() *HwIf
 }
 
 func (h *HwIf) GetHwIf() *HwIf { return h }
-func (h *HwIf) IfName() string { return h.ifName }
+func (h *HwIf) Name() string   { return h.name }
 func (h *HwIf) Si() Si         { return h.si }
 func (h *HwIf) Hi() Hi         { return h.hi }
 
-func (h *HwIf) SetIfName(v *Vnet, name string) {
-	h.ifName = name
+func (h *HwIf) SetName(v *Vnet, name string) {
+	h.name = name
 	v.hwIfIndexByName.Set(name, uint(h.hi))
 }
 
@@ -132,7 +127,7 @@ type swIf struct {
 
 //go:generate gentemplate -d Package=vnet -id swIf -d PoolType=swIfPool -d Type=swIf -d Data=elts github.com/platinasystems/elib/pool.tmpl
 
-func (m *Vnet) NewSwIf(kind swIfKind, id IfIndex) (si Si, err error) {
+func (m *Vnet) NewSwIf(kind swIfKind, id IfIndex) (si Si) {
 	si = Si(m.swInterfaces.GetIndex())
 	s := m.SwIf(si)
 	s.kind = kind
@@ -141,13 +136,13 @@ func (m *Vnet) NewSwIf(kind swIfKind, id IfIndex) (si Si, err error) {
 	s.id = id
 	m.counterValidate(si)
 
+	isDel := false
 	for i := range m.swIfAddDelHooks.hooks {
-		err = m.swIfAddDelHooks.Get(i)(m, s.si, false)
+		err := m.swIfAddDelHooks.Get(i)(m, s.si, isDel)
 		if err != nil {
-			return
+			panic(err) // how to recover?
 		}
 	}
-
 	return
 }
 
@@ -167,7 +162,7 @@ func (m *interfaceMain) SupHwIf(s *swIf) *HwIf {
 }
 
 func (s *swIf) IfName(vn *Vnet) (v string) {
-	v = vn.SupHwIf(s).ifName
+	v = vn.SupHwIf(s).name
 	if s.kind != swIfHardware {
 		v += fmt.Sprintf(".%d", s.id)
 	}
@@ -277,14 +272,8 @@ func (v *Vnet) RegisterHwInterface(hi HwInterfacer, format string, args ...inter
 	h := hi.GetHwIf()
 	h.vnet = v
 	h.hi = Hi(l)
-	h.si, err = v.NewSwIf(swIfHardware, IfIndex(h.hi))
-	if err != nil {
-		return
-	}
-	name := fmt.Sprintf(format, args...)
-	h.SetIfName(v, name)
-	// Register interface input/output node.
-	v.Register(hi, format+"-data", args...)
+	h.si = v.NewSwIf(swIfHardware, IfIndex(h.hi))
+	h.SetName(v, fmt.Sprintf(format, args...))
 	return
 }
 
@@ -311,12 +300,7 @@ func (v *Vnet) GetIfThread(id uint) (t *interfaceThread) {
 func (n *Node) GetIfThread() *interfaceThread { return n.Vnet.GetIfThread(n.ThreadId()) }
 
 // Interface ordering for output.
-func (m *interfaceMain) HwLessThan(a, b *HwIf) bool {
-	if a.ifName == b.ifName {
-		return a.hwInstance < b.hwInstance
-	}
-	return a.ifName < b.ifName
-}
+func (m *interfaceMain) HwLessThan(a, b *HwIf) bool { return a.name < b.name }
 
 func (m *interfaceMain) SwLessThan(a, b *swIf) bool {
 	ha, hb := m.SupHwIf(a), m.SupHwIf(b)
@@ -397,11 +381,15 @@ func (b *Bandwidth) Parse(s *scan.Scanner) (err error) {
 	return
 }
 
+// Class of hardware interfaces, for example, ethernet, sonet, srp, docsis, etc.
 type HwIfClasser interface {
 	SetRewrite(v *Vnet, r *Rewrite, t PacketType, dstAddr []byte)
 }
 
-type HwDevicer interface {
+type Devicer interface {
+	Noder
+	loop.InputLooper
+	loop.OutputLooper
 }
 
 type SwIfAddDelHook func(v *Vnet, si Si, isDel bool) error
