@@ -21,19 +21,30 @@ func (p *ifThreadVec) Resize(n uint) {
 	*p = (*p)[:l]
 }
 
-func (p *ifThreadVec) Validate(i uint) **interfaceThread {
+func (p *ifThreadVec) validate(i uint, zero **interfaceThread) **interfaceThread {
 	c := elib.Index(cap(*p))
 	l := elib.Index(i) + 1
 	if l > c {
-		c = elib.NextResizeCap(l)
-		q := make([]*interfaceThread, l, c)
+		cNext := elib.NextResizeCap(l)
+		q := make([]*interfaceThread, cNext, cNext)
 		copy(q, *p)
-		*p = q
+		if zero != nil {
+			for i := c; i < cNext; i++ {
+				q[i] = *zero
+			}
+		}
+		*p = q[:l]
 	}
 	if l > elib.Index(len(*p)) {
 		*p = (*p)[:l]
 	}
 	return &(*p)[i]
+}
+func (p *ifThreadVec) Validate(i uint) **interfaceThread {
+	return p.validate(i, (**interfaceThread)(nil))
+}
+func (p *ifThreadVec) ValidateInit(i uint, zero *interfaceThread) **interfaceThread {
+	return p.validate(i, &zero)
 }
 
 func (p ifThreadVec) Len() uint { return uint(len(p)) }

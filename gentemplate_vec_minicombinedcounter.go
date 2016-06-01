@@ -21,19 +21,30 @@ func (p *miniCombinedCounterVec) Resize(n uint) {
 	*p = (*p)[:l]
 }
 
-func (p *miniCombinedCounterVec) Validate(i uint) *miniCombinedCounter {
+func (p *miniCombinedCounterVec) validate(i uint, zero *miniCombinedCounter) *miniCombinedCounter {
 	c := elib.Index(cap(*p))
 	l := elib.Index(i) + 1
 	if l > c {
-		c = elib.NextResizeCap(l)
-		q := make([]miniCombinedCounter, l, c)
+		cNext := elib.NextResizeCap(l)
+		q := make([]miniCombinedCounter, cNext, cNext)
 		copy(q, *p)
-		*p = q
+		if zero != nil {
+			for i := c; i < cNext; i++ {
+				q[i] = *zero
+			}
+		}
+		*p = q[:l]
 	}
 	if l > elib.Index(len(*p)) {
 		*p = (*p)[:l]
 	}
 	return &(*p)[i]
+}
+func (p *miniCombinedCounterVec) Validate(i uint) *miniCombinedCounter {
+	return p.validate(i, (*miniCombinedCounter)(nil))
+}
+func (p *miniCombinedCounterVec) ValidateInit(i uint, zero miniCombinedCounter) *miniCombinedCounter {
+	return p.validate(i, &zero)
 }
 
 func (p miniCombinedCounterVec) Len() uint { return uint(len(p)) }
