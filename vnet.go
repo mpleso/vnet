@@ -36,9 +36,98 @@ type Noder interface {
 	GetVnetNode() *Node
 }
 
-type initHook func(v *Vnet)
+type Ref struct {
+	loop.RefHeader
 
-//go:generate gentemplate -id initHook -d Package=vnet -d DepsType=initHookVec -d Type=initHook -d Data=hooks github.com/platinasystems/elib/dep/dep.tmpl
+	Err ErrorRef
+
+	unused [loop.RefOpaqueBytes - 4]byte
+}
+
+type RefIn struct {
+	loop.In
+	pool *loop.BufferPool
+	Refs [loop.V]Ref
+}
+
+type RefOut struct {
+	loop.Out
+	Outs []RefIn
+}
+
+func (r *RefIn) AllocPoolRefs(pool *loop.BufferPool) {
+	r.pool = pool
+	pool.AllocRefs(&r.Refs[0].RefHeader, uint(len(r.Refs)))
+}
+func (r *RefIn) AllocRefs()             { r.AllocPoolRefs(loop.DefaultBufferPool) }
+func (i *RefIn) SetLen(v *Vnet, l uint) { i.In.SetLen(&v.loop, l) }
+
+type OutputNode struct {
+	Node
+	o OutputNoder
+}
+
+func (n *OutputNode) GetOutputNode() *OutputNode               { return n }
+func (n *OutputNode) MakeLoopIn() loop.LooperIn                { return &RefIn{} }
+func (n *OutputNode) LoopOutput(l *loop.Loop, i loop.LooperIn) { n.o.NodeOutput(i.(*RefIn)) }
+
+type OutputNoder interface {
+	Noder
+	GetOutputNode() *OutputNode
+	NodeOutput(i *RefIn)
+}
+
+func (v *Vnet) RegisterOutputNode(n OutputNoder, name string, args ...interface{}) {
+	v.RegisterNode(n, name, args...)
+	x := n.GetOutputNode()
+	x.o = n
+}
+
+type InOutNode struct {
+	Node
+	t InOutNoder
+}
+
+func (n *InOutNode) GetInOutNode() *InOutNode    { return n }
+func (n *InOutNode) MakeLoopIn() loop.LooperIn   { return &RefIn{} }
+func (n *InOutNode) MakeLoopOut() loop.LooperOut { return &RefOut{} }
+func (n *InOutNode) LoopInputOutput(l *loop.Loop, i loop.LooperIn, o loop.LooperOut) {
+	n.t.NodeInput(i.(*RefIn), o.(*RefOut))
+}
+
+type InOutNoder interface {
+	Noder
+	GetInOutNode() *InOutNode
+	NodeInput(i *RefIn, o *RefOut)
+}
+
+func (v *Vnet) RegisterInOutNode(n InOutNoder, name string, args ...interface{}) {
+	v.RegisterNode(n, name, args...)
+	x := n.GetInOutNode()
+	x.t = n
+}
+
+type InterfaceNoder interface {
+	Noder
+	GetInterfaceNode() *InterfaceNode
+	InterfaceInput(out *RefOut)
+	InterfaceOutput(in *RefIn)
+}
+type InterfaceNode struct {
+	Node
+	i InterfaceNoder
+}
+
+func (n *InterfaceNode) GetInterfaceNode() *InterfaceNode         { return n }
+func (n *InterfaceNode) MakeLoopIn() loop.LooperIn                { return &RefIn{} }
+func (n *InterfaceNode) MakeLoopOut() loop.LooperOut              { return &RefOut{} }
+func (n *InterfaceNode) LoopOutput(l *loop.Loop, i loop.LooperIn) { n.i.InterfaceOutput(i.(*RefIn)) }
+func (n *InterfaceNode) LoopInput(l *loop.Loop, o loop.LooperOut) { n.i.InterfaceInput(o.(*RefOut)) }
+func (v *Vnet) RegisterInterfaceNode(n InterfaceNoder, name string, args ...interface{}) {
+	x := n.GetInterfaceNode()
+	x.i = n
+	v.RegisterNode(n, name, args...)
+}
 
 // Main structure.
 type Vnet struct {
@@ -51,6 +140,9 @@ func (v *Vnet) RegisterNode(n Noder, format string, args ...interface{}) {
 	x := n.GetVnetNode()
 	x.Vnet = v
 }
+
+//go:generate gentemplate -id initHook -d Package=vnet -d DepsType=initHookVec -d Type=initHook -d Data=hooks github.com/platinasystems/elib/dep/dep.tmpl
+type initHook func(v *Vnet)
 
 var initHooks initHookVec
 

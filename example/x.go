@@ -11,9 +11,9 @@ import (
 )
 
 type myNode struct {
-	vnet.Node
+	vnet.InterfaceNode
 	ethernet.Interface
-	myErr [n_error]loop.ErrorRef
+	myErr [n_error]vnet.ErrorRef
 	pool  loop.BufferPool
 }
 
@@ -25,7 +25,7 @@ func init() {
 			Address: ethernet.Address{1, 2, 3, 4, 5, 6},
 		}
 		ethernet.RegisterInterface(v, MyNode, config, "my-node")
-		v.RegisterNode(MyNode, "my-node")
+		v.RegisterInterfaceNode(MyNode, "my-node")
 
 		v.CliAdd(&cli.Command{
 			Name:      "a",
@@ -48,12 +48,7 @@ func init() {
 	})
 }
 
-type out struct {
-	loop.Out
-	Outs []loop.RefIn
-}
-
-func (n *myNode) MakeLoopOut() loop.LooperOut { return &out{} }
+func (n *myNode) ValidateSpeed(speed vnet.Bandwidth) (err error) { return }
 
 const (
 	error_one = iota
@@ -67,7 +62,7 @@ var errorStrings = [...]string{
 }
 
 func (n *myNode) LoopInit(l *loop.Loop) {
-	l.AddNext(n, loop.ErrorNode)
+	l.AddNext(n, vnet.ErrorNode)
 	for i := range errorStrings {
 		n.myErr[i] = n.NewError(errorStrings[i])
 	}
@@ -129,21 +124,7 @@ func (n *myNode) LoopInit(l *loop.Loop) {
 	n.pool.Init()
 }
 
-func (n *myNode) dump(i int, r *loop.Ref, l *loop.Loop) {
-	eh := ethernet.GetPacketHeader(r)
-	l.Logf("%s %d: %s\n", n.NodeName(), i, eh)
-	r.Advance(ethernet.HeaderBytes)
-	if false {
-		ih := ip4.GetHeader(r)
-		l.Logf("%d: %s\n", i, ih)
-	} else {
-		ah := arp.GetHeader(r)
-		l.Logf("%d: %s\n", i, ah)
-	}
-}
-
-func (n *myNode) LoopInput(l *loop.Loop, lo loop.LooperOut) {
-	o := lo.(*out)
+func (n *myNode) InterfaceInput(o *vnet.RefOut) {
 	toErr := &o.Outs[0]
 	toErr.AllocPoolRefs(&n.pool)
 	t := n.GetIfThread()
@@ -151,18 +132,14 @@ func (n *myNode) LoopInput(l *loop.Loop, lo loop.LooperOut) {
 	nBytes := uint(0)
 	for i := range rs {
 		r := &rs[i]
-		if false {
-			n.dump(i, r, l)
-		}
 		r.Err = n.myErr[i%n_error]
 		nBytes += r.DataLen()
 	}
 	vnet.IfRxCounter.Add(t, n.Si(), uint(len(rs)), nBytes)
-	toErr.SetLen(l, uint(len(toErr.Refs)))
+	toErr.SetLen(n.Vnet, uint(len(toErr.Refs)))
 }
 
-func (n *myNode) MakeLoopIn() loop.LooperIn { return &loop.RefIn{} }
-func (n *myNode) LoopOutput(l *loop.Loop, li loop.LooperIn) {
+func (n *myNode) InterfaceOutput(i *vnet.RefIn) {
 	panic("not yet")
 }
 

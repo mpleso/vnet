@@ -16,8 +16,6 @@ type HwIf struct {
 	hi Hi
 	si Si
 
-	devicer Devicer
-
 	// Hardware link state: up or down
 	linkUp bool
 
@@ -38,6 +36,7 @@ type HwIf struct {
 type IfIndex uint32
 
 type HwInterfacer interface {
+	Devicer
 	HwIfClasser
 	GetHwIf() *HwIf
 }
@@ -247,16 +246,12 @@ func (h *HwIf) SetMaxPacketSize(v uint) (err error) {
 
 func (h *HwIf) Speed() Bandwidth { return h.speed }
 
-func (h *HwIf) SetSpeed(v Bandwidth) (err error) {
-	vn := h.vnet
-	for i := range vn.hwIfSetSpeedHooks.hooks {
-		err := vn.hwIfSetSpeedHooks.Get(i)(vn, h.hi, v)
-		if err != nil {
-			break
-		}
-	}
-	if err != nil {
-		h.speed = v
+func (hw *HwIf) SetSpeed(v Bandwidth) (err error) {
+	vn := hw.vnet
+	h := vn.HwIfer(hw.hi)
+	err = h.ValidateSpeed(v)
+	if err == nil {
+		hw.speed = v
 	}
 	return
 }
@@ -273,7 +268,6 @@ type interfaceMain struct {
 	hwIfAddDelHooks          HwIfAddDelHookVec
 	hwIfLinkUpDownHooks      HwIfLinkUpDownHookVec
 	hwIfProvisionHooks       HwIfProvisionHookVec
-	hwIfSetSpeedHooks        HwIfSetSpeedHookVec
 }
 
 //go:generate gentemplate -d Package=vnet -id ifThread -d VecType=ifThreadVec -d Type=*interfaceThread github.com/platinasystems/elib/vec.tmpl
@@ -402,6 +396,7 @@ type Devicer interface {
 	Noder
 	loop.InputLooper
 	loop.OutputLooper
+	ValidateSpeed(speed Bandwidth) error
 }
 
 type SwIfAddDelHook func(v *Vnet, si Si, isDel bool) error
@@ -409,14 +404,12 @@ type SwIfAdminUpDownHook func(v *Vnet, si Si, isUp bool) error
 type HwIfAddDelHook func(v *Vnet, hi Hi, isDel bool) error
 type HwIfLinkUpDownHook func(v *Vnet, hi Hi, isUp bool) error
 type HwIfProvisionHook func(v *Vnet, hi Hi, isProvisioned bool) error
-type HwIfSetSpeedHook func(v *Vnet, hi Hi, speed Bandwidth) error
 
 //go:generate gentemplate -id SwIfAddDelHook -d Package=vnet -d DepsType=SwIfAddDelHookVec -d Type=SwIfAddDelHook -d Data=hooks github.com/platinasystems/elib/dep/dep.tmpl
 //go:generate gentemplate -id SwIfAdminUpDownHook -d Package=vnet -d DepsType=SwIfAdminUpDownHookVec -d Type=SwIfAdminUpDownHook -d Data=hooks github.com/platinasystems/elib/dep/dep.tmpl
 //go:generate gentemplate -id HwIfAddDelHook -d Package=vnet -d DepsType=HwIfAddDelHookVec -d Type=HwIfAddDelHook -d Data=hooks github.com/platinasystems/elib/dep/dep.tmpl
 //go:generate gentemplate -id HwIfLinkUpDownHook -d Package=vnet -d DepsType=HwIfLinkUpDownHookVec -d Type=HwIfLinkUpDownHook -d Data=hooks github.com/platinasystems/elib/dep/dep.tmpl
 //go:generate gentemplate -id HwIfProvisionHook -d Package=vnet -d DepsType=HwIfProvisionHookVec -d Type=HwIfProvisionHook -d Data=hooks github.com/platinasystems/elib/dep/dep.tmpl
-//go:generate gentemplate -id HwIfSetSpeedHook -d Package=vnet -d DepsType=HwIfSetSpeedHookVec -d Type=HwIfSetSpeedHook -d Data=hooks github.com/platinasystems/elib/dep/dep.tmpl
 
 func (m *interfaceMain) RegisterSwIfAddDelHook(h SwIfAddDelHook) {
 	m.swIfAddDelHooks.Add(h)
@@ -432,7 +425,4 @@ func (m *interfaceMain) RegisterHwIfLinkUpDownHook(h HwIfLinkUpDownHook) {
 }
 func (m *interfaceMain) RegisterHwIfProvisionHook(h HwIfProvisionHook) {
 	m.hwIfProvisionHooks.Add(h)
-}
-func (m *interfaceMain) RegisterHwIfSetSpeedHook(h HwIfSetSpeedHook) {
-	m.hwIfSetSpeedHooks.Add(h)
 }
