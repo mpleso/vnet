@@ -33,6 +33,8 @@ type HwIf struct {
 	subSiById map[IfIndex]Si
 }
 
+//go:generate gentemplate -d Package=vnet -id HwIf -d PoolType=hwIferPool -d Type=HwInterfacer -d Data=elts github.com/platinasystems/elib/pool.tmpl
+
 type IfIndex uint32
 
 type HwInterfacer interface {
@@ -153,8 +155,8 @@ func (m *interfaceMain) SupSwIf(s *swIf) (sup *swIf) {
 	}
 	return
 }
-func (m *interfaceMain) HwIfer(i Hi) HwInterfacer { return m.hwInterfaces[i] }
-func (m *interfaceMain) HwIf(i Hi) *HwIf          { return m.hwInterfaces[i].GetHwIf() }
+func (m *interfaceMain) HwIfer(i Hi) HwInterfacer { return m.hwIferPool.elts[i] }
+func (m *interfaceMain) HwIf(i Hi) *HwIf          { return m.HwIfer(i).GetHwIf() }
 func (m *interfaceMain) SupHwIf(s *swIf) *HwIf {
 	sup := m.SupSwIf(s)
 	return m.HwIf(Hi(sup.id))
@@ -257,7 +259,7 @@ func (hw *HwIf) SetSpeed(v Bandwidth) (err error) {
 }
 
 type interfaceMain struct {
-	hwInterfaces             []HwInterfacer
+	hwIferPool               hwIferPool
 	hwIfIndexByName          scan.StringMap
 	swInterfaces             swIfPool
 	ifThreads                ifThreadVec
@@ -272,14 +274,14 @@ type interfaceMain struct {
 
 //go:generate gentemplate -d Package=vnet -id ifThread -d VecType=ifThreadVec -d Type=*interfaceThread github.com/platinasystems/elib/vec.tmpl
 
-func (v *Vnet) RegisterHwInterface(hi HwInterfacer, format string, args ...interface{}) (err error) {
-	l := len(v.hwInterfaces)
-	v.hwInterfaces = append(v.hwInterfaces, hi)
-	h := hi.GetHwIf()
-	h.vnet = v
-	h.hi = Hi(l)
-	h.si = v.NewSwIf(swIfHardware, IfIndex(h.hi))
-	h.SetName(v, fmt.Sprintf(format, args...))
+func (v *Vnet) RegisterHwInterface(h HwInterfacer, format string, args ...interface{}) (hi Hi, err error) {
+	hi = Hi(v.hwIferPool.GetIndex())
+	v.hwIferPool.elts[hi] = h
+	hw := h.GetHwIf()
+	hw.vnet = v
+	hw.hi = hi
+	hw.si = v.NewSwIf(swIfHardware, IfIndex(hw.hi))
+	hw.SetName(v, fmt.Sprintf(format, args...))
 	return
 }
 

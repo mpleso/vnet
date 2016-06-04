@@ -79,17 +79,16 @@ func (ns showHwIfs) Len() int           { return len(ns) }
 
 func (v *Vnet) showHwIfs(c cli.Commander, w cli.Writer, s *cli.Scanner) (err error) {
 	ifs := showHwIfs{}
-	for _, hi := range v.hwInterfaces {
+	v.hwIferPool.Foreach(func(hi HwInterfacer) {
 		h := hi.GetHwIf()
-		if h.unprovisioned {
-			continue
+		if !h.unprovisioned {
+			ifs = append(ifs, showHwIf{
+				Name:     h.name,
+				Link:     h.LinkString(),
+				Hardware: "tbd",
+			})
 		}
-		ifs = append(ifs, showHwIf{
-			Name:     h.name,
-			Link:     h.LinkString(),
-			Hardware: "tbd",
-		})
-	}
+	})
 	sort.Sort(ifs)
 	elib.TabulateWrite(w, ifs)
 	return
