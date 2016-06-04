@@ -215,7 +215,7 @@ func (h *HwIf) SetProvisioned(v bool) (err error) {
 		}
 	}
 	// Toggle provisioning hooks show no error.
-	if err != nil {
+	if err == nil {
 		h.unprovisioned = !v
 	}
 	return
@@ -274,8 +274,8 @@ type interfaceMain struct {
 
 //go:generate gentemplate -d Package=vnet -id ifThread -d VecType=ifThreadVec -d Type=*interfaceThread github.com/platinasystems/elib/vec.tmpl
 
-func (v *Vnet) RegisterHwInterface(h HwInterfacer, format string, args ...interface{}) (hi Hi, err error) {
-	hi = Hi(v.hwIferPool.GetIndex())
+func (v *Vnet) RegisterHwInterface(h HwInterfacer, format string, args ...interface{}) (err error) {
+	hi := Hi(v.hwIferPool.GetIndex())
 	v.hwIferPool.elts[hi] = h
 	hw := h.GetHwIf()
 	hw.vnet = v
