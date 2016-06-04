@@ -5,6 +5,7 @@ import (
 	"github.com/platinasystems/elib/cli"
 	"github.com/platinasystems/elib/scan"
 
+	"fmt"
 	"sort"
 )
 
@@ -41,6 +42,10 @@ func (v *Vnet) showSwIfs(c cli.Commander, w cli.Writer, s *cli.Scanner) (err err
 
 	sifs := showSwIfs{}
 	verbose := false
+	if s.Parse("d*etail") == nil {
+		verbose = true
+	}
+
 	for i := range swIfs.ifs {
 		si := v.SwIf(swIfs.ifs[i])
 		first := true
@@ -57,7 +62,11 @@ func (v *Vnet) showSwIfs(c cli.Commander, w cli.Writer, s *cli.Scanner) (err err
 			sifs = append(sifs, s)
 		})
 	}
-	elib.TabulateWrite(w, sifs)
+	if len(sifs) > 0 {
+		elib.TabulateWrite(w, sifs)
+	} else {
+		fmt.Fprintln(w, "All interface counters are zero.")
+	}
 	return
 }
 
