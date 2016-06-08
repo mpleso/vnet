@@ -82,7 +82,7 @@ func (en *errorNode) NodeOutput(ri *RefIn) {
 
 	ts.counts[cache] += cacheCount
 	ts.cache = cache
-	ri.pool.FreeRefs(&ri.Refs[0].RefHeader, n)
+	ri.BufferPool.FreeRefs(&ri.Refs[0].RefHeader, n)
 }
 
 type err struct {
@@ -97,6 +97,8 @@ func (n *Node) NewError(s string) (r ErrorRef) {
 	en.errs = append(en.errs, e)
 	return
 }
+
+func (n *Node) SetError(r *Ref, i uint) { r.Err = n.errorRefs[i] }
 
 type errNode struct {
 	Node  string `format:"%-30s"`
