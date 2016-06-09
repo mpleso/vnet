@@ -21,8 +21,10 @@ func (t *SwIfAdminUpDownHookVec) Get(i int) SwIfAdminUpDownHook {
 }
 
 func (t *SwIfAdminUpDownHookVec) Add(x SwIfAdminUpDownHook, ds ...*dep.Dep) {
-	for i := range ds {
-		t.deps.Add(ds[i])
+	if len(ds) == 0 {
+		t.deps.Add(&dep.Dep{})
+	} else {
+		t.deps.Add(ds[0])
 	}
 	t.hooks = append(t.hooks, x)
 }

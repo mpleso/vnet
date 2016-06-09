@@ -5,8 +5,6 @@ import (
 	"github.com/platinasystems/elib/cli"
 	"github.com/platinasystems/elib/dep"
 	"github.com/platinasystems/elib/loop"
-
-	"fmt"
 )
 
 type RxTx int
@@ -29,9 +27,9 @@ func (x RxTx) String() (s string) {
 type Node struct {
 	Vnet *Vnet
 	loop.Node
+	Dep       dep.Dep
 	Errors    []string
 	errorRefs []ErrorRef
-	Next      []string
 }
 
 func (n *Node) GetVnetNode() *Node { return n }
@@ -197,12 +195,6 @@ func (v *Vnet) RegisterNode(n Noder, format string, args ...interface{}) {
 			er = x.NewError(x.Errors[i])
 		}
 		x.errorRefs[i] = er
-	}
-
-	for i := range x.Next {
-		if _, ok := v.loop.AddNamedNext(n, x.Next[i]); !ok {
-			panic(fmt.Errorf("unknown next named %s", x.Next[i]))
-		}
 	}
 }
 

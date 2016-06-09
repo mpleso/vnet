@@ -32,11 +32,6 @@ const (
 
 func init() {
 	vnet.AddInit(func(v *vnet.Vnet) {
-		config := &ethernet.InterfaceConfig{
-			Address: ethernet.Address{1, 2, 3, 4, 5, 6},
-		}
-		ethernet.RegisterInterface(v, MyNode, config, "my-node")
-
 		MyNode.Errors = []string{
 			error_one: "error one",
 			error_two: "error two",
@@ -122,6 +117,12 @@ func arpTemplate(t *loop.BufferTemplate) {
 }
 
 func (n *myNode) LoopInit(l *loop.Loop) {
+	v := n.Vnet
+	config := &ethernet.InterfaceConfig{
+		Address: ethernet.Address{1, 2, 3, 4, 5, 6},
+	}
+	ethernet.RegisterInterface(v, MyNode, config, "my-node")
+
 	// Link is always up for packet generator.
 	n.SetLinkUp(true)
 	n.SetAdminUp(true)

@@ -21,8 +21,10 @@ func (t *adjAddDelHookVec) Get(i int) adjAddDelHook {
 }
 
 func (t *adjAddDelHookVec) Add(x adjAddDelHook, ds ...*dep.Dep) {
-	for i := range ds {
-		t.deps.Add(ds[i])
+	if len(ds) == 0 {
+		t.deps.Add(&dep.Dep{})
+	} else {
+		t.deps.Add(ds[0])
 	}
 	t.adjAddDelHooks = append(t.adjAddDelHooks, x)
 }

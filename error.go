@@ -131,7 +131,7 @@ func (v *Vnet) showErrors(c cli.Commander, w cli.Writer, s *cli.Scanner) (err er
 			}
 		}
 		if c > 0 {
-			n := v.loop.DataNode(uint(e.nodeIndex)).GetNode()
+			n := v.loop.DataNodes[e.nodeIndex].GetNode()
 			ns = append(ns, errNode{
 				Node:  n.Name(),
 				Error: e.str,

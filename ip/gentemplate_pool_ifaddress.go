@@ -62,3 +62,11 @@ func (p *ifAddressPool) Elts() uint {
 func (p *ifAddressPool) Len() uint {
 	return uint(len(p.ifAddrs))
 }
+
+func (p *ifAddressPool) Foreach(f func(x IfAddress)) {
+	for i := range p.ifAddrs {
+		if !p.Pool.IsFree(uint(i)) {
+			f(p.ifAddrs[i])
+		}
+	}
+}

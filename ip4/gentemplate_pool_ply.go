@@ -62,3 +62,11 @@ func (p *plyPool) Elts() uint {
 func (p *plyPool) Len() uint {
 	return uint(len(p.plys))
 }
+
+func (p *plyPool) Foreach(f func(x ply)) {
+	for i := range p.plys {
+		if !p.Pool.IsFree(uint(i)) {
+			f(p.plys[i])
+		}
+	}
+}
