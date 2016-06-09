@@ -47,7 +47,8 @@ type Ref struct {
 	unused [loop.RefOpaqueBytes - 4]byte
 }
 
-func (r *Ref) Flags() BufferFlag { return BufferFlag(r.Flags()) }
+func (r *Ref) Flags() BufferFlag         { return BufferFlag(r.RefHeader.Flags()) }
+func (r *Ref) NextValidFlag() BufferFlag { return BufferFlag(r.RefHeader.NextValidFlag()) }
 
 type BufferFlag loop.BufferFlag
 
