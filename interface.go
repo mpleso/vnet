@@ -135,7 +135,7 @@ func (m *Vnet) NewSwIf(kind swIfKind, id IfIndex) (si Si) {
 	s.si = si
 	s.supSi = si
 	s.id = id
-	m.counterValidate(si)
+	m.counterValidateSw(si)
 
 	isDel := false
 	for i := range m.swIfAddDelHooks.hooks {
@@ -259,20 +259,22 @@ func (hw *HwIf) SetSpeed(v Bandwidth) (err error) {
 }
 
 type interfaceMain struct {
-	hwIferPool               hwIferPool
-	hwIfIndexByName          scan.StringMap
-	swInterfaces             swIfPool
-	ifThreads                ifThreadVec
-	swIfCounterNames         []string
-	swIfCombinedCounterNames []string
-	swIfAddDelHooks          SwIfAddDelHookVec
-	swIfAdminUpDownHooks     SwIfAdminUpDownHookVec
-	hwIfAddDelHooks          HwIfAddDelHookVec
-	hwIfLinkUpDownHooks      HwIfLinkUpDownHookVec
-	hwIfProvisionHooks       HwIfProvisionHookVec
+	hwIferPool      hwIferPool
+	hwIfIndexByName scan.StringMap
+	swInterfaces    swIfPool
+	ifThreads       ifThreadVec
+
+	// Counters
+	swIfCounterNames InterfaceCounterNames
+
+	swIfAddDelHooks      SwIfAddDelHookVec
+	swIfAdminUpDownHooks SwIfAdminUpDownHookVec
+	hwIfAddDelHooks      HwIfAddDelHookVec
+	hwIfLinkUpDownHooks  HwIfLinkUpDownHookVec
+	hwIfProvisionHooks   HwIfProvisionHookVec
 }
 
-//go:generate gentemplate -d Package=vnet -id ifThread -d VecType=ifThreadVec -d Type=*interfaceThread github.com/platinasystems/elib/vec.tmpl
+//go:generate gentemplate -d Package=vnet -id ifThread -d VecType=ifThreadVec -d Type=*InterfaceThread github.com/platinasystems/elib/vec.tmpl
 
 func (v *Vnet) RegisterHwInterface(h HwInterfacer, format string, args ...interface{}) (err error) {
 	hi := Hi(v.hwIferPool.GetIndex())
@@ -285,27 +287,21 @@ func (v *Vnet) RegisterHwInterface(h HwInterfacer, format string, args ...interf
 	return
 }
 
-type interfaceThread struct {
-	// This threads' interface counters indexed by counter kind.
-	singleCounters   CountersVec
-	combinedCounters CombinedCountersVec
-}
-
-func (v *Vnet) newInterfaceThread() (t *interfaceThread) {
-	t = &interfaceThread{}
-	v.counterInit(t)
+func (m *interfaceMain) newInterfaceThread() (t *InterfaceThread) {
+	t = &InterfaceThread{}
+	m.counterInit(t)
 	return
 }
 
-func (v *Vnet) GetIfThread(id uint) (t *interfaceThread) {
-	v.ifThreads.Validate(uint(id))
-	if t = v.ifThreads[id]; t == nil {
-		t = v.newInterfaceThread()
-		v.ifThreads[id] = t
+func (m *interfaceMain) GetIfThread(id uint) (t *InterfaceThread) {
+	m.ifThreads.Validate(uint(id))
+	if t = m.ifThreads[id]; t == nil {
+		t = m.newInterfaceThread()
+		m.ifThreads[id] = t
 	}
 	return
 }
-func (n *Node) GetIfThread() *interfaceThread { return n.Vnet.GetIfThread(n.ThreadId()) }
+func (n *Node) GetIfThread() *InterfaceThread { return n.Vnet.GetIfThread(n.ThreadId()) }
 
 // Interface ordering for output.
 func (m *interfaceMain) HwLessThan(a, b *HwIf) bool { return a.name < b.name }
@@ -399,6 +395,7 @@ type Devicer interface {
 	loop.InputLooper
 	loop.OutputLooper
 	ValidateSpeed(speed Bandwidth) error
+	GetHwInterfaceCounters(n *InterfaceCounterNames, t *InterfaceThread)
 }
 
 type SwIfAddDelHook func(v *Vnet, si Si, isDel bool) error

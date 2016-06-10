@@ -38,6 +38,8 @@ func (c *Counters) Add(i, x uint) {
 	}
 }
 
+func (c *Counters) Add64(i uint, x uint64) { c.maxi[i] += x }
+
 func (c *Counters) Get(i uint, v *uint64) {
 	*v = c.maxi[i] + uint64(c.mini[i]) - c.valuesLastClear[i]
 	return
@@ -160,6 +162,11 @@ func (c *CombinedCounters) Add(i uint, p, b uint) {
 			c.recomputeAvePacketSize()
 		}
 	}
+}
+
+func (c *CombinedCounters) Add64(i uint, p, b uint64) {
+	c.maxi[i].packets += p
+	c.maxi[i].bytes += b
 }
 
 // Get counter value: 2 flavors.

@@ -41,15 +41,15 @@ func (v *Vnet) showSwIfs(c cli.Commander, w cli.Writer, s *cli.Scanner) (err err
 	sort.Sort(swIfs)
 
 	sifs := showSwIfs{}
-	verbose := false
+	detail := false
 	if s.Parse("d*etail") == nil {
-		verbose = true
+		detail = true
 	}
 
 	for i := range swIfs.ifs {
 		si := v.SwIf(swIfs.ifs[i])
 		first := true
-		v.foreachCounter(verbose, si.si, func(counter string, count uint64) {
+		v.foreachSwIfCounter(detail, si.si, func(counter string, count uint64) {
 			s := showSwIf{
 				Counter: counter,
 				Count:   count,
@@ -75,10 +75,34 @@ func (v *Vnet) clearSwIfs(c cli.Commander, w cli.Writer, s *cli.Scanner) (err er
 	return
 }
 
+type hwIfIndices struct {
+	*Vnet
+	ifs []Hi
+}
+
+func (x *hwIfIndices) Init(v *Vnet) {
+	x.Vnet = v
+	for i := range v.hwIferPool.elts {
+		if v.hwIferPool.IsFree(uint(i)) {
+			continue
+		}
+		h := v.hwIferPool.elts[i].GetHwIf()
+		if h.unprovisioned {
+			continue
+		}
+		x.ifs = append(x.ifs, Hi(i))
+	}
+}
+
+func (h *hwIfIndices) Less(i, j int) bool { return h.HwLessThan(h.HwIf(h.ifs[i]), h.HwIf(h.ifs[j])) }
+func (h *hwIfIndices) Swap(i, j int)      { h.ifs[i], h.ifs[j] = h.ifs[j], h.ifs[i] }
+func (h *hwIfIndices) Len() int           { return len(h.ifs) }
+
 type showHwIf struct {
-	Name     string `format:"%-30s"`
-	Link     string `width:12`
-	Hardware string `format:"%30s"`
+	Name    string `format:"%-30s"`
+	Link    string `width:12`
+	Counter string `format:"%-30s" align:"left"`
+	Count   uint64 `format:"%16d" align:"center"`
 }
 type showHwIfs []showHwIf
 
@@ -87,18 +111,33 @@ func (ns showHwIfs) Swap(i, j int)      { ns[i], ns[j] = ns[j], ns[i] }
 func (ns showHwIfs) Len() int           { return len(ns) }
 
 func (v *Vnet) showHwIfs(c cli.Commander, w cli.Writer, s *cli.Scanner) (err error) {
+	hwIfs := &hwIfIndices{}
+	hwIfs.Init(v)
+	sort.Sort(hwIfs)
+
+	detail := false
+	if s.Parse("d*etail") == nil {
+		detail = true
+	}
+
 	ifs := showHwIfs{}
-	v.hwIferPool.Foreach(func(hi HwInterfacer) {
+	for i := range hwIfs.ifs {
+		hi := v.HwIfer(hwIfs.ifs[i])
 		h := hi.GetHwIf()
-		if !h.unprovisioned {
-			ifs = append(ifs, showHwIf{
-				Name:     h.name,
-				Link:     h.LinkString(),
-				Hardware: "tbd",
-			})
-		}
-	})
-	sort.Sort(ifs)
+		first := true
+		v.foreachHwIfCounter(detail, h.hi, func(counter string, count uint64) {
+			s := showHwIf{
+				Counter: counter,
+				Count:   count,
+			}
+			if first {
+				first = false
+				s.Name = h.name
+				s.Link = h.LinkString()
+			}
+			ifs = append(ifs, s)
+		})
+	}
 	elib.TabulateWrite(w, ifs)
 	return
 }

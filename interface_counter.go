@@ -1,15 +1,17 @@
 package vnet
 
-type ifCounterKind int
-type ifCombinedCounterKind int
+type swIfCounterKind uint16
+type swIfCombinedCounterKind uint16
+type HwIfCounterKind uint16
+type HwIfCombinedCounterKind uint16
 
 const (
-	IfDrops ifCounterKind = iota
+	IfDrops swIfCounterKind = iota
 	IfPunts
 	nBuiltinSingleIfCounters
 )
 const (
-	IfRxCounter ifCombinedCounterKind = iota
+	IfRxCounter swIfCombinedCounterKind = iota
 	IfTxCounter
 	nBuiltinCombinedIfCounters
 )
@@ -21,140 +23,269 @@ var builtinCombinedIfCounterNames = [...]string{
 	IfRxCounter: "rx", IfTxCounter: "tx",
 }
 
-func (v *interfaceMain) addCounterName(name string) {
-	v.swIfCounterNames = append(v.swIfCounterNames, name)
-}
-func (v *interfaceMain) addCombinedCounterName(name string) {
-	v.swIfCombinedCounterNames = append(v.swIfCombinedCounterNames, name)
-}
-func (v *interfaceMain) counterName(k ifCounterKind) string { return v.swIfCounterNames[k] }
-func (v *interfaceMain) combinedCounterName(k ifCombinedCounterKind) string {
-	return v.swIfCombinedCounterNames[k]
+type InterfaceCounterNames struct {
+	Single, Combined []string
 }
 
-// Allocate given number of single counters.
-func (v *interfaceMain) NewCounters(names []string) (i ifCounterKind) {
+func (n *InterfaceCounterNames) add(name string, is_combined bool) (i uint) {
+	p := &n.Single
+	if is_combined {
+		p = &n.Combined
+	}
+	i = uint(len(*p))
+	*p = append(*p, name)
+	return
+}
+
+func (v *interfaceMain) addSwCounter(name string) (i uint) {
+	return v.swIfCounterNames.add(name, false)
+}
+func (v *interfaceMain) addSwCombinedCounter(name string) (i uint) {
+	return v.swIfCounterNames.add(name, true)
+}
+
+func (cn *InterfaceCounterNames) newCounters(v *interfaceMain, names []string, is_hw, is_combined bool) (kind uint) {
 	n := uint(len(names))
-	nSwIfs := v.swInterfaces.Len()
+	m := v.swInterfaces.Len()
+	if is_hw {
+		m = v.hwIferPool.Len()
+	}
 	for _, t := range v.ifThreads {
-		i = ifCounterKind(t.singleCounters.Len())
-		t.singleCounters.Resize(n)
-		for j := uint(0); j < n; j++ {
-			t.singleCounters[uint(i)+j].Validate(nSwIfs)
+		c := &t.sw
+		if is_hw {
+			c = &t.hw
+		}
+		if is_combined {
+			kind = c.resizeCombined(n, m)
+		} else {
+			kind = c.resizeSingle(n, m)
 		}
 	}
-	for i := range names {
-		v.addCounterName(names[i])
+	for _, name := range names {
+		cn.add(name, is_combined)
 	}
 	return
 }
 
-// Allocate given number of combined packet and byte counters.
-func (v *Vnet) NewCombinedCounters(names []string) (i ifCounterKind) {
-	n := uint(len(names))
-	nSwIfs := v.swInterfaces.Len()
-	for _, t := range v.ifThreads {
-		i = ifCounterKind(t.combinedCounters.Len())
-		t.combinedCounters.Resize(n)
-		for j := uint(0); j < n; j++ {
-			t.combinedCounters[uint(i)+j].Validate(nSwIfs)
-		}
-	}
-	for i := range names {
-		v.addCombinedCounterName(names[i])
-	}
-	return
+func (v *interfaceMain) NewSwCounters(names []string) swIfCounterKind {
+	i := v.swIfCounterNames.newCounters(v, names, false, false)
+	return swIfCounterKind(i)
+}
+
+func (v *interfaceMain) NewSwCombinedCounters(names []string) swIfCombinedCounterKind {
+	i := v.swIfCounterNames.newCounters(v, names, false, true)
+	return swIfCombinedCounterKind(i)
 }
 
 // Add to given interface counters value.
-func (c ifCounterKind) Add(t *interfaceThread, swIfIndex Si, value uint) {
-	t.singleCounters[c].Add(uint(swIfIndex), value)
+func (c swIfCounterKind) Add(t *InterfaceThread, swIfIndex Si, value uint) {
+	t.sw.single[c].Add(uint(swIfIndex), value)
 }
 
 // Add to given interface counters packets and bytes values.
-func (c ifCombinedCounterKind) Add(t *interfaceThread, swIfIndex Si, packets, bytes uint) {
-	t.combinedCounters[c].Add(uint(swIfIndex), packets, bytes)
+func (c swIfCombinedCounterKind) Add(t *InterfaceThread, si Si, packets, bytes uint) {
+	t.sw.combined[c].Add(uint(si), packets, bytes)
 }
 
-func (m *interfaceMain) doSingle(t *interfaceThread,
-	kind ifCounterKind,
-	enableZeroCounters bool,
-	si Si,
-	f func(name string, value uint64)) {
-	v := t.singleCounters[kind].Value(uint(si))
-	if v != 0 || enableZeroCounters {
-		f(m.swIfCounterNames[kind], v)
-	}
+func (c HwIfCounterKind) Add(t *InterfaceThread, hi Hi, value uint) {
+	t.hw.single[c].Add(uint(hi), value)
 }
 
-func (m *interfaceMain) doCombined(t *interfaceThread,
-	kind ifCombinedCounterKind,
-	enableZeroCounters bool,
-	si Si,
-	f func(name string, value uint64)) {
-	v := t.combinedCounters[kind].Value(uint(si))
-	if v.packets != 0 || enableZeroCounters {
-		f(m.swIfCombinedCounterNames[kind]+" packets", v.packets)
-		f(m.swIfCombinedCounterNames[kind]+" bytes", v.bytes)
-	}
+func (c HwIfCounterKind) Add64(t *InterfaceThread, hi Hi, value uint64) {
+	t.hw.single[c].Add64(uint(hi), value)
 }
 
-func (m *interfaceMain) foreachCounter(enableZeroCounters bool, si Si, f func(name string, value uint64)) {
+func (c HwIfCombinedCounterKind) Add(t *InterfaceThread, hi Hi, packets, bytes uint) {
+	t.hw.combined[c].Add(uint(hi), packets, bytes)
+}
+
+func (c HwIfCombinedCounterKind) Add64(t *InterfaceThread, hi Hi, packets, bytes uint64) {
+	t.hw.combined[c].Add64(uint(hi), packets, bytes)
+}
+
+type foreachFn func(name string, value uint64)
+
+func (m *interfaceMain) doSwCombined(f foreachFn, nm *InterfaceCounterNames, zero bool, k, i uint) {
+	var v, w CombinedCounter
 	for _, t := range m.ifThreads {
-		// First builtin counters.
-		for i := 0; i < len(builtinCombinedIfCounterNames); i++ {
-			m.doCombined(t, ifCombinedCounterKind(i), enableZeroCounters, si, f)
-		}
-		for i := 0; i < len(builtinSingleIfCounterNames); i++ {
-			m.doSingle(t, ifCounterKind(i), enableZeroCounters, si, f)
-		}
+		t.sw.combined[k].Get(i, &w)
+		v.Add(&w)
+	}
+	if v.packets != 0 || zero {
+		f(nm.Combined[k]+" packets", v.packets)
+		f(nm.Combined[k]+" bytes", v.bytes)
+	}
+	return
+}
 
-		// Next user-defined counters.
-		for i := len(builtinCombinedIfCounterNames); i < len(t.combinedCounters); i++ {
-			m.doCombined(t, ifCombinedCounterKind(i), enableZeroCounters, si, f)
-		}
+func (m *interfaceMain) doSwSingle(f foreachFn, nm *InterfaceCounterNames, zero bool, k, i uint) {
+	var v, w uint64
+	for _, t := range m.ifThreads {
+		t.sw.single[k].Get(i, &w)
+		v += w
+	}
+	if v != 0 || zero {
+		f(nm.Single[k], v)
+	}
+	return
+}
+
+func (m *interfaceMain) foreachSwIfCounter(zero bool, si Si, f func(name string, value uint64)) {
+	i := uint(si)
+
+	// First builtin counters.
+	for k := 0; k < len(builtinCombinedIfCounterNames); k++ {
+		m.doSwCombined(f, &m.swIfCounterNames, zero, uint(k), i)
+	}
+	for k := 0; k < len(builtinSingleIfCounterNames); k++ {
+		m.doSwSingle(f, &m.swIfCounterNames, zero, uint(k), i)
+	}
+
+	// Next user-defined counters.
+	for k := len(builtinCombinedIfCounterNames); k < len(m.swIfCounterNames.Combined); k++ {
+		m.doSwCombined(f, &m.swIfCounterNames, zero, uint(k), i)
+	}
+	for k := len(builtinSingleIfCounterNames); k < len(m.swIfCounterNames.Single); k++ {
+		m.doSwSingle(f, &m.swIfCounterNames, zero, uint(k), i)
+	}
+}
+
+func (m *interfaceMain) doHwCombined(f foreachFn, nm *InterfaceCounterNames, zero bool, k, i uint) {
+	var v, w CombinedCounter
+	for _, t := range m.ifThreads {
+		t.hw.combined[k].Get(i, &w)
+		v.Add(&w)
+	}
+	if v.packets != 0 || zero {
+		f(nm.Combined[k]+" packets", v.packets)
+		f(nm.Combined[k]+" bytes", v.bytes)
+	}
+	return
+}
+
+func (m *interfaceMain) doHwSingle(f foreachFn, nm *InterfaceCounterNames, zero bool, k, i uint) {
+	var v, w uint64
+	for _, t := range m.ifThreads {
+		t.hw.single[k].Get(i, &w)
+		v += w
+	}
+	if v != 0 || zero {
+		f(nm.Single[k], v)
+	}
+	return
+}
+
+func (m *interfaceMain) foreachHwIfCounter(zero bool, hi Hi, f func(name string, value uint64)) {
+	var nm InterfaceCounterNames
+	h := m.HwIfer(hi)
+	t := m.GetIfThread(0)
+	h.GetHwInterfaceCounters(&nm, t)
+	i := uint(hi)
+	for k := range t.hw.combined {
+		m.doHwCombined(f, &nm, zero, uint(k), i)
+	}
+	for k := range t.hw.single {
+		m.doHwSingle(f, &nm, zero, uint(k), i)
 	}
 }
 
 func (m *interfaceMain) clearIfCounters() {
 	for _, t := range m.ifThreads {
-		t.combinedCounters.ClearAll()
-		t.singleCounters.ClearAll()
+		t.sw.combined.ClearAll()
+		t.sw.single.ClearAll()
+		t.hw.combined.ClearAll()
+		t.hw.single.ClearAll()
 	}
 }
 
-func (m *interfaceMain) counterValidate(si Si) {
-	i := uint(si)
+func (m *interfaceMain) counterValidate(is_hw bool, i uint) {
 	for _, t := range m.ifThreads {
-		for k := range t.combinedCounters {
-			t.combinedCounters[k].Validate(i)
+		c := &t.sw
+		if is_hw {
+			c = &t.hw
 		}
-		for k := range t.singleCounters {
-			t.singleCounters[k].Validate(i)
+		for k := range c.combined {
+			c.combined[k].Validate(i)
+		}
+		for k := range c.single {
+			c.single[k].Validate(i)
 		}
 	}
 }
 
-func (v *Vnet) counterInit(t *interfaceThread) {
-	t.singleCounters.Validate(uint(nBuiltinSingleIfCounters))
-	t.combinedCounters.Validate(uint(nBuiltinCombinedIfCounters))
+func (m *interfaceMain) counterValidateSw(si Si) { m.counterValidate(false, uint(si)) }
+func (m *interfaceMain) counterValidateHw(hi Hi) { m.counterValidate(true, uint(hi)) }
 
-	if len(v.swIfCounterNames) < len(builtinSingleIfCounterNames) {
+func (m *interfaceMain) counterInit(t *InterfaceThread) {
+	t.sw.single.Validate(uint(nBuiltinSingleIfCounters))
+	t.sw.combined.Validate(uint(nBuiltinCombinedIfCounters))
+
+	if len(m.swIfCounterNames.Single) < len(builtinSingleIfCounterNames) {
 		for i := range builtinSingleIfCounterNames {
-			v.addCounterName(builtinSingleIfCounterNames[i])
+			m.addSwCounter(builtinSingleIfCounterNames[i])
 		}
 	}
-	if len(v.swIfCombinedCounterNames) < len(builtinCombinedIfCounterNames) {
+	if len(m.swIfCounterNames.Combined) < len(builtinCombinedIfCounterNames) {
 		for i := range builtinCombinedIfCounterNames {
-			v.addCombinedCounterName(builtinCombinedIfCounterNames[i])
+			m.addSwCombinedCounter(builtinCombinedIfCounterNames[i])
 		}
 	}
 
-	nSwIfs := v.swInterfaces.Len()
-	for i := range t.singleCounters {
-		t.singleCounters[i].Validate(nSwIfs)
+	if nSwIfs := m.swInterfaces.Len(); nSwIfs > 0 {
+		for i := range t.sw.single {
+			t.sw.single[i].Validate(nSwIfs - 1)
+		}
+		for i := range t.sw.combined {
+			t.sw.combined[i].Validate(nSwIfs - 1)
+		}
 	}
-	for i := range t.combinedCounters {
-		t.combinedCounters[i].Validate(nSwIfs)
+
+	// Allocate hardware counters based on largest number of names.
+	m.hwIferPool.Foreach(func(h HwInterfacer) {
+		var nm InterfaceCounterNames
+		h.GetHwInterfaceCounters(&nm, nil)
+		if len(nm.Single) > 0 {
+			t.hw.single.Validate(uint(len(nm.Single)) - 1)
+		}
+		if len(nm.Combined) > 0 {
+			t.hw.combined.Validate(uint(len(nm.Combined)) - 1)
+		}
+	})
+
+	if nHwIfs := m.hwIferPool.Len(); nHwIfs > 0 {
+		for i := range t.hw.single {
+			t.hw.single[i].Validate(nHwIfs - 1)
+		}
+		for i := range t.hw.combined {
+			t.hw.combined[i].Validate(nHwIfs - 1)
+		}
 	}
+}
+
+type interfaceThreadCounters struct {
+	single   CountersVec
+	combined CombinedCountersVec
+}
+
+type InterfaceThread struct {
+	// This threads' sw/hw interface counters indexed by counter kind.
+	sw, hw interfaceThreadCounters
+}
+
+func (c *interfaceThreadCounters) resizeSingle(n, m uint) (i uint) {
+	i = c.single.Len()
+	c.single.Resize(n)
+	for j := uint(0); j < n; j++ {
+		c.single[i+j].Validate(m)
+	}
+	return
+}
+
+func (c *interfaceThreadCounters) resizeCombined(n, m uint) (i uint) {
+	i = c.combined.Len()
+	c.combined.Resize(n)
+	for j := uint(0); j < n; j++ {
+		c.combined[i+j].Validate(m)
+	}
+	return
 }

@@ -66,6 +66,27 @@ func init() {
 
 func (n *myNode) ValidateSpeed(speed vnet.Bandwidth) (err error) { return }
 
+const (
+	s1_counter vnet.HwIfCounterKind = iota
+	s2_counter
+)
+
+const (
+	c1_counter vnet.HwIfCombinedCounterKind = iota
+	c2_counter
+)
+
+func (n *myNode) GetHwInterfaceCounters(nm *vnet.InterfaceCounterNames, t *vnet.InterfaceThread) {
+	nm.Single = []string{
+		s1_counter: "s1",
+		s2_counter: "s2",
+	}
+	nm.Combined = []string{
+		c1_counter: "c1",
+		c2_counter: "c2",
+	}
+}
+
 func ip4Template(t *loop.BufferTemplate) {
 	t.Data = vnet.MakePacket(
 		&ethernet.Header{
@@ -151,6 +172,8 @@ func (n *myNode) InterfaceInput(o *vnet.RefOut) {
 		nBytes += r.DataLen()
 	}
 	vnet.IfRxCounter.Add(t, n.Si(), uint(len(rs)), nBytes)
+	c1_counter.Add(t, n.Hi, uint(len(rs)), nBytes)
+	s1_counter.Add(t, n.Hi, uint(len(rs)))
 	toErr.SetLen(n.Vnet, uint(len(toErr.Refs)))
 }
 
