@@ -78,11 +78,11 @@ const (
 	HiNil Hi = ^Hi(0)
 )
 
-type swIfKind uint16
+type swIfType uint16
 
 const (
-	swIfHardware swIfKind = iota + 1
-	swIfSub
+	swIfTypeHardware swIfType = iota + 1
+	swIfTypeSubInterface
 )
 
 type swIfFlag uint16
@@ -111,7 +111,7 @@ func (f swIfFlag) String() (s string) {
 }
 
 type swIf struct {
-	kind  swIfKind
+	typ   swIfType
 	flags swIfFlag
 
 	// Pool index for this interface.
@@ -128,10 +128,10 @@ type swIf struct {
 
 //go:generate gentemplate -d Package=vnet -id swIf -d PoolType=swIfPool -d Type=swIf -d Data=elts github.com/platinasystems/elib/pool.tmpl
 
-func (m *Vnet) NewSwIf(kind swIfKind, id IfIndex) (si Si) {
+func (m *Vnet) NewSwIf(typ swIfType, id IfIndex) (si Si) {
 	si = Si(m.swInterfaces.GetIndex())
 	s := m.SwIf(si)
-	s.kind = kind
+	s.typ = typ
 	s.si = si
 	s.supSi = si
 	s.id = id
@@ -162,9 +162,17 @@ func (m *interfaceMain) SupHwIf(s *swIf) *HwIf {
 	return m.HwIf(Hi(sup.id))
 }
 
+func (m *interfaceMain) HwIferForSi(i Si) (h HwInterfacer, ok bool) {
+	sw := m.SwIf(i)
+	if ok = sw.typ == swIfTypeHardware; ok {
+		h = m.HwIfer(Hi(sw.id))
+	}
+	return
+}
+
 func (s *swIf) IfName(vn *Vnet) (v string) {
 	v = vn.SupHwIf(s).name
-	if s.kind != swIfHardware {
+	if s.typ != swIfTypeHardware {
 		v += fmt.Sprintf(".%d", s.id)
 	}
 	return
@@ -282,7 +290,7 @@ func (v *Vnet) RegisterHwInterface(h HwInterfacer, format string, args ...interf
 	hw := h.GetHwIf()
 	hw.vnet = v
 	hw.hi = hi
-	hw.si = v.NewSwIf(swIfHardware, IfIndex(hw.hi))
+	hw.si = v.NewSwIf(swIfTypeHardware, IfIndex(hw.hi))
 	hw.SetName(v, fmt.Sprintf(format, args...))
 	return
 }
