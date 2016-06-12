@@ -169,7 +169,7 @@ func (m *interfaceMain) doHwSingle(f foreachFn, nm *InterfaceCounterNames, zero 
 		t.hw.single[k].Get(i, &w)
 		v += w
 	}
-	if v != 0 || zero {
+	if v != 0 || (zero && k < uint(len(nm.Single))) {
 		f(nm.Single[k], v)
 	}
 	return
