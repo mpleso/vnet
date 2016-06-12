@@ -34,6 +34,8 @@ type Node struct {
 
 func (n *Node) GetVnetNode() *Node { return n }
 
+const MaxVectorLen = loop.V
+
 type Noder interface {
 	loop.Noder
 	GetVnetNode() *Node
