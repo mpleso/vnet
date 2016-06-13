@@ -68,25 +68,25 @@ func (c CountersVec) ClearAll() {
 	}
 }
 
-type CombinedCounter struct{ packets, bytes uint64 }
+type CombinedCounter struct{ Packets, Bytes uint64 }
 
 func (c *CombinedCounter) Zero() {
-	c.packets = 0
-	c.bytes = 0
+	c.Packets = 0
+	c.Bytes = 0
 }
 
 func (c *CombinedCounter) Add(d *CombinedCounter) {
-	c.packets += d.packets
-	c.bytes += d.bytes
+	c.Packets += d.Packets
+	c.Bytes += d.Bytes
 }
 
 func (c *CombinedCounter) subNoValidate(d *CombinedCounter) {
-	c.packets -= d.packets
-	c.bytes -= d.bytes
+	c.Packets -= d.Packets
+	c.Bytes -= d.Bytes
 }
 
 func (c *CombinedCounter) Sub(d *CombinedCounter) {
-	if d.packets > c.packets || d.bytes > c.bytes {
+	if d.Packets > c.Packets || d.Bytes > c.Bytes {
 		panic("underflow")
 	}
 	c.subNoValidate(d)
@@ -151,8 +151,8 @@ func (c *CombinedCounters) Add(i uint, p, b uint) {
 
 		nb := uint(int(op*uint(c.avePacketSize))+od) + b
 
-		maxi.packets += uint64(np)
-		maxi.bytes += uint64(nb)
+		maxi.Packets += uint64(np)
+		maxi.Bytes += uint64(nb)
 		mini.Zero()
 
 		// Update average packet size.
@@ -165,8 +165,8 @@ func (c *CombinedCounters) Add(i uint, p, b uint) {
 }
 
 func (c *CombinedCounters) Add64(i uint, p, b uint64) {
-	c.maxi[i].packets += p
-	c.maxi[i].bytes += b
+	c.maxi[i].Packets += p
+	c.maxi[i].Bytes += b
 }
 
 // Get counter value: 2 flavors.
@@ -200,8 +200,8 @@ func (c CombinedCountersVec) ClearAll() {
 }
 
 func (c *CombinedCounters) addMini(mini *miniCombinedCounter, maxi *CombinedCounter) {
-	maxi.packets += uint64(mini.packets)
-	maxi.bytes += uint64(int(uint(mini.packets)*uint(c.avePacketSize)) + int(mini.byteDiff))
+	maxi.Packets += uint64(mini.packets)
+	maxi.Bytes += uint64(int(uint(mini.packets)*uint(c.avePacketSize)) + int(mini.byteDiff))
 }
 
 func (c *CombinedCounters) flushMini(mini *miniCombinedCounter, maxi *CombinedCounter) {

@@ -111,9 +111,9 @@ func (m *interfaceMain) doSwCombined(f foreachFn, nm *InterfaceCounterNames, zer
 		t.sw.combined[k].Get(i, &w)
 		v.Add(&w)
 	}
-	if v.packets != 0 || zero {
-		f(nm.Combined[k]+" packets", v.packets)
-		f(nm.Combined[k]+" bytes", v.bytes)
+	if v.Packets != 0 || zero {
+		f(nm.Combined[k]+" packets", v.Packets)
+		f(nm.Combined[k]+" bytes", v.Bytes)
 	}
 	return
 }
@@ -156,9 +156,9 @@ func (m *interfaceMain) doHwCombined(f foreachFn, nm *InterfaceCounterNames, zer
 		t.hw.combined[k].Get(i, &w)
 		v.Add(&w)
 	}
-	if v.packets != 0 || zero {
-		f(nm.Combined[k]+" packets", v.packets)
-		f(nm.Combined[k]+" bytes", v.bytes)
+	if v.Packets != 0 || zero {
+		f(nm.Combined[k]+" packets", v.Packets)
+		f(nm.Combined[k]+" bytes", v.Bytes)
 	}
 	return
 }
