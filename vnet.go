@@ -105,6 +105,27 @@ func (r *RefVecIn) FreePoolRefs(pool *loop.BufferPool) {
 }
 func (r *RefVecIn) FreeRefs() { r.FreePoolRefs(r.BufferPool) }
 
+type InputNode struct {
+	Node
+	o InputNoder
+}
+
+func (n *InputNode) GetInputNode() *InputNode                 { return n }
+func (n *InputNode) MakeLoopOut() loop.LooperOut              { return &RefOut{} }
+func (n *InputNode) LoopInput(l *loop.Loop, o loop.LooperOut) { n.o.NodeInput(o.(*RefOut)) }
+
+type InputNoder interface {
+	Noder
+	GetInputNode() *InputNode
+	NodeInput(o *RefOut)
+}
+
+func (v *Vnet) RegisterInputNode(n InputNoder, name string, args ...interface{}) {
+	v.RegisterNode(n, name, args...)
+	x := n.GetInputNode()
+	x.o = n
+}
+
 type OutputNode struct {
 	Node
 	o OutputNoder
