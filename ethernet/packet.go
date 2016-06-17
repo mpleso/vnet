@@ -28,8 +28,9 @@ type VlanHeader struct {
 // Packet type from ethernet header.
 type Type vnet.Uint16
 
-func (h *Header) GetType() Type { return Type(vnet.Uint16(h.Type).ToHost()) }
-func (t Type) FromHost() Type   { return Type(vnet.Uint16(t).FromHost()) }
+func (h *Header) GetType() Type     { return Type(vnet.Uint16(h.Type).ToHost()) }
+func (h *VlanHeader) GetType() Type { return Type(vnet.Uint16(h.Type).ToHost()) }
+func (t Type) FromHost() Type       { return Type(vnet.Uint16(t).FromHost()) }
 
 const (
 	AddressBytes    = 6
@@ -104,3 +105,12 @@ func (h *Header) Write(b *bytes.Buffer) {
 	b.Write(i.data[:])
 }
 func (h *Header) Read(b []byte) vnet.PacketHeader { return (*Header)(vnet.Pointer(b)) }
+
+func (h *VlanHeader) Len() uint                      { return VlanHeaderBytes }
+func (h *VlanHeader) Finalize(l []vnet.PacketHeader) {}
+func (h *VlanHeader) Write(b *bytes.Buffer) {
+	type t struct{ data [unsafe.Sizeof(*h)]byte }
+	i := (*t)(unsafe.Pointer(h))
+	b.Write(i.data[:])
+}
+func (h *VlanHeader) Read(b []byte) vnet.PacketHeader { return (*VlanHeader)(vnet.Pointer(b)) }

@@ -28,3 +28,7 @@ func (h *Header) Parse(s *scan.Scanner) (err error) {
 	err = s.ParseFormat("%: % -> %", &h.Type, &h.Src, &h.Dst)
 	return
 }
+
+func (h *VlanHeader) String() (s string) {
+	return fmt.Sprintf("%s: vlan %d", h.GetType().String(), h.Priority_cfi_and_id.ToHost()&0xfff)
+}
