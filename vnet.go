@@ -76,6 +76,8 @@ type refInCommon struct {
 	BufferPool *loop.BufferPool
 }
 
+const V = loop.V
+
 type RefIn struct {
 	refInCommon
 	Refs [loop.V]Ref
