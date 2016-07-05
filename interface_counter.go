@@ -87,6 +87,10 @@ func (c swIfCombinedCounterKind) Add(t *InterfaceThread, si Si, packets, bytes u
 	t.sw.combined[c].Add(uint(si), packets, bytes)
 }
 
+func (c swIfCombinedCounterKind) Add64(t *InterfaceThread, si Si, packets, bytes uint64) {
+	t.sw.combined[c].Add64(uint(si), packets, bytes)
+}
+
 func (c HwIfCounterKind) Add(t *InterfaceThread, hi Hi, value uint) {
 	t.hw.single[c].Add(uint(hi), value)
 }

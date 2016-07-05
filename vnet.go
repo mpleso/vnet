@@ -34,7 +34,7 @@ type Node struct {
 
 func (n *Node) GetVnetNode() *Node { return n }
 
-const MaxVectorLen = loop.V
+const MaxVectorLen = loop.MaxVectorLen
 
 type Noder interface {
 	loop.Noder
@@ -46,7 +46,7 @@ type Ref struct {
 
 	Err ErrorRef
 
-	unused [loop.RefOpaqueBytes - 4]byte
+	Si Si
 }
 
 func (r *Ref) Flags() BufferFlag         { return BufferFlag(r.RefHeader.Flags()) }
@@ -76,11 +76,9 @@ type refInCommon struct {
 	BufferPool *loop.BufferPool
 }
 
-const V = loop.V
-
 type RefIn struct {
 	refInCommon
-	Refs [loop.V]Ref
+	Refs [MaxVectorLen]Ref
 }
 
 type RefVecIn struct {

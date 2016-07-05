@@ -19,15 +19,13 @@ func (n *InterfaceNode) slowPath(rv *RefVec, rs []Ref, is, ivʹ, nBytesʹ uint) 
 	return
 }
 
-func (n *InterfaceNode) InterfaceOutput(ri *RefIn) (rvi *RefVecIn) {
-	{
-		i := ri.ThreadId()
-		n.refVecIns.Validate(i)
-		if n.refVecIns[i] == nil {
-			n.refVecIns[i] = &RefVecIn{}
-		}
-		rvi = n.refVecIns[i]
+func (n *InterfaceNode) InterfaceOutput(ri *RefIn) {
+	id := ri.ThreadId()
+	n.refVecIns.Validate(id)
+	if n.refVecIns[id] == nil {
+		n.refVecIns[id] = &RefVecIn{}
 	}
+	rvi := n.refVecIns[id]
 
 	// Copy common fields.
 	rvi.refInCommon = ri.refInCommon
@@ -74,5 +72,4 @@ func (n *InterfaceNode) InterfaceOutput(ri *RefIn) (rvi *RefVecIn) {
 	IfTxCounter.Add(t, hw.si, nRef, nBytes)
 
 	n.i.InterfaceOutput(rvi)
-	return
 }

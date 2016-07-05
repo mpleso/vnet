@@ -273,7 +273,8 @@ type interfaceMain struct {
 	ifThreads       ifThreadVec
 
 	// Counters
-	swIfCounterNames InterfaceCounterNames
+	swIfCounterNames     InterfaceCounterNames
+	swIfCounterSyncHooks SwIfCounterSyncHookVec
 
 	swIfAddDelHooks      SwIfAddDelHookVec
 	swIfAdminUpDownHooks SwIfAdminUpDownHookVec
@@ -408,6 +409,7 @@ type Devicer interface {
 
 type SwIfAddDelHook func(v *Vnet, si Si, isDel bool) error
 type SwIfAdminUpDownHook func(v *Vnet, si Si, isUp bool) error
+type SwIfCounterSyncHook func(v *Vnet)
 type HwIfAddDelHook func(v *Vnet, hi Hi, isDel bool) error
 type HwIfLinkUpDownHook func(v *Vnet, hi Hi, isUp bool) error
 type HwIfProvisionHook func(v *Vnet, hi Hi, isProvisioned bool) error
@@ -417,12 +419,16 @@ type HwIfProvisionHook func(v *Vnet, hi Hi, isProvisioned bool) error
 //go:generate gentemplate -id HwIfAddDelHook -d Package=vnet -d DepsType=HwIfAddDelHookVec -d Type=HwIfAddDelHook -d Data=hooks github.com/platinasystems/elib/dep/dep.tmpl
 //go:generate gentemplate -id HwIfLinkUpDownHook -d Package=vnet -d DepsType=HwIfLinkUpDownHookVec -d Type=HwIfLinkUpDownHook -d Data=hooks github.com/platinasystems/elib/dep/dep.tmpl
 //go:generate gentemplate -id HwIfProvisionHook -d Package=vnet -d DepsType=HwIfProvisionHookVec -d Type=HwIfProvisionHook -d Data=hooks github.com/platinasystems/elib/dep/dep.tmpl
+//go:generate gentemplate -id SwIfCounterSyncHookVec -d Package=vnet -d DepsType=SwIfCounterSyncHookVec -d Type=SwIfCounterSyncHook -d Data=hooks github.com/platinasystems/elib/dep/dep.tmpl
 
 func (m *interfaceMain) RegisterSwIfAddDelHook(h SwIfAddDelHook) {
 	m.swIfAddDelHooks.Add(h)
 }
 func (m *interfaceMain) RegisterSwIfAdminUpDownHook(h SwIfAdminUpDownHook) {
 	m.swIfAdminUpDownHooks.Add(h)
+}
+func (m *interfaceMain) RegisterSwIfCounterSyncHook(h SwIfCounterSyncHook) {
+	m.swIfCounterSyncHooks.Add(h)
 }
 func (m *interfaceMain) RegisterHwIfAddDelHook(h HwIfAddDelHook) {
 	m.hwIfAddDelHooks.Add(h)

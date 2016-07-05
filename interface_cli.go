@@ -40,6 +40,10 @@ func (v *Vnet) showSwIfs(c cli.Commander, w cli.Writer, s *cli.Scanner) (err err
 	swIfs.Init(v)
 	sort.Sort(swIfs)
 
+	for i := range v.swIfCounterSyncHooks.hooks {
+		v.swIfCounterSyncHooks.Get(i)(v)
+	}
+
 	sifs := showSwIfs{}
 	detail := false
 	if s.Parse("d*etail") == nil {
