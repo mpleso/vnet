@@ -55,11 +55,11 @@ type Header struct {
 	Src, Dst Address
 }
 
-func (a *Address) AsUint32() uint32        { return *(*uint32)(unsafe.Pointer(&a[0])) }
-func (a *Address) FromUint32(x uint32)     { *(*uint32)(unsafe.Pointer(&a[0])) = x }
-func (a *Address) IsEqual(b *Address) bool { return a.AsUint32() == b.AsUint32() }
-func (a *Address) IsZero() bool            { return a.AsUint32() == 0 }
-func IpAddress(a *ip.Address) *Address     { return (*Address)(unsafe.Pointer(&a[0])) }
+func (a *Address) AsUint32() vnet.Uint32    { return *(*vnet.Uint32)(unsafe.Pointer(&a[0])) }
+func (a *Address) FromUint32(x vnet.Uint32) { *(*vnet.Uint32)(unsafe.Pointer(&a[0])) = x }
+func (a *Address) IsEqual(b *Address) bool  { return a.AsUint32() == b.AsUint32() }
+func (a *Address) IsZero() bool             { return a.AsUint32() == 0 }
+func IpAddress(a *ip.Address) *Address      { return (*Address)(unsafe.Pointer(&a[0])) }
 
 // 20 byte ip4 header wide access for efficient checksum.
 type header64 struct {

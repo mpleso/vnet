@@ -86,8 +86,6 @@ type RefVecIn struct {
 	Refs RefVec
 }
 
-//go:generate gentemplate -d Package=vnet -id RefVecIn -d VecType=RefVecInVec -d Type=*RefVecIn github.com/platinasystems/elib/vec.tmpl
-
 type RefOut struct {
 	loop.Out
 	Outs []RefIn
@@ -175,13 +173,13 @@ type InterfaceNoder interface {
 	Noder
 	GetInterfaceNode() *InterfaceNode
 	InterfaceInput(out *RefOut)
-	InterfaceOutput(in *RefVecIn)
+	InterfaceOutput(in *RefVecIn, free chan *RefVecIn)
 }
 
 type InterfaceNode struct {
 	Node
 
-	refVecIns RefVecInVec
+	threads interfaceNodeThreadVec
 
 	Hi Hi
 

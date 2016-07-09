@@ -19,13 +19,32 @@ func (n *InterfaceNode) slowPath(rv *RefVec, rs []Ref, is, ivʹ, nBytesʹ uint) 
 	return
 }
 
+type interfaceNodeThread struct {
+	freeChan chan *RefVecIn
+}
+
+//go:generate gentemplate -d Package=vnet -id interfaceNodeThreadVec -d VecType=interfaceNodeThreadVec -d Type=*interfaceNodeThread github.com/platinasystems/elib/vec.tmpl
+
+func (t *interfaceNodeThread) getRefVecIn() (i *RefVecIn) {
+	select {
+	case i = <-t.freeChan:
+		i.FreeRefs()
+		break
+	default:
+		i = &RefVecIn{}
+	}
+	return
+}
+
 func (n *InterfaceNode) InterfaceOutput(ri *RefIn) {
 	id := ri.ThreadId()
-	n.refVecIns.Validate(id)
-	if n.refVecIns[id] == nil {
-		n.refVecIns[id] = &RefVecIn{}
+	n.threads.Validate(id)
+	if n.threads[id] == nil {
+		n.threads[id] = &interfaceNodeThread{}
+		n.threads[id].freeChan = make(chan *RefVecIn, 64)
 	}
-	rvi := n.refVecIns[id]
+	nt := n.threads[id]
+	rvi := nt.getRefVecIn()
 
 	// Copy common fields.
 	rvi.refInCommon = ri.refInCommon
@@ -71,5 +90,5 @@ func (n *InterfaceNode) InterfaceOutput(ri *RefIn) {
 	hw := n.Vnet.HwIf(n.Hi)
 	IfTxCounter.Add(t, hw.si, nRef, nBytes)
 
-	n.i.InterfaceOutput(rvi)
+	n.i.InterfaceOutput(rvi, nt.freeChan)
 }

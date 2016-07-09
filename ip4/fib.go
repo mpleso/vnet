@@ -36,10 +36,10 @@ func (p *Prefix) ToIpPrefix() (i ip.Prefix) {
 
 type mapFib struct {
 	// Maps for /0 through /32; key in network byte order.
-	maps [1 + 32]map[uint32]ip.Adj
+	maps [1 + 32]map[vnet.Uint32]ip.Adj
 }
 
-var mapFibMasks [33]uint32
+var mapFibMasks [33]vnet.Uint32
 
 func init() {
 	for i := range mapFibMasks {
@@ -47,16 +47,16 @@ func init() {
 		if i < 32 {
 			m = vnet.Uint32(1<<uint(i)-1) << uint(32-i)
 		}
-		mapFibMasks[i] = uint32(vnet.Uint32(m).FromHost())
+		mapFibMasks[i] = vnet.Uint32(m).FromHost()
 	}
 }
 
-func (p *Prefix) mapFibKey() uint32 { return p.Address.AsUint32() & mapFibMasks[p.Len] }
+func (p *Prefix) mapFibKey() vnet.Uint32 { return p.Address.AsUint32() & mapFibMasks[p.Len] }
 
 func (m *mapFib) set(p *Prefix, r ip.Adj) (oldAdj ip.Adj, ok bool) {
 	l := p.Len
 	if m.maps[l] == nil {
-		m.maps[l] = make(map[uint32]ip.Adj)
+		m.maps[l] = make(map[vnet.Uint32]ip.Adj)
 	}
 	k := p.mapFibKey()
 	if oldAdj, ok = m.maps[l][k]; !ok {
