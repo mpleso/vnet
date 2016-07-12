@@ -303,7 +303,7 @@ func (m *interfaceMain) newInterfaceThread() (t *InterfaceThread) {
 }
 
 func (m *interfaceMain) GetIfThread(id uint) (t *InterfaceThread) {
-	m.ifThreads.Validate(uint(id))
+	m.ifThreads.Validate(id)
 	if t = m.ifThreads[id]; t == nil {
 		t = m.newInterfaceThread()
 		m.ifThreads[id] = t
