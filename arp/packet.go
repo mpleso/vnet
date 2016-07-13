@@ -2,7 +2,6 @@ package arp
 
 import (
 	"github.com/platinasystems/elib"
-	"github.com/platinasystems/elib/loop"
 	"github.com/platinasystems/vnet"
 	"github.com/platinasystems/vnet/ethernet"
 	"github.com/platinasystems/vnet/ip4"
@@ -91,5 +90,5 @@ func (h *HeaderEthernetIp4) Read(b []byte) vnet.PacketHeader {
 	return (*HeaderEthernetIp4)(vnet.Pointer(b))
 }
 
-func GetHeader(r *loop.Ref) *HeaderEthernetIp4      { return (*HeaderEthernetIp4)(r.Data()) }
-func GetPacketHeader(r *loop.Ref) vnet.PacketHeader { return GetHeader(r) }
+func GetHeader(r *vnet.Ref) *HeaderEthernetIp4      { return (*HeaderEthernetIp4)(r.Data()) }
+func GetPacketHeader(r *vnet.Ref) vnet.PacketHeader { return GetHeader(r) }

@@ -4,6 +4,7 @@ import (
 	"github.com/platinasystems/elib"
 	"github.com/platinasystems/elib/cli"
 	"github.com/platinasystems/elib/dep"
+	"github.com/platinasystems/elib/hw"
 	"github.com/platinasystems/elib/loop"
 )
 
@@ -42,7 +43,7 @@ type Noder interface {
 }
 
 type Ref struct {
-	loop.RefHeader
+	hw.RefHeader
 
 	Err ErrorRef
 
@@ -52,28 +53,28 @@ type Ref struct {
 func (r *Ref) Flags() BufferFlag         { return BufferFlag(r.RefHeader.Flags()) }
 func (r *Ref) NextValidFlag() BufferFlag { return BufferFlag(r.RefHeader.NextValidFlag()) }
 
-type BufferFlag loop.BufferFlag
+type BufferFlag hw.BufferFlag
 
 const (
-	NextValid = BufferFlag(loop.NextValid)
-	Cloned    = BufferFlag(loop.Cloned)
+	NextValid = BufferFlag(hw.NextValid)
+	Cloned    = BufferFlag(hw.Cloned)
 )
 
 func RefFlag1(f BufferFlag, r []Ref, i uint) bool {
-	return loop.RefFlag1(loop.BufferFlag(f), &r[i+0].RefHeader)
+	return hw.RefFlag1(hw.BufferFlag(f), &r[i+0].RefHeader)
 }
 func RefFlag2(f BufferFlag, r []Ref, i uint) bool {
-	return loop.RefFlag2(loop.BufferFlag(f), &r[i+0].RefHeader, &r[i+1].RefHeader)
+	return hw.RefFlag2(hw.BufferFlag(f), &r[i+0].RefHeader, &r[i+1].RefHeader)
 }
 func RefFlag4(f BufferFlag, r []Ref, i uint) bool {
-	return loop.RefFlag4(loop.BufferFlag(f), &r[i+0].RefHeader, &r[i+1].RefHeader, &r[i+2].RefHeader, &r[i+3].RefHeader)
+	return hw.RefFlag4(hw.BufferFlag(f), &r[i+0].RefHeader, &r[i+1].RefHeader, &r[i+2].RefHeader, &r[i+3].RefHeader)
 }
 
 //go:generate gentemplate -d Package=vnet -id Ref -d VecType=RefVec -d Type=Ref github.com/platinasystems/elib/vec.tmpl
 
 type refInCommon struct {
 	loop.In
-	BufferPool *loop.BufferPool
+	BufferPool *hw.BufferPool
 }
 
 type RefIn struct {
@@ -91,14 +92,14 @@ type RefOut struct {
 	Outs []RefIn
 }
 
-func (r *RefIn) AllocPoolRefs(pool *loop.BufferPool) {
+func (r *RefIn) AllocPoolRefs(pool *hw.BufferPool) {
 	r.BufferPool = pool
 	pool.AllocRefs(&r.Refs[0].RefHeader, uint(len(r.Refs)))
 }
-func (r *RefIn) AllocRefs()             { r.AllocPoolRefs(loop.DefaultBufferPool) }
+func (r *RefIn) AllocRefs()             { r.AllocPoolRefs(hw.DefaultBufferPool) }
 func (i *RefIn) SetLen(v *Vnet, l uint) { i.In.SetLen(&v.loop, l) }
 
-func (r *RefVecIn) FreePoolRefs(pool *loop.BufferPool) {
+func (r *RefVecIn) FreePoolRefs(pool *hw.BufferPool) {
 	pool.FreeRefs(&r.Refs[0].RefHeader, uint(len(r.Refs)))
 }
 func (r *RefVecIn) FreeRefs() { r.FreePoolRefs(r.BufferPool) }

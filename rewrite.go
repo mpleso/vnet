@@ -2,7 +2,7 @@ package vnet
 
 import (
 	"github.com/platinasystems/elib"
-	"github.com/platinasystems/elib/loop"
+	"github.com/platinasystems/elib/hw"
 
 	"unsafe"
 )
@@ -25,7 +25,7 @@ type Rewrite struct {
 	// Number of bytes in rewrite data.
 	dataLen uint16
 
-	data [loop.RewriteBytes]byte
+	data [hw.BufferRewriteBytes]byte
 }
 
 func (r *Rewrite) SetData(d []byte) { r.dataLen = uint16(copy(r.data[:], d)) }
@@ -52,12 +52,12 @@ func (v *Vnet) SetRewrite(rw *Rewrite, si Si, noder Noder, t PacketType, dstAddr
 	h.SetRewrite(v, rw, t, dstAddr)
 }
 
-func PerformRewrite(r0 *loop.Ref, rw0 *Rewrite) {
+func PerformRewrite(r0 *Ref, rw0 *Rewrite) {
 	r0.Advance(-int(rw0.dataLen))
 	copy(r0.DataSlice(), rw0.getData())
 }
 
-func Perform2Rewrites(r0, r1 *loop.Ref, rw0, rw1 *Rewrite) {
+func Perform2Rewrites(r0, r1 *Ref, rw0, rw1 *Rewrite) {
 	r0.Advance(-int(rw0.dataLen))
 	r1.Advance(-int(rw1.dataLen))
 	copy(r0.DataSlice(), rw0.getData())
