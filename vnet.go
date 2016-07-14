@@ -112,7 +112,7 @@ func (r *RefIn) AllocPoolRefs(pool *hw.BufferPool) {
 }
 func (r *RefIn) AllocRefs()             { r.AllocPoolRefs(hw.DefaultBufferPool) }
 func (i *RefIn) SetLen(v *Vnet, l uint) { i.In.SetLen(&v.loop, l) }
-func (i *RefIn) Add1(v *Vnet) (l uint) {
+func (i *RefIn) AddLen(v *Vnet) (l uint) {
 	l = i.GetLen(&v.loop)
 	i.SetLen(v, l+1)
 	return
