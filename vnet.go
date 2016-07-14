@@ -6,6 +6,7 @@ import (
 	"github.com/platinasystems/elib/dep"
 	"github.com/platinasystems/elib/hw"
 	"github.com/platinasystems/elib/loop"
+	"unsafe"
 )
 
 type RxTx int
@@ -70,6 +71,19 @@ func RefFlag4(f BufferFlag, r []Ref, i uint) bool {
 	return hw.RefFlag4(hw.BufferFlag(f), &r[i+0].RefHeader, &r[i+1].RefHeader, &r[i+2].RefHeader, &r[i+3].RefHeader)
 }
 
+type RefChain hw.RefChain
+
+func (c *RefChain) Len() uint64 { return (*hw.RefChain)(c).Len() }
+func (c *RefChain) Head() *Ref  { return (*Ref)(unsafe.Pointer((*hw.RefChain)(c).Head())) }
+func (c *RefChain) Reset()      { *c = RefChain{} }
+func (c *RefChain) Append(r *Ref) {
+	if c.Len() == 0 {
+		h := c.Head()
+		*h = *r
+	}
+	(*hw.RefChain)(c).Append(&r.RefHeader)
+}
+
 //go:generate gentemplate -d Package=vnet -id Ref -d VecType=RefVec -d Type=Ref github.com/platinasystems/elib/vec.tmpl
 
 type refInCommon struct {
@@ -98,6 +112,11 @@ func (r *RefIn) AllocPoolRefs(pool *hw.BufferPool) {
 }
 func (r *RefIn) AllocRefs()             { r.AllocPoolRefs(hw.DefaultBufferPool) }
 func (i *RefIn) SetLen(v *Vnet, l uint) { i.In.SetLen(&v.loop, l) }
+func (i *RefIn) Add1(v *Vnet) (l uint) {
+	l = i.GetLen(&v.loop)
+	i.SetLen(v, l+1)
+	return
+}
 
 func (r *RefVecIn) FreePoolRefs(pool *hw.BufferPool) {
 	pool.FreeRefs(&r.Refs[0].RefHeader, uint(len(r.Refs)))
