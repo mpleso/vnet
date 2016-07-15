@@ -6,6 +6,7 @@ import (
 	"github.com/platinasystems/elib/dep"
 	"github.com/platinasystems/elib/hw"
 	"github.com/platinasystems/elib/loop"
+
 	"unsafe"
 )
 
@@ -73,15 +74,24 @@ func RefFlag4(f BufferFlag, r []Ref, i uint) bool {
 
 type RefChain hw.RefChain
 
-func (c *RefChain) Len() uint64 { return (*hw.RefChain)(c).Len() }
-func (c *RefChain) Head() *Ref  { return (*Ref)(unsafe.Pointer((*hw.RefChain)(c).Head())) }
-func (c *RefChain) Reset()      { *c = RefChain{} }
+func (c *RefChain) Len() uint  { return (*hw.RefChain)(c).Len() }
+func (c *RefChain) Reset()     { *c = RefChain{} }
+func (c *RefChain) Head() *Ref { return (*Ref)(unsafe.Pointer((*hw.RefChain)(c).Head())) }
+func (c *RefChain) Validate()  { (*hw.RefChain)(c).Validate() }
+
 func (c *RefChain) Append(r *Ref) {
 	if c.Len() == 0 {
 		h := c.Head()
 		*h = *r
 	}
 	(*hw.RefChain)(c).Append(&r.RefHeader)
+	c.Validate()
+}
+func (c *RefChain) Done() (h Ref) {
+	h = *c.Head()
+	c.Validate()
+	c.Reset()
+	return
 }
 
 //go:generate gentemplate -d Package=vnet -id Ref -d VecType=RefVec -d Type=Ref github.com/platinasystems/elib/vec.tmpl
