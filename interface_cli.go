@@ -7,7 +7,27 @@ import (
 
 	"fmt"
 	"sort"
+	"time"
 )
+
+type showIfConfig struct {
+	detail bool
+	colMap map[string]bool
+}
+
+func (c *showIfConfig) parse(s *cli.Scanner) {
+	c.detail = false
+	c.colMap = map[string]bool{
+		"Rate": false,
+	}
+	for s.Peek() != scan.EOF {
+		if s.Parse("d*etail") == nil {
+			c.detail = true
+		} else if s.Parse("r*ate") == nil {
+			c.colMap["Rate"] = true
+		}
+	}
+}
 
 type swIfIndices struct {
 	*Vnet
@@ -28,10 +48,11 @@ func (h *swIfIndices) Swap(i, j int)      { h.ifs[i], h.ifs[j] = h.ifs[j], h.ifs
 func (h *swIfIndices) Len() int           { return len(h.ifs) }
 
 type showSwIf struct {
-	Name    string `format:"%-30s" align:"left"`
-	State   string `format:"%-12s" align:"left"`
-	Counter string `format:"%-30s" align:"left"`
-	Count   uint64 `format:"%16d" align:"center"`
+	Name    string  `format:"%-30s" align:"left"`
+	State   string  `format:"%-12s" align:"left"`
+	Counter string  `format:"%-30s" align:"left"`
+	Count   uint64  `format:"%16d" align:"center"`
+	Rate    float64 `format:"%16.2e" align:"center"`
 }
 type showSwIfs []showSwIf
 
@@ -45,18 +66,18 @@ func (v *Vnet) showSwIfs(c cli.Commander, w cli.Writer, s *cli.Scanner) (err err
 	}
 
 	sifs := showSwIfs{}
-	detail := false
-	if s.Parse("d*etail") == nil {
-		detail = true
-	}
+	cf := showIfConfig{}
+	cf.parse(s)
 
+	dt := time.Since(v.timeLastClear).Seconds()
 	for i := range swIfs.ifs {
 		si := v.SwIf(swIfs.ifs[i])
 		first := true
-		v.foreachSwIfCounter(detail, si.si, func(counter string, count uint64) {
+		v.foreachSwIfCounter(cf.detail, si.si, func(counter string, count uint64) {
 			s := showSwIf{
 				Counter: counter,
 				Count:   count,
+				Rate:    float64(count) / dt,
 			}
 			if first {
 				first = false
@@ -67,7 +88,7 @@ func (v *Vnet) showSwIfs(c cli.Commander, w cli.Writer, s *cli.Scanner) (err err
 		})
 	}
 	if len(sifs) > 0 {
-		elib.TabulateWrite(w, sifs)
+		elib.Tabulate(sifs).WriteCols(w, cf.colMap)
 	} else {
 		fmt.Fprintln(w, "All interface counters are zero.")
 	}
@@ -103,10 +124,11 @@ func (h *hwIfIndices) Swap(i, j int)      { h.ifs[i], h.ifs[j] = h.ifs[j], h.ifs
 func (h *hwIfIndices) Len() int           { return len(h.ifs) }
 
 type showHwIf struct {
-	Name    string `format:"%-30s"`
-	Link    string `width:12`
-	Counter string `format:"%-30s" align:"left"`
-	Count   uint64 `format:"%16d" align:"center"`
+	Name    string  `format:"%-30s"`
+	Link    string  `width:12`
+	Counter string  `format:"%-30s" align:"left"`
+	Count   uint64  `format:"%16d" align:"center"`
+	Rate    float64 `format:"%16.2e" align:"center"`
 }
 type showHwIfs []showHwIf
 
@@ -119,20 +141,20 @@ func (v *Vnet) showHwIfs(c cli.Commander, w cli.Writer, s *cli.Scanner) (err err
 	hwIfs.Init(v)
 	sort.Sort(hwIfs)
 
-	detail := false
-	if s.Parse("d*etail") == nil {
-		detail = true
-	}
+	cf := showIfConfig{}
+	cf.parse(s)
 
 	ifs := showHwIfs{}
+	dt := time.Since(v.timeLastClear).Seconds()
 	for i := range hwIfs.ifs {
 		hi := v.HwIfer(hwIfs.ifs[i])
 		h := hi.GetHwIf()
 		first := true
-		v.foreachHwIfCounter(detail, h.hi, func(counter string, count uint64) {
+		v.foreachHwIfCounter(cf.detail, h.hi, func(counter string, count uint64) {
 			s := showHwIf{
 				Counter: counter,
 				Count:   count,
+				Rate:    float64(count) / dt,
 			}
 			if first {
 				first = false
@@ -142,7 +164,7 @@ func (v *Vnet) showHwIfs(c cli.Commander, w cli.Writer, s *cli.Scanner) (err err
 			ifs = append(ifs, s)
 		})
 	}
-	elib.TabulateWrite(w, ifs)
+	elib.Tabulate(ifs).WriteCols(w, cf.colMap)
 	return
 }
 

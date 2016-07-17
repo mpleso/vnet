@@ -1,5 +1,9 @@
 package vnet
 
+import (
+	"time"
+)
+
 type swIfCounterKind uint16
 type swIfCombinedCounterKind uint16
 type HwIfCounterKind uint16
@@ -194,6 +198,7 @@ func (m *interfaceMain) foreachHwIfCounter(zero bool, hi Hi, f func(name string,
 }
 
 func (m *interfaceMain) clearIfCounters() {
+	m.timeLastClear = time.Now()
 	for _, t := range m.ifThreads {
 		t.sw.combined.ClearAll()
 		t.sw.single.ClearAll()

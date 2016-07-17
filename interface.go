@@ -6,6 +6,7 @@ import (
 
 	"errors"
 	"fmt"
+	"time"
 )
 
 type HwIf struct {
@@ -27,6 +28,9 @@ type HwIf struct {
 
 	speed Bandwidth
 
+	// Mask of SERDES lanes for this interface.
+	laneMask LaneMask
+
 	// Max size of packet in bytes (MTU)
 	maxPacketSize uint
 
@@ -36,6 +40,7 @@ type HwIf struct {
 //go:generate gentemplate -d Package=vnet -id HwIf -d PoolType=hwIferPool -d Type=HwInterfacer -d Data=elts github.com/platinasystems/elib/pool.tmpl
 
 type IfIndex uint32
+type LaneMask uint32
 
 type HwInterfacer interface {
 	Devicer
@@ -254,7 +259,8 @@ func (h *HwIf) SetMaxPacketSize(v uint) (err error) {
 	return
 }
 
-func (h *HwIf) Speed() Bandwidth { return h.speed }
+func (h *HwIf) Speed() Bandwidth   { return h.speed }
+func (h *HwIf) LaneMask() LaneMask { return h.laneMask }
 
 func (hw *HwIf) SetSpeed(v Bandwidth) (err error) {
 	vn := hw.vnet
@@ -281,6 +287,13 @@ type interfaceMain struct {
 	hwIfAddDelHooks      HwIfAddDelHookVec
 	hwIfLinkUpDownHooks  HwIfLinkUpDownHookVec
 	hwIfProvisionHooks   HwIfProvisionHookVec
+
+	timeLastClear time.Time
+}
+
+func (m *interfaceMain) init() {
+	// Give clear counters time an initial value.
+	m.timeLastClear = time.Now()
 }
 
 //go:generate gentemplate -d Package=vnet -id ifThread -d VecType=ifThreadVec -d Type=*InterfaceThread github.com/platinasystems/elib/vec.tmpl

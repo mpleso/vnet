@@ -259,6 +259,7 @@ func AddInit(f initHook, deps ...*dep.Dep) { initHooks.Add(f, deps...) }
 
 func (v *Vnet) Run() {
 	loop.AddInit(func(l *loop.Loop) {
+		v.interfaceMain.init()
 		for i := range initHooks.hooks {
 			initHooks.Get(i)(v)
 		}
