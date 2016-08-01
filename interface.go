@@ -2,7 +2,7 @@ package vnet
 
 import (
 	"github.com/platinasystems/elib/loop"
-	"github.com/platinasystems/elib/scan"
+	"github.com/platinasystems/elib/parse"
 
 	"errors"
 	"fmt"
@@ -274,7 +274,7 @@ func (hw *HwIf) SetSpeed(v Bandwidth) (err error) {
 
 type interfaceMain struct {
 	hwIferPool      hwIferPool
-	hwIfIndexByName scan.StringMap
+	hwIfIndexByName parse.StringMap
 	swInterfaces    swIfPool
 	ifThreads       ifThreadVec
 
@@ -383,28 +383,21 @@ func (b Bandwidth) String() string {
 	return fmt.Sprintf("%g%sbps", b, prefix)
 }
 
-func (b *Bandwidth) Parse(s *scan.Scanner) (err error) {
-	var f scan.Float64
-	if err = f.Parse(s); err == nil {
-		unit := Bps
-		switch {
-		case s.AdvanceIfMulti('K', 'k'):
-			unit = Kbps
-		case s.AdvanceIfMulti('M', 'm'):
-			unit = Mbps
-		case s.AdvanceIfMulti('G', 'g'):
-			unit = Gbps
-		case s.AdvanceIfMulti('T', 't'):
-			unit = Tbps
-		case s.Peek() != scan.EOF:
-			tok, text := s.Scan()
-			err = s.UnexpectedError(scan.EOF, tok, text)
-			return
-		}
-		*b = Bandwidth(float64(f) * unit)
-		return
+func (b *Bandwidth) Parse(in *parse.Input) {
+	var f float64
+	in.Parse("%f", &f)
+	unit := Bps
+	switch {
+	case in.AtOneof("Kk") < 2:
+		unit = Kbps
+	case in.AtOneof("Mm") < 2:
+		unit = Mbps
+	case in.AtOneof("Gg") < 2:
+		unit = Gbps
+	case in.AtOneof("Tt") < 2:
+		unit = Tbps
 	}
-	return
+	*b = Bandwidth(float64(f) * unit)
 }
 
 // Class of hardware interfaces, for example, ethernet, sonet, srp, docsis, etc.

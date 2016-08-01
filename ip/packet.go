@@ -2,7 +2,7 @@ package ip
 
 import (
 	"github.com/platinasystems/elib"
-	"github.com/platinasystems/elib/scan"
+	"github.com/platinasystems/elib/parse"
 )
 
 // 8-bit protocol field from IP 4/6 headers.
@@ -286,12 +286,6 @@ func (p *Protocol) String() string {
 	return elib.StringerHex(protocolStrings[:], int(*p))
 }
 
-var protocolMap = scan.NewStringMap(protocolStrings[:])
+var protocolMap = parse.NewStringMap(protocolStrings[:])
 
-func (p *Protocol) Parse(s *scan.Scanner) (err error) {
-	var i uint
-	if i, err = protocolMap.Parse(s); err == nil {
-		*p = Protocol(i)
-	}
-	return err
-}
+func (p *Protocol) Parse(in *parse.Input) { in.Parse("%v", protocolMap, p) }

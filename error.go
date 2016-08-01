@@ -116,7 +116,7 @@ func (ns errNodes) Less(i, j int) bool {
 func (ns errNodes) Swap(i, j int) { ns[i], ns[j] = ns[j], ns[i] }
 func (ns errNodes) Len() int      { return len(ns) }
 
-func (v *Vnet) showErrors(c cli.Commander, w cli.Writer, s *cli.Scanner) (err error) {
+func (v *Vnet) showErrors(c cli.Commander, w cli.Writer, in *cli.Input) (err error) {
 	en := ErrorNode
 	ns := []errNode{}
 	for i := range en.errs {
@@ -150,7 +150,7 @@ func (v *Vnet) showErrors(c cli.Commander, w cli.Writer, s *cli.Scanner) (err er
 	return
 }
 
-func (v *Vnet) clearErrors(c cli.Commander, w cli.Writer, s *cli.Scanner) (err error) {
+func (v *Vnet) clearErrors(c cli.Commander, w cli.Writer, in *cli.Input) (err error) {
 	for _, t := range ErrorNode.threads {
 		if t != nil {
 			copy(t.countsLastClear, t.counts)

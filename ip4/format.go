@@ -1,31 +1,16 @@
 package ip4
 
 import (
-	"github.com/platinasystems/elib/scan"
+	"github.com/platinasystems/elib/parse"
 
 	"fmt"
 )
 
-func (a *Address) String() string                         { return fmt.Sprintf("%d.%d.%d.%d", a[0], a[1], a[2], a[3]) }
-func (a *Address) ParseElt(s *scan.Scanner, i uint) error { return (*scan.Base10Uint8)(&a[i]).Parse(s) }
-func (a *Address) Parse(s *scan.Scanner) error {
-	cf := scan.ParseEltsConfig{
-		Sep:     '.',
-		MinElts: AddressBytes,
-		MaxElts: AddressBytes,
-	}
-	return s.ParseElts(a, &cf)
-}
+func (a *Address) String() string        { return fmt.Sprintf("%d.%d.%d.%d", a[0], a[1], a[2], a[3]) }
+func (a *Address) Parse(in *parse.Input) { in.Parse("%d.%d.%d.%d", &a[0], &a[1], &a[2], &a[3]) }
 
-func (p *Prefix) String() string { return fmt.Sprintf("%s/%d", &p.Address, p.Len) }
-
-func (p *Prefix) Parse(s *scan.Scanner) (err error) {
-	err = s.ParseFormat("%/%", &p.Address, (*scan.Base10Uint32)(&p.Len))
-	if p.Len > 32 {
-		err = fmt.Errorf("prefix length must be <= 32: %d", p.Len)
-	}
-	return
-}
+func (p *Prefix) String() string        { return fmt.Sprintf("%s/%d", &p.Address, p.Len) }
+func (p *Prefix) Parse(in *parse.Input) { in.Parse("%v/%d", &p.Address, &p.Len) }
 
 func (h *Header) String() (s string) {
 	s = fmt.Sprintf("%s: %s -> %s", h.Protocol.String(), h.Src.String(), h.Dst.String())
@@ -38,8 +23,8 @@ func (h *Header) String() (s string) {
 	return
 }
 
-func (h *Header) Parse(s *scan.Scanner) (err error) {
+func (h *Header) Parse(in *parse.Input) {
 	h.Ip_version_and_header_length = 0x45
-	err = s.ParseFormat("%: % -> %", &h.Protocol, &h.Src, &h.Dst)
+	in.Parse("%v: %v -> %v", &h.Protocol, &h.Src, &h.Dst)
 	return
 }

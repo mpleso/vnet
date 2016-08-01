@@ -3,27 +3,51 @@ package vnet
 import (
 	"github.com/platinasystems/elib"
 	"github.com/platinasystems/elib/cli"
-	"github.com/platinasystems/elib/scan"
+	"github.com/platinasystems/elib/parse"
 
 	"fmt"
 	"sort"
 	"time"
 )
 
+func (hi *Hi) ParseWithArgs(in *parse.Input, args *parse.Args) {
+	v := args.Get().(*Vnet)
+	in.Parse("%v", v.hwIfIndexByName, hi)
+}
+
+func (si *Si) ParseWithArgs(in *parse.Input, args *parse.Args) {
+	v := args.Get().(*Vnet)
+	var hi Hi
+	in.Parse("%v", v.hwIfIndexByName, &hi)
+	// Initially get software interface from hardware interface.
+	hw := v.HwIf(hi)
+	*si = hw.si
+	var (
+		id IfIndex
+		ok bool
+	)
+	if in.Parse(".%d", &id) {
+		if *si, ok = hw.subSiById[id]; !ok {
+			panic(fmt.Errorf("unkown sub interface id: %d", id))
+		}
+	}
+}
+
 type showIfConfig struct {
 	detail bool
 	colMap map[string]bool
 }
 
-func (c *showIfConfig) parse(s *cli.Scanner) {
+func (c *showIfConfig) parse(in *cli.Input) {
 	c.detail = false
 	c.colMap = map[string]bool{
 		"Rate": false,
 	}
-	for s.Peek() != scan.EOF {
-		if s.Parse("d*etail") == nil {
+	for !in.End() {
+		switch {
+		case in.Parse("d*etail"):
 			c.detail = true
-		} else if s.Parse("r*ate") == nil {
+		case in.Parse("r*ate"):
 			c.colMap["Rate"] = true
 		}
 	}
@@ -56,7 +80,7 @@ type showSwIf struct {
 }
 type showSwIfs []showSwIf
 
-func (v *Vnet) showSwIfs(c cli.Commander, w cli.Writer, s *cli.Scanner) (err error) {
+func (v *Vnet) showSwIfs(c cli.Commander, w cli.Writer, in *cli.Input) (err error) {
 	swIfs := &swIfIndices{}
 	swIfs.Init(v)
 	sort.Sort(swIfs)
@@ -66,8 +90,8 @@ func (v *Vnet) showSwIfs(c cli.Commander, w cli.Writer, s *cli.Scanner) (err err
 	}
 
 	sifs := showSwIfs{}
-	cf := showIfConfig{}
-	cf.parse(s)
+	cf := &showIfConfig{}
+	cf.parse(in)
 
 	dt := time.Since(v.timeLastClear).Seconds()
 	for i := range swIfs.ifs {
@@ -95,7 +119,7 @@ func (v *Vnet) showSwIfs(c cli.Commander, w cli.Writer, s *cli.Scanner) (err err
 	return
 }
 
-func (v *Vnet) clearSwIfs(c cli.Commander, w cli.Writer, s *cli.Scanner) (err error) {
+func (v *Vnet) clearSwIfs(c cli.Commander, w cli.Writer, in *cli.Input) (err error) {
 	v.clearIfCounters()
 	return
 }
@@ -136,13 +160,13 @@ func (ns showHwIfs) Less(i, j int) bool { return ns[i].Name < ns[j].Name }
 func (ns showHwIfs) Swap(i, j int)      { ns[i], ns[j] = ns[j], ns[i] }
 func (ns showHwIfs) Len() int           { return len(ns) }
 
-func (v *Vnet) showHwIfs(c cli.Commander, w cli.Writer, s *cli.Scanner) (err error) {
+func (v *Vnet) showHwIfs(c cli.Commander, w cli.Writer, in *cli.Input) (err error) {
 	hwIfs := &hwIfIndices{}
 	hwIfs.Init(v)
 	sort.Sort(hwIfs)
 
 	cf := showIfConfig{}
-	cf.parse(s)
+	cf.parse(in)
 
 	ifs := showHwIfs{}
 	dt := time.Since(v.timeLastClear).Seconds()
@@ -168,44 +192,43 @@ func (v *Vnet) showHwIfs(c cli.Commander, w cli.Writer, s *cli.Scanner) (err err
 	return
 }
 
-func (v *Vnet) setSwIf(c cli.Commander, w cli.Writer, s *cli.Scanner) (err error) {
+func (v *Vnet) setSwIf(c cli.Commander, w cli.Writer, in *cli.Input) (err error) {
 	var (
-		isUp scan.UpDown
+		isUp parse.UpDown
+		si   Si
 	)
-	x := SwIfParse{vnet: v}
-	if err = s.Parse("state % %", &x, &isUp); err == nil {
-		s := v.SwIf(x.si)
+	if in.Parse("state %v %v", &si, v, &isUp) {
+		s := v.SwIf(si)
 		err = s.SetAdminUp(v, bool(isUp))
-		return
 	}
 	return
 }
 
-func (v *Vnet) setHwIf(c cli.Commander, w cli.Writer, s *cli.Scanner) (err error) {
-	x := HwIfParse{vnet: v}
+func (v *Vnet) setHwIf(c cli.Commander, w cli.Writer, in *cli.Input) (err error) {
+	var hi Hi
 
 	var mtu uint
-	if err = s.Parse("mtu % %d", &x, &mtu); err == nil {
-		h := v.HwIf(x.hi)
+	if in.Parse("mtu %v %d", &hi, v, &mtu) {
+		h := v.HwIf(hi)
 		err = h.SetMaxPacketSize(mtu)
 		return
 	}
 
 	var bw Bandwidth
-	if err = s.Parse("speed % %", &x, &bw); err == nil {
-		h := v.HwIf(x.hi)
+	if in.Parse("speed %v %", &hi, &bw) {
+		h := v.HwIf(hi)
 		err = h.SetSpeed(bw)
 		return
 	}
 
-	var provision scan.Enable
-	if err = s.Parse("provision % %", &x, &provision); err == nil {
-		h := v.HwIf(x.hi)
+	var provision parse.Enable
+	if in.Parse("provision %v %v", &hi, v, &provision) {
+		h := v.HwIf(hi)
 		err = h.SetProvisioned(bool(provision))
 		return
 	}
 
-	return scan.ParseError
+	return cli.ParseError
 }
 
 func init() {

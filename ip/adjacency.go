@@ -2,7 +2,7 @@ package ip
 
 import (
 	"github.com/platinasystems/elib"
-	"github.com/platinasystems/elib/scan"
+	"github.com/platinasystems/elib/parse"
 	"github.com/platinasystems/vnet"
 
 	"math"
@@ -48,12 +48,8 @@ var lookupNextNames = [...]string{
 
 func (n LookupNext) String() string { return elib.StringerHex(lookupNextNames[:], int(n)) }
 
-func (n *LookupNext) Parse(s *scan.Scanner) error {
-	tok, text := s.ScanSkipWhite()
-	if tok != scan.Ident {
-		return s.UnexpectedError(scan.Ident, tok, text)
-	}
-	switch text {
+func (n *LookupNext) Parse(in *parse.Input) {
+	switch text := in.Token(); text {
 	case "miss":
 		*n = LookupNextMiss
 	case "drop":
@@ -67,9 +63,8 @@ func (n *LookupNext) Parse(s *scan.Scanner) error {
 	case "rewrite":
 		*n = LookupNextRewrite
 	default:
-		return scan.NoMatch
+		panic(parse.ErrInput)
 	}
-	return nil
 }
 
 type Adjacency struct {

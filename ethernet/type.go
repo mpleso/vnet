@@ -2,7 +2,7 @@ package ethernet
 
 import (
 	"github.com/platinasystems/elib"
-	"github.com/platinasystems/elib/scan"
+	"github.com/platinasystems/elib/parse"
 )
 
 const (
@@ -139,12 +139,10 @@ func (t Type) String() string {
 	return elib.StringerHex(typeStrings[:], int(t))
 }
 
-var typeMap = scan.NewStringMap(typeStrings[:])
+var typeMap = parse.NewStringMap(typeStrings[:])
 
-func (t *Type) Parse(s *scan.Scanner) (err error) {
-	var i uint
-	if i, err = typeMap.Parse(s); err == nil {
-		*t = Type(i).FromHost()
-	}
-	return err
+func (t *Type) Parse(in *parse.Input) {
+	var v uint16
+	in.Parse("%v", typeMap, &v)
+	*t = Type(v).FromHost()
 }

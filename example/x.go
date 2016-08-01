@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/platinasystems/elib/cli"
+	"github.com/platinasystems/elib/hw"
 	"github.com/platinasystems/elib/loop"
 	"github.com/platinasystems/vnet"
 	"github.com/platinasystems/vnet/arp"
@@ -13,7 +14,8 @@ import (
 type myNode struct {
 	vnet.InterfaceNode
 	ethernet.Interface
-	pool loop.BufferPool
+	pool  hw.BufferPool
+	count uint
 }
 
 var MyNode = &myNode{}
@@ -46,19 +48,17 @@ func init() {
 		v.CliAdd(&cli.Command{
 			Name:      "a",
 			ShortHelp: "a short help",
-			Action: func(c cli.Commander, w cli.Writer, s *cli.Scanner) (err error) {
-				n := uint(1)
-				if s.Peek() != cli.EOF {
-					if err = s.Parse("%d", &n); err != nil {
-						return
+			Action: func(c cli.Commander, w cli.Writer, in *cli.Input) error {
+				n := MyNode
+				n.count = 1
+				if !in.End() {
+					if in.Parse("%d", &n.count) {
+					} else {
+						return cli.ParseError
 					}
 				}
-				if n == 0 {
-					MyNode.Activate(true)
-				} else {
-					MyNode.ActivateCount(n)
-				}
-				return
+				n.Activate(true)
+				return nil
 			},
 		})
 	})
@@ -87,7 +87,7 @@ func (n *myNode) GetHwInterfaceCounters(nm *vnet.InterfaceCounterNames, t *vnet.
 	}
 }
 
-func ip4Template(t *loop.BufferTemplate) {
+func ip4Template(t *hw.BufferTemplate) {
 	t.Data = vnet.MakePacket(
 		&ethernet.Header{
 			Type: ethernet.IP4.FromHost(),
@@ -108,7 +108,7 @@ func ip4Template(t *loop.BufferTemplate) {
 	)
 }
 
-func arpTemplate(t *loop.BufferTemplate) {
+func arpTemplate(t *hw.BufferTemplate) {
 	t.Data = vnet.MakePacket(
 		&ethernet.Header{
 			Type: ethernet.ARP.FromHost(),
@@ -149,7 +149,7 @@ func (n *myNode) LoopInit(l *loop.Loop) {
 	n.SetAdminUp(true)
 
 	t := &n.pool.BufferTemplate
-	*t = *loop.DefaultBufferTemplate
+	*t = *hw.DefaultBufferTemplate
 	t.Size = 2048
 	if true {
 		ip4Template(t)
@@ -175,10 +175,11 @@ func (n *myNode) InterfaceInput(o *vnet.RefOut) {
 	c1_counter.Add(t, n.Hi, uint(len(rs)), nBytes)
 	s1_counter.Add(t, n.Hi, uint(len(rs)))
 	toErr.SetLen(n.Vnet, uint(len(toErr.Refs)))
+	n.Activate(n.count == 0)
 }
 
-func (n *myNode) InterfaceOutput(i *vnet.RefVecIn) {
-	i.FreeRefs()
+func (n *myNode) InterfaceOutput(i *vnet.RefVecIn, f chan *vnet.RefVecIn) {
+	f <- i
 }
 
 func main() { vnet.Run() }
