@@ -45,10 +45,12 @@ func (c *showIfConfig) parse(in *cli.Input) {
 	}
 	for !in.End() {
 		switch {
-		case in.Parse("d*etail"):
+		case in.Parse("d%*etail"):
 			c.detail = true
-		case in.Parse("r*ate"):
+		case in.Parse("r%*ate"):
 			c.colMap["Rate"] = true
+		default:
+			panic(parse.ErrInput)
 		}
 	}
 }
