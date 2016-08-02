@@ -6,6 +6,7 @@ import (
 	"github.com/platinasystems/elib/dep"
 	"github.com/platinasystems/elib/hw"
 	"github.com/platinasystems/elib/loop"
+	"github.com/platinasystems/elib/parse"
 
 	"unsafe"
 )
@@ -203,6 +204,7 @@ func (v *Vnet) RegisterInOutNode(n InOutNoder, name string, args ...interface{})
 type Vnet struct {
 	loop loop.Loop
 	interfaceMain
+	packageMain
 }
 
 func (v *Vnet) RegisterNode(n Noder, format string, args ...interface{}) {
@@ -227,7 +229,10 @@ var initHooks initHookVec
 
 func AddInit(f initHook, deps ...*dep.Dep) { initHooks.Add(f, deps...) }
 
-func (v *Vnet) Run() {
+func (v *Vnet) Run(in *parse.Input) (err error) {
+	if err = v.Configure(in); err != nil {
+		return
+	}
 	loop.AddInit(func(l *loop.Loop) {
 		v.interfaceMain.init()
 		for i := range initHooks.hooks {
@@ -235,11 +240,7 @@ func (v *Vnet) Run() {
 		}
 	})
 	v.loop.Run()
-}
-
-func Run() {
-	v := &Vnet{}
-	v.Run()
+	return
 }
 
 func (v *Vnet) CliAdd(c *cli.Command)                     { v.loop.CliAdd(c) }

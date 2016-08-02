@@ -4,21 +4,29 @@ import (
 	"github.com/platinasystems/elib/cli"
 	"github.com/platinasystems/elib/hw"
 	"github.com/platinasystems/elib/loop"
+	"github.com/platinasystems/elib/parse"
 	"github.com/platinasystems/vnet"
 	"github.com/platinasystems/vnet/arp"
 	"github.com/platinasystems/vnet/ethernet"
 	"github.com/platinasystems/vnet/ip"
 	"github.com/platinasystems/vnet/ip4"
+
+	"fmt"
+	"os"
 )
 
 type myNode struct {
 	vnet.InterfaceNode
 	ethernet.Interface
+	vnet.Package
 	pool  hw.BufferPool
 	count uint
 }
 
-var MyNode = &myNode{}
+var (
+	MyNode        = &myNode{}
+	myNodePackage uint
+)
 
 const (
 	error_one = iota
@@ -182,4 +190,30 @@ func (n *myNode) InterfaceOutput(i *vnet.RefVecIn, f chan *vnet.RefVecIn) {
 	f <- i
 }
 
-func main() { vnet.Run() }
+type zap int
+
+func (n *myNode) Configure(in *parse.Input) {
+	var (
+		s string
+		z zap
+	)
+	if in.Parse("bar %v", &s) {
+		fmt.Printf("configure bar %s\n", s)
+	} else if in.Parse("zap %d", &z) {
+		fmt.Printf("configure zap %d\n", z)
+	} else {
+		panic(parse.ErrInput)
+	}
+}
+
+func main() {
+	v := &vnet.Vnet{}
+	var in parse.Input
+	in.Add(os.Args[1:]...)
+	myNodePackage = v.AddPackage("my-node", MyNode)
+	err := v.Run(&in)
+	if err != nil {
+		fmt.Printf("%s\n", err)
+		os.Exit(1)
+	}
+}
