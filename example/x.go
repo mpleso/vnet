@@ -43,7 +43,7 @@ func init() {
 			next_self:  "my-node",
 		}
 
-		v.RegisterInterfaceNode(MyNode, MyNode.Hi, "my-node")
+		v.RegisterInterfaceNode(MyNode, MyNode.Hi(), "my-node")
 
 		v.CliAdd(&cli.Command{
 			Name:      "a",
@@ -172,8 +172,8 @@ func (n *myNode) InterfaceInput(o *vnet.RefOut) {
 		nBytes += r.DataLen()
 	}
 	vnet.IfRxCounter.Add(t, n.Si(), uint(len(rs)), nBytes)
-	c1_counter.Add(t, n.Hi, uint(len(rs)), nBytes)
-	s1_counter.Add(t, n.Hi, uint(len(rs)))
+	c1_counter.Add(t, n.Hi(), uint(len(rs)), nBytes)
+	s1_counter.Add(t, n.Hi(), uint(len(rs)))
 	toErr.SetLen(n.Vnet, uint(len(toErr.Refs)))
 	n.Activate(n.count == 0)
 }

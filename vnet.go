@@ -199,36 +199,6 @@ func (v *Vnet) RegisterInOutNode(n InOutNoder, name string, args ...interface{})
 	x.t = n
 }
 
-type InterfaceNoder interface {
-	Noder
-	GetInterfaceNode() *InterfaceNode
-	InterfaceInput(out *RefOut)
-	InterfaceOutput(in *RefVecIn, free chan *RefVecIn)
-}
-
-type InterfaceNode struct {
-	Node
-
-	threads interfaceNodeThreadVec
-
-	Hi Hi
-
-	i InterfaceNoder
-}
-
-func (n *InterfaceNode) GetInterfaceNode() *InterfaceNode         { return n }
-func (n *InterfaceNode) MakeLoopIn() loop.LooperIn                { return &RefIn{} }
-func (n *InterfaceNode) MakeLoopOut() loop.LooperOut              { return &RefOut{} }
-func (n *InterfaceNode) LoopOutput(l *loop.Loop, i loop.LooperIn) { n.InterfaceOutput(i.(*RefIn)) }
-
-func (n *InterfaceNode) LoopInput(l *loop.Loop, o loop.LooperOut) { n.i.InterfaceInput(o.(*RefOut)) }
-func (v *Vnet) RegisterInterfaceNode(n InterfaceNoder, hi Hi, name string, args ...interface{}) {
-	x := n.GetInterfaceNode()
-	x.i = n
-	x.Hi = hi
-	v.RegisterNode(n, name, args...)
-}
-
 // Main structure.
 type Vnet struct {
 	loop loop.Loop

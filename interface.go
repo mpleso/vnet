@@ -407,7 +407,6 @@ type HwIfClasser interface {
 
 type Devicer interface {
 	Noder
-	loop.InputLooper
 	loop.OutputLooper
 	ValidateSpeed(speed Bandwidth) error
 	GetHwInterfaceCounters(n *InterfaceCounterNames, t *InterfaceThread)

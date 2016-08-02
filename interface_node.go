@@ -1,6 +1,63 @@
 package vnet
 
-func (n *InterfaceNode) slowPath(rv *RefVec, rs []Ref, is, ivʹ, nBytesʹ uint) (iv, nBytes uint) {
+import (
+	"github.com/platinasystems/elib/loop"
+)
+
+type interfaceInputer interface {
+	InterfaceInput(out *RefOut)
+}
+
+type outputInterfaceNoder interface {
+	Noder
+	GetInterfaceNode() *interfaceNode
+	InterfaceOutput(in *RefVecIn, free chan *RefVecIn)
+}
+
+type inputOutputInterfaceNoder interface {
+	outputInterfaceNoder
+	interfaceInputer
+}
+
+type interfaceNode struct {
+	Node
+
+	threads interfaceNodeThreadVec
+
+	hi Hi
+
+	tx outputInterfaceNoder
+	rx interfaceInputer
+}
+
+type OutputInterfaceNode struct{ interfaceNode }
+type InterfaceNode struct{ interfaceNode }
+
+func (n *interfaceNode) SetHi(hi Hi)                              { n.hi = hi }
+func (n *interfaceNode) MakeLoopIn() loop.LooperIn                { return &RefIn{} }
+func (n *interfaceNode) MakeLoopOut() loop.LooperOut              { return &RefOut{} }
+func (n *interfaceNode) LoopOutput(l *loop.Loop, i loop.LooperIn) { n.InterfaceOutput(i.(*RefIn)) }
+func (n *interfaceNode) GetInterfaceNode() *interfaceNode         { return n }
+
+func (n *InterfaceNode) LoopInput(l *loop.Loop, o loop.LooperOut) {
+	n.rx.InterfaceInput(o.(*RefOut))
+}
+func (v *Vnet) RegisterInterfaceNode(n inputOutputInterfaceNoder, hi Hi, name string, args ...interface{}) {
+	x := n.GetInterfaceNode()
+	x.rx = n
+	x.tx = n
+	x.hi = hi
+	v.RegisterNode(n, name, args...)
+}
+
+func (v *Vnet) RegisterOutputInterfaceNode(n outputInterfaceNoder, hi Hi, name string, args ...interface{}) {
+	x := n.GetInterfaceNode()
+	x.tx = n
+	x.hi = hi
+	v.RegisterNode(n, name, args...)
+}
+
+func (n *interfaceNode) slowPath(rv *RefVec, rs []Ref, is, ivʹ, nBytesʹ uint) (iv, nBytes uint) {
 	iv, nBytes = ivʹ, nBytesʹ
 	s := rs[is]
 	for {
@@ -26,7 +83,7 @@ type interfaceNodeThread struct {
 
 //go:generate gentemplate -d Package=vnet -id interfaceNodeThreadVec -d VecType=interfaceNodeThreadVec -d Type=*interfaceNodeThread github.com/platinasystems/elib/vec.tmpl
 
-func (t *interfaceNodeThread) getRefVecIn(n *InterfaceNode, in *RefIn) (i *RefVecIn) {
+func (t *interfaceNodeThread) getRefVecIn(n *interfaceNode, in *RefIn) (i *RefVecIn) {
 	for {
 		select {
 		case i = <-t.freeChan:
@@ -45,7 +102,7 @@ func (t *interfaceNodeThread) getRefVecIn(n *InterfaceNode, in *RefIn) (i *RefVe
 	return
 }
 
-func (n *InterfaceNode) InterfaceOutput(ri *RefIn) {
+func (n *interfaceNode) InterfaceOutput(ri *RefIn) {
 	id := ri.ThreadId()
 	n.threads.Validate(id)
 	if n.threads[id] == nil {
@@ -96,8 +153,8 @@ func (n *InterfaceNode) InterfaceOutput(ri *RefIn) {
 	}
 
 	t := n.Vnet.GetIfThread(ri.ThreadId())
-	hw := n.Vnet.HwIf(n.Hi)
+	hw := n.Vnet.HwIf(n.hi)
 	IfTxCounter.Add(t, hw.si, nRef, nBytes)
 
-	n.i.InterfaceOutput(rvi, nt.freeChan)
+	n.tx.InterfaceOutput(rvi, nt.freeChan)
 }
