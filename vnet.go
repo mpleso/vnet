@@ -2,7 +2,6 @@ package vnet
 
 import (
 	"github.com/platinasystems/elib"
-	"github.com/platinasystems/elib/cli"
 	"github.com/platinasystems/elib/dep"
 	"github.com/platinasystems/elib/hw"
 	"github.com/platinasystems/elib/loop"
@@ -204,6 +203,7 @@ func (v *Vnet) RegisterInOutNode(n InOutNoder, name string, args ...interface{})
 type Vnet struct {
 	loop loop.Loop
 	interfaceMain
+	cliMain
 	packageMain
 }
 
@@ -229,20 +229,28 @@ var initHooks initHookVec
 
 func AddInit(f initHook, deps ...*dep.Dep) { initHooks.Add(f, deps...) }
 
-func (v *Vnet) Run(in *parse.Input) (err error) {
-	if err = v.Configure(in); err != nil {
+func (v *Vnet) configure(in *parse.Input) (err error) {
+	if err = v.ConfigurePackages(in); err != nil {
 		return
 	}
-	loop.AddInit(func(l *loop.Loop) {
-		v.interfaceMain.init()
-		for i := range initHooks.hooks {
-			initHooks.Get(i)(v)
-		}
-	})
-	v.loop.Run()
+	if err = v.InitPackages(); err != nil {
+		return
+	}
 	return
 }
 
-func (v *Vnet) CliAdd(c *cli.Command)                     { v.loop.CliAdd(c) }
-func (v *Vnet) Logf(format string, args ...interface{})   { v.loop.Logf(format, args...) }
-func (v *Vnet) Fatalf(format string, args ...interface{}) { v.loop.Fatalf(format, args...) }
+func (v *Vnet) Run(in *parse.Input) (err error) {
+	loop.AddInit(func(l *loop.Loop) {
+		v.interfaceMain.init()
+		v.CliInit()
+		for i := range initHooks.hooks {
+			initHooks.Get(i)(v)
+		}
+		if err := v.configure(in); err != nil {
+			panic(err)
+		}
+	})
+	v.loop.Run()
+	err = v.ExitPackages()
+	return
+}
