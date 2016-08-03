@@ -85,7 +85,6 @@ func (m *Main) SwIfAddDel(v *vnet.Vnet, si vnet.Si, isDel bool) (err error) {
 	if !m.okSi(si) {
 		return
 	}
-	panic("SwIfAddDel " + si.Name(v))
 	return
 }
 
@@ -93,7 +92,6 @@ func (m *Main) SwIfAdminUpDown(v *vnet.Vnet, si vnet.Si, isUp bool) (err error) 
 	if !m.okSi(si) {
 		return
 	}
-	panic("SwIfAdminUpDown " + si.Name(v))
 	return
 }
 
@@ -101,7 +99,6 @@ func (m *Main) HwIfLinkUpDown(v *vnet.Vnet, hi vnet.Hi, isUp bool) (err error) {
 	if !m.okHi(hi) {
 		return
 	}
-	panic("HwIfLinkUpDown " + hi.Name(v))
 	return
 }
 
