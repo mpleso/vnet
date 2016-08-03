@@ -3,13 +3,13 @@ package main
 import (
 	"github.com/platinasystems/elib/cli"
 	"github.com/platinasystems/elib/hw"
-	"github.com/platinasystems/elib/loop"
 	"github.com/platinasystems/elib/parse"
 	"github.com/platinasystems/vnet"
 	"github.com/platinasystems/vnet/arp"
 	"github.com/platinasystems/vnet/ethernet"
 	"github.com/platinasystems/vnet/ip"
 	"github.com/platinasystems/vnet/ip4"
+	"github.com/platinasystems/vnet/unix/tuntap"
 
 	"fmt"
 	"os"
@@ -145,7 +145,7 @@ func arpTemplate(t *hw.BufferTemplate) {
 	)
 }
 
-func (n *myNode) LoopInit(l *loop.Loop) {
+func (n *myNode) Init() (err error) {
 	v := n.Vnet
 	config := &ethernet.InterfaceConfig{
 		Address: ethernet.Address{1, 2, 3, 4, 5, 6},
@@ -165,6 +165,7 @@ func (n *myNode) LoopInit(l *loop.Loop) {
 		arpTemplate(t)
 	}
 	n.pool.Init()
+	return
 }
 
 func (n *myNode) InterfaceInput(o *vnet.RefOut) {
@@ -210,6 +211,7 @@ func main() {
 	v := &vnet.Vnet{}
 	var in parse.Input
 	in.Add(os.Args[1:]...)
+	tuntap.Init(v)
 	myNodePackage = v.AddPackage("my-node", MyNode)
 	err := v.Run(&in)
 	if err != nil {

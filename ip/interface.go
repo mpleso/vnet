@@ -100,7 +100,7 @@ func (m *ifAddressMain) AddDelInterfaceAddress(si vnet.Si, p *Prefix, isDel bool
 
 	if isDel {
 		if a == nil {
-			err = fmt.Errorf("%s: address %s not found", si.IfName(m.Vnet), p.String(m))
+			err = fmt.Errorf("%s: address %s not found", si.Name(m.Vnet), p.String(m))
 			return
 		}
 		if a.prev != IfAddrNil {

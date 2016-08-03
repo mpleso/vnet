@@ -52,6 +52,7 @@ func (h *HwIf) GetHwIf() *HwIf { return h }
 func (h *HwIf) Name() string   { return h.name }
 func (h *HwIf) Si() Si         { return h.si }
 func (h *HwIf) Hi() Hi         { return h.hi }
+func (h *HwIf) IsUnix() bool   { return false }
 
 func (h *HwIf) SetName(v *Vnet, name string) {
 	h.name = name
@@ -166,6 +167,11 @@ func (m *interfaceMain) SupHwIf(s *swIf) *HwIf {
 	sup := m.SupSwIf(s)
 	return m.HwIf(Hi(sup.id))
 }
+func (m *interfaceMain) SupHi(si Si) Hi {
+	sw := m.SwIf(si)
+	hw := m.SupHwIf(sw)
+	return hw.hi
+}
 
 func (m *interfaceMain) HwIferForSi(i Si) (h HwInterfacer, ok bool) {
 	sw := m.SwIf(i)
@@ -182,7 +188,8 @@ func (s *swIf) IfName(vn *Vnet) (v string) {
 	}
 	return
 }
-func (s Si) IfName(v *Vnet) string { return v.SwIf(s).IfName(v) }
+func (i Si) Name(v *Vnet) string { return v.SwIf(i).IfName(v) }
+func (i Hi) Name(v *Vnet) string { return v.HwIf(i).name }
 
 func (i *swIf) Id() IfIndex { return i.id }
 
@@ -302,10 +309,10 @@ func (v *Vnet) RegisterHwInterface(h HwInterfacer, format string, args ...interf
 	hi := Hi(v.hwIferPool.GetIndex())
 	v.hwIferPool.elts[hi] = h
 	hw := h.GetHwIf()
+	hw.SetName(v, fmt.Sprintf(format, args...))
 	hw.vnet = v
 	hw.hi = hi
 	hw.si = v.NewSwIf(swIfTypeHardware, IfIndex(hw.hi))
-	hw.SetName(v, fmt.Sprintf(format, args...))
 	return
 }
 
@@ -408,6 +415,7 @@ type HwIfClasser interface {
 type Devicer interface {
 	Noder
 	loop.OutputLooper
+	IsUnix() bool
 	ValidateSpeed(speed Bandwidth) error
 	GetHwInterfaceCounters(n *InterfaceCounterNames, t *InterfaceThread)
 }

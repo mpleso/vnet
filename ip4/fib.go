@@ -407,7 +407,7 @@ func (m *Main) AddDelInterfaceAddress(si vnet.Si, addr *Prefix, isDel bool) (err
 			p := FromIp4Prefix(&ifa.Prefix)
 			if addr.Address.MatchesPrefix(&p) || p.Address.MatchesPrefix(addr) {
 				err = fmt.Errorf("%s: failed to add %s which conflicts with existing address %s",
-					si.IfName(m.Vnet), addr, p)
+					si.Name(m.Vnet), addr, p)
 			}
 			return
 		})
