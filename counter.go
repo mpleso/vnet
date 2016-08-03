@@ -51,9 +51,10 @@ func (c *Counters) Value(i uint) (v uint64) {
 }
 
 func (c *Counters) Clear(i uint) {
-	c.Get(i, &c.valuesLastClear[i])
+	v := c.maxi[i] + uint64(c.mini[i])
+	c.valuesLastClear[i] = v
+	c.maxi[i] = v
 	c.mini[i] = 0
-	c.maxi[i] = c.valuesLastClear[i]
 }
 
 func (c *Counters) ClearAll() {
@@ -182,9 +183,11 @@ func (c *CombinedCounters) Value(i uint) (v CombinedCounter) {
 }
 
 func (c *CombinedCounters) Clear(i uint) {
-	c.Get(i, &c.valuesLastClear[i])
+	v := c.maxi[i]
+	c.addMini(&c.mini[i], &v)
+	c.valuesLastClear[i] = v
+	c.maxi[i] = v
 	c.mini[i].Zero()
-	c.maxi[i] = c.valuesLastClear[i]
 }
 
 func (c *CombinedCounters) ClearAll() {
