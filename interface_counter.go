@@ -203,9 +203,18 @@ func (v *Vnet) syncSwIfCounters() {
 	}
 }
 
+func (m *interfaceMain) syncHwIfCounters() {
+	var nm InterfaceCounterNames
+	t := m.GetIfThread(0)
+	m.hwIferPool.Foreach(func(h HwInterfacer) {
+		h.GetHwInterfaceCounters(&nm, t)
+	})
+}
+
 func (v *Vnet) clearIfCounters() {
 	// Sync before clear so counters have accurate values.
 	v.syncSwIfCounters()
+	v.syncHwIfCounters()
 
 	m := &v.interfaceMain
 	m.timeLastClear = time.Now()
