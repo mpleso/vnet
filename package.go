@@ -9,25 +9,32 @@ import (
 type Packager interface {
 	GetPackage() *Package
 	Configure(in *parse.Input)
+	Init() (err error)
+	Exit() (err error)
 }
 
 type Package struct {
+	Vnet *Vnet
 	name string
 }
 
 func (p *Package) GetPackage() *Package { return p }
+func (p *Package) Init() (err error)    { return } // likely overridden
+func (p *Package) Exit() (err error)    { return } // likely overridden
 
 type packageMain struct {
 	packageByName parse.StringMap
 	packages      []Packager
 }
 
-func (m *packageMain) AddPackage(name string, r Packager) uint {
+func (v *Vnet) AddPackage(name string, r Packager) uint {
+	m := &v.packageMain
 	i := uint(len(m.packages))
 	m.packageByName.Set(name, i)
 	m.packages = append(m.packages, r)
 	p := r.GetPackage()
 	p.name = name
+	p.Vnet = v
 	return i
 }
 
@@ -43,18 +50,45 @@ func (p *Package) configure(r Packager, in *parse.Input) (err error) {
 	return
 }
 
-func (m *packageMain) Configure(in *parse.Input) (err error) {
+func (m *packageMain) ConfigurePackages(in *parse.Input) (err error) {
+	// Parse package configuration.
 	for !in.End() {
-		var i uint
-		if in.Parse("%v", m.packageByName, &i) {
+		var (
+			i     uint
+			subIn parse.Input
+		)
+		if in.Parse("%v %v", m.packageByName, &i, &subIn) {
 			r := m.packages[i]
 			p := r.GetPackage()
-			err = p.configure(r, in)
+			err = p.configure(r, &subIn)
 			if err != nil {
 				return
 			}
 		} else {
 			return in.Error()
+		}
+	}
+	return
+}
+
+func (m *packageMain) InitPackages() (err error) {
+	// Call package init functions.
+	for _, p := range m.packages {
+		err = p.Init()
+		if err != nil {
+			return
+		}
+	}
+	return
+}
+
+func (m *packageMain) ExitPackages() (err error) {
+	l := len(m.packages)
+	for i := l - 1; i >= 0; i-- {
+		p := m.packages[i]
+		err = p.Exit()
+		if err != nil {
+			return
 		}
 	}
 	return
