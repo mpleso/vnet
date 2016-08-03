@@ -87,9 +87,7 @@ func (v *Vnet) showSwIfs(c cli.Commander, w cli.Writer, in *cli.Input) (err erro
 	swIfs.Init(v)
 	sort.Sort(swIfs)
 
-	for i := range v.swIfCounterSyncHooks.hooks {
-		v.swIfCounterSyncHooks.Get(i)(v)
-	}
+	v.syncSwIfCounters()
 
 	sifs := showSwIfs{}
 	cf := &showIfConfig{}

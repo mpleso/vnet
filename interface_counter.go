@@ -197,7 +197,17 @@ func (m *interfaceMain) foreachHwIfCounter(zero bool, hi Hi, f func(name string,
 	}
 }
 
-func (m *interfaceMain) clearIfCounters() {
+func (v *Vnet) syncSwIfCounters() {
+	for i := range v.swIfCounterSyncHooks.hooks {
+		v.swIfCounterSyncHooks.Get(i)(v)
+	}
+}
+
+func (v *Vnet) clearIfCounters() {
+	// Sync before clear so counters have accurate values.
+	v.syncSwIfCounters()
+
+	m := &v.interfaceMain
 	m.timeLastClear = time.Now()
 	for _, t := range m.ifThreads {
 		t.sw.combined.ClearAll()
