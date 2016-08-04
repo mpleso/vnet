@@ -19,16 +19,28 @@ func (m *nodeMain) Init() {
 }
 
 type node struct {
+	readyPackets chan *packet
 	ethernet.Interface
 	vnet.InterfaceNode
 	i *Interface
 }
 
+type rxNext int
+
+const (
+	rxNextTx rxNext = iota
+)
+
 func (intf *Interface) interfaceNodeInit(m *Main) {
-	vnetName := intf.Name() + " unix"
+	ifName := intf.Name()
+	vnetName := ifName + " unix"
 	n := &intf.node
 	n.i = intf
+	n.readyPackets = make(chan *packet, 64)
 	m.v.RegisterHwInterface(n, vnetName)
+	n.Next = []string{
+		rxNextTx: ifName,
+	}
 	m.v.RegisterInterfaceNode(n, n.Hi(), vnetName)
 	iomux.Add(intf)
 }
@@ -88,7 +100,28 @@ func (m *Main) getPacket(intf *Interface) (p *packet) {
 func (m *Main) putPacket(p *packet) { m.packetPool <- p }
 
 func (n *node) InterfaceInput(o *vnet.RefOut) {
-	panic("not yet")
+	m := n.i.m
+	toTx := &o.Outs[rxNextTx]
+	toTx.BufferPool = m.bufferPool
+	t := n.GetIfThread()
+	nPackets, nBytes := uint(0), uint(0)
+loop:
+	for {
+		select {
+		case p := <-n.readyPackets:
+			nBytes += p.chain.Len()
+			toTx.Refs[nPackets] = p.chain.Done()
+			nPackets++
+			if nPackets >= uint(len(toTx.Refs)) {
+				break loop
+			}
+		default:
+			break loop
+		}
+	}
+	vnet.IfRxCounter.Add(t, n.Si(), nPackets, nBytes)
+	toTx.SetLen(m.v, nPackets)
+	n.Activate(false)
 }
 
 func (n *node) InterfaceOutput(i *vnet.RefVecIn, free chan *vnet.RefVecIn) {
@@ -100,26 +133,27 @@ func (intf *Interface) WriteReady() (err error)   { return }
 func (intf *Interface) WriteAvailable() (ok bool) { return }
 
 func (intf *Interface) ReadReady() (err error) {
-	var n int
 	m := intf.m
 	p := m.getPacket(intf)
-	n, err = readv(intf.Fd, p.iovs)
+	var nRead int
+	nRead, err = readv(intf.Fd, p.iovs)
 	if err != nil {
-		m.v.Logf("read ready %s", err)
-		err = nil
+		t := intf.node.GetIfThread()
+		vnet.IfDrops.Add(t, intf.node.Si(), 1)
 		return
 	}
-	size := int(m.bufferPool.Size)
-	for i := 0; n > 0; i++ {
-		z := size
-		if n < size {
-			z = n
+	size := m.bufferPool.Size
+	nLeft := uint(nRead)
+	for i := 0; nLeft > 0; i++ {
+		l := size
+		if nLeft < l {
+			l = nLeft
 		}
-		p.refs[i].SetDataLen(uint(z))
+		p.refs[i].SetDataLen(l)
 		p.chain.Append(&p.refs[i])
-		n -= size
+		nLeft -= l
 	}
-	r := p.chain.Done()
-	m.v.Logf("pack %x", r.DataSlice())
+	intf.node.readyPackets <- p
+	intf.node.Activate(true)
 	return
 }

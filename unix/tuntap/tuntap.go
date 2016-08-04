@@ -339,8 +339,7 @@ func (m *Main) SwIfAddDel(v *vnet.Vnet, si vnet.Si, isDel bool) (err error) {
 	return
 }
 
-func (m *Main) maybeChangeFlag(si vnet.Si, isUp bool, flag iff_flag) (err error) {
-	intf := m.interfaceForSi(si)
+func (m *Main) maybeChangeFlag(intf *Interface, isUp bool, flag iff_flag) (err error) {
 	change := false
 	switch {
 	case isUp && intf.flags&flag == 0:
@@ -364,7 +363,13 @@ func (m *Main) SwIfAdminUpDown(v *vnet.Vnet, si vnet.Si, isUp bool) (err error) 
 	if !m.okSi(si) {
 		return
 	}
-	err = m.maybeChangeFlag(si, isUp, iff_up)
+	intf := m.interfaceForSi(si)
+	err = m.maybeChangeFlag(intf, isUp, iff_up)
+	if err != nil {
+		return
+	}
+	// Reflect admin state in node interface (e.g. XXX unix).
+	intf.node.SetAdminUp(isUp)
 	return
 }
 
@@ -372,7 +377,13 @@ func (m *Main) HwIfLinkUpDown(v *vnet.Vnet, hi vnet.Hi, isUp bool) (err error) {
 	if !m.okHi(hi) {
 		return
 	}
-	err = m.maybeChangeFlag(v.HwIf(hi).Si(), isUp, iff_running)
+	intf := m.interfaceForSi(v.HwIf(hi).Si())
+	err = m.maybeChangeFlag(intf, isUp, iff_running)
+	if err != nil {
+		return
+	}
+	// Reflect link state in node interface (e.g. XXX unix).
+	intf.node.SetLinkUp(isUp)
 	return
 }
 
