@@ -141,6 +141,9 @@ func (m *interfaceMain) doSwSingle(f foreachFn, nm *InterfaceCounterNames, zero 
 func (m *interfaceMain) foreachSwIfCounter(zero bool, si Si, f func(name string, value uint64)) {
 	i := uint(si)
 
+	// Make sure at least one interface thread exists.
+	m.GetIfThread(0)
+
 	// First builtin counters.
 	for k := 0; k < len(builtinCombinedIfCounterNames); k++ {
 		m.doSwCombined(f, &m.swIfCounterNames, zero, uint(k), i)
