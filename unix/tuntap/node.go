@@ -6,23 +6,30 @@ import (
 	"github.com/platinasystems/vnet/ethernet"
 
 	"fmt"
+	"sync/atomic"
 	"syscall"
 	"unsafe"
 )
 
 type nodeMain struct {
-	packetPool chan *packet
+	rxPacketPool chan *packet
+	txPacketPool chan *packet
 }
 
 func (m *nodeMain) Init() {
-	m.packetPool = make(chan *packet, 64)
+	m.rxPacketPool = make(chan *packet, 64)
+	m.txPacketPool = make(chan *packet, 64)
 }
 
 type node struct {
-	readyPackets chan *packet
 	ethernet.Interface
 	vnet.InterfaceNode
-	i *Interface
+	i           *Interface
+	rxRefs      chan rxRef
+	txRefIns    chan txRefIn
+	txRefIn     txRefIn
+	txAvailable int32
+	txIovecs    iovecVec
 }
 
 type rxNext int
@@ -36,7 +43,8 @@ func (intf *Interface) interfaceNodeInit(m *Main) {
 	vnetName := ifName + " unix"
 	n := &intf.node
 	n.i = intf
-	n.readyPackets = make(chan *packet, 64)
+	n.rxRefs = make(chan rxRef, vnet.MaxVectorLen)
+	n.txRefIns = make(chan txRefIn, 64)
 	m.v.RegisterHwInterface(n, vnetName)
 	n.Next = []string{
 		rxNextTx: ifName,
@@ -52,21 +60,23 @@ type iovec syscall.Iovec
 
 //go:generate gentemplate -d Package=tuntap -id iovec -d VecType=iovecVec -d Type=iovec github.com/platinasystems/elib/vec.tmpl
 
-func rwv(fd int, iov []iovec, isWrite bool) (n int, err error) {
-	nm, sc := "readv", syscall.SYS_READV
+func rwv(fd int, iov []iovec, isWrite bool) (n int, e syscall.Errno) {
+	sc := syscall.SYS_READV
 	if isWrite {
-		nm, sc = "writev", syscall.SYS_WRITEV
+		sc = syscall.SYS_WRITEV
 	}
 	r0, _, e := syscall.Syscall(uintptr(sc), uintptr(fd), uintptr(unsafe.Pointer(&iov[0])), uintptr(len(iov)))
-	if e != 0 {
-		err = fmt.Errorf("%s: %s", nm, e)
-	}
 	n = int(r0)
 	return
 }
 
-func readv(fd int, iov []iovec) (int, error)  { return rwv(fd, iov, false) }
-func writev(fd int, iov []iovec) (int, error) { return rwv(fd, iov, true) }
+func readv(fd int, iov []iovec) (int, syscall.Errno)  { return rwv(fd, iov, false) }
+func writev(fd int, iov []iovec) (int, syscall.Errno) { return rwv(fd, iov, true) }
+
+type rxRef struct {
+	ref vnet.Ref
+	len uint
+}
 
 type packet struct {
 	iovs  iovecVec
@@ -74,7 +84,7 @@ type packet struct {
 	refs  vnet.RefVec
 }
 
-func (p *packet) sizeForInterface(m *Main, intf *Interface) {
+func (p *packet) initForRx(m *Main, intf *Interface) {
 	n := intf.mtuBuffers
 	p.iovs.Validate(n - 1)
 	p.refs.Validate(n - 1)
@@ -87,17 +97,17 @@ func (p *packet) sizeForInterface(m *Main, intf *Interface) {
 	}
 }
 
-func (m *Main) getPacket(intf *Interface) (p *packet) {
+func (m *Main) getRxPacket(intf *Interface) (p *packet) {
 	select {
-	case p = <-m.packetPool:
+	case p = <-m.rxPacketPool:
 	default:
 		p = &packet{}
 	}
-	p.sizeForInterface(m, intf)
+	p.initForRx(m, intf)
 	return
 }
 
-func (m *Main) putPacket(p *packet) { m.packetPool <- p }
+func (m *Main) putRxPacket(p *packet) { m.rxPacketPool <- p }
 
 func (n *node) InterfaceInput(o *vnet.RefOut) {
 	m := n.i.m
@@ -105,55 +115,146 @@ func (n *node) InterfaceInput(o *vnet.RefOut) {
 	toTx.BufferPool = m.bufferPool
 	t := n.GetIfThread()
 	nPackets, nBytes := uint(0), uint(0)
-loop:
-	for {
+
+	done := false
+	for !done {
 		select {
-		case p := <-n.readyPackets:
-			nBytes += p.chain.Len()
-			toTx.Refs[nPackets] = p.chain.Done()
+		case r := <-n.rxRefs:
+			nBytes += r.len
+			toTx.Refs[nPackets] = r.ref
 			nPackets++
-			if nPackets >= uint(len(toTx.Refs)) {
-				break loop
+			if m.verbose {
+				m.v.Logf("tuntap rx %d: %x\n", r.len, r.ref.DataSlice())
 			}
+			done = nPackets >= uint(len(toTx.Refs))
 		default:
-			break loop
+			done = true
 		}
 	}
+
 	vnet.IfRxCounter.Add(t, n.Si(), nPackets, nBytes)
 	toTx.SetLen(m.v, nPackets)
 	n.Activate(false)
 }
 
-func (n *node) InterfaceOutput(i *vnet.RefVecIn, free chan *vnet.RefVecIn) {
-	panic("not yet")
-}
-
-func (intf *Interface) ErrorReady() (err error)   { return }
-func (intf *Interface) WriteReady() (err error)   { return }
-func (intf *Interface) WriteAvailable() (ok bool) { return }
-
 func (intf *Interface) ReadReady() (err error) {
-	m := intf.m
-	p := m.getPacket(intf)
-	var nRead int
-	nRead, err = readv(intf.Fd, p.iovs)
-	if err != nil {
-		t := intf.node.GetIfThread()
-		vnet.IfDrops.Add(t, intf.node.Si(), 1)
+	m, n := intf.m, &intf.node
+	p := m.getRxPacket(intf)
+	var (
+		nRead int
+		errno syscall.Errno
+	)
+	nRead, errno = readv(intf.Fd, p.iovs)
+	if errno != 0 {
+		err = fmt.Errorf("readv: %s", errno)
+		t := n.GetIfThread()
+		vnet.IfDrops.Add(t, n.Si(), 1)
 		return
 	}
 	size := m.bufferPool.Size
 	nLeft := uint(nRead)
-	for i := 0; nLeft > 0; i++ {
+	var nRefs uint
+	for nRefs = 0; nLeft > 0; nRefs++ {
 		l := size
 		if nLeft < l {
 			l = nLeft
 		}
-		p.refs[i].SetDataLen(l)
-		p.chain.Append(&p.refs[i])
+		p.refs[nRefs].SetDataLen(l)
+		p.chain.Append(&p.refs[nRefs])
 		nLeft -= l
 	}
-	intf.node.readyPackets <- p
-	intf.node.Activate(true)
+
+	// Send packet to input node.
+	var r rxRef
+	r.len = p.chain.Len()
+	r.ref = p.chain.Done()
+	n.rxRefs <- r
+	n.Activate(true)
+
+	// Refill packet with new buffers & free.
+	m.bufferPool.AllocRefs(&p.refs[0].RefHeader, nRefs)
+	m.putRxPacket(p)
 	return
 }
+
+type txRefIn struct {
+	in   *vnet.RefVecIn
+	free chan *vnet.RefVecIn
+	i    uint
+}
+
+func (n *node) InterfaceOutput(i *vnet.RefVecIn, free chan *vnet.RefVecIn) {
+	intf := n.i
+	n.txRefIns <- txRefIn{in: i, free: free}
+	atomic.AddInt32(&n.txAvailable, 1)
+	iomux.Update(intf)
+}
+
+func (intf *Interface) WriteAvailable() (ok bool) {
+	n := &intf.node
+	ri := &n.txRefIn
+	return n.txAvailable > 0 || ri.in != nil && ri.i < ri.in.Len()
+}
+
+func (intf *Interface) WriteReady() (err error) {
+	n := &intf.node
+	for {
+		ri := &n.txRefIn
+		l := uint(0)
+		if ri.in != nil {
+			l = ri.in.Refs.Len()
+		}
+		if ri.i >= l {
+			if ri.in != nil {
+				ri.free <- ri.in
+				ri.in = nil
+			}
+			ri.i = 0
+			select {
+			case *ri = <-n.txRefIns:
+				atomic.AddInt32(&n.txAvailable, -1)
+			default:
+				return
+			}
+		}
+
+		nIovecs, nWriteLeft := uint(0), uint(0)
+		for i := ri.i; i < ri.in.Refs.Len(); i++ {
+			n.txIovecs.Validate(nIovecs)
+			r := &ri.in.Refs[i]
+			n.txIovecs[nIovecs] = iovec{
+				Base: (*byte)(r.Data()),
+				Len:  uint64(r.DataLen()),
+			}
+			nWriteLeft += r.DataLen()
+			nIovecs++
+			if !r.NextIsValid() {
+				break
+			}
+		}
+
+		if nIovecs > 0 {
+			n.txIovecs = n.txIovecs[:nIovecs]
+			nWrite, errno := writev(intf.Fd, n.txIovecs[:nIovecs])
+			switch {
+			case errno == syscall.EWOULDBLOCK:
+				return
+			case errno != 0:
+				err = fmt.Errorf("writev: %s", errno)
+				return
+			default:
+				if uint(nWrite) != nWriteLeft {
+					panic("partial packet write")
+				}
+				if intf.m.verbose {
+					intf.m.v.Logf("tuntap tx %d: %x\n", nWrite, ri.in.Refs[ri.i].DataSlice())
+				}
+			}
+			ri.i += nIovecs
+		}
+	}
+
+	return
+}
+
+func (intf *Interface) ErrorReady() (err error) { return }

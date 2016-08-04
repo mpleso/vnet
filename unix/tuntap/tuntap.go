@@ -60,6 +60,8 @@ type Main struct {
 
 	disableShutdownOnExit bool
 
+	verbose bool
+
 	mtuBytes uint
 
 	// /dev/net/tun
@@ -402,6 +404,8 @@ func (m *Main) Init() (err error) {
 		return
 	}
 
+	m.nodeMain.Init()
+
 	// Suitable defaults for an Ethernet-like tun/tap device.
 	m.mtuBytes = 4096 + 256
 
@@ -439,6 +443,8 @@ func (m *Main) Configure(in *parse.Input) {
 			m.isTun = true
 		case in.Parse("no-shut"):
 			m.disableShutdownOnExit = true
+		case in.Parse("verbose"):
+			m.verbose = true
 		default:
 			panic(parse.ErrInput)
 		}
