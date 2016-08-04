@@ -17,17 +17,19 @@ import (
 )
 
 type Interface struct {
-	m          *Main
-	iomux.File // provisioning socket
-	hi         vnet.Hi
-	si         vnet.Si
-	name       ifreq_name
-	poolIndex  uint // index in ifPool
-	ifindex    int  // linux interface index
-	flags      iff_flag
-	node       node
-	mtuBytes   uint
-	mtuBuffers uint
+	m *Main
+	// /dev/net/tun
+	dev_net_tun_fd int
+	iomux.File     // provisioning socket
+	hi             vnet.Hi
+	si             vnet.Si
+	name           ifreq_name
+	poolIndex      uint // index in ifPool
+	ifindex        int  // linux interface index
+	flags          iff_flag
+	node           node
+	mtuBytes       uint
+	mtuBuffers     uint
 }
 
 //go:generate gentemplate -d Package=tuntap -id ifPool -d PoolType=ifPool -d Type=Interface -d Data=elts github.com/platinasystems/elib/pool.tmpl
@@ -63,9 +65,6 @@ type Main struct {
 	verbose bool
 
 	mtuBytes uint
-
-	// /dev/net/tun
-	dev_net_tun_fd int
 
 	ifPool ifPool
 
@@ -193,8 +192,8 @@ func (t ifreq_type) String() string {
 func (m *Main) okHi(hi vnet.Hi) (ok bool) { return m.v.HwIfer(hi).IsUnix() }
 func (m *Main) okSi(si vnet.Si) bool      { return m.okHi(m.v.SupHi(si)) }
 
-func (m *Main) ioctl(req ifreq_type, arg uintptr) (err error) {
-	_, _, e := syscall.Syscall(syscall.SYS_IOCTL, uintptr(m.dev_net_tun_fd), uintptr(req), arg)
+func (i *Interface) mioctl(req ifreq_type, arg uintptr) (err error) {
+	_, _, e := syscall.Syscall(syscall.SYS_IOCTL, uintptr(i.dev_net_tun_fd), uintptr(req), arg)
 	if e != 0 {
 		err = fmt.Errorf("tuntap ioctl %s: %s", req, e)
 	}
@@ -237,10 +236,13 @@ func (m *Main) SwIfAddDel(v *vnet.Vnet, si vnet.Si, isDel bool) (err error) {
 		} else {
 			r.flags |= iff_tap
 		}
-		if err = m.ioctl(ifreq_TUNSETIFF, uintptr(unsafe.Pointer(&r))); err != nil {
+		if err = intf.open(); err != nil {
 			return
 		}
-		if err = m.ioctl(ifreq_TUNSETPERSIST, 1); err != nil {
+		if err = intf.mioctl(ifreq_TUNSETIFF, uintptr(unsafe.Pointer(&r))); err != nil {
+			return
+		}
+		if err = intf.mioctl(ifreq_TUNSETPERSIST, 1); err != nil {
 			return
 		}
 	}
@@ -389,21 +391,18 @@ func (m *Main) HwIfLinkUpDown(v *vnet.Vnet, hi vnet.Hi, isUp bool) (err error) {
 	return
 }
 
+func (i *Interface) open() (err error) {
+	i.dev_net_tun_fd, err = syscall.Open("/dev/net/tun", syscall.O_RDWR, 0)
+	return
+}
+
+func (i *Interface) close() (err error) {
+	err = syscall.Close(i.dev_net_tun_fd)
+	i.dev_net_tun_fd = -1
+	return
+}
+
 func (m *Main) Init() (err error) {
-	var fd int
-	if fd, err = syscall.Open("/dev/net/tun", syscall.O_RDWR, 0); err != nil {
-		return
-	}
-	defer func() {
-		if err != nil {
-			syscall.Close(fd)
-		}
-	}()
-
-	if err = syscall.SetNonblock(fd, true); err != nil {
-		return
-	}
-
 	m.nodeMain.Init()
 
 	// Suitable defaults for an Ethernet-like tun/tap device.
@@ -412,7 +411,6 @@ func (m *Main) Init() (err error) {
 	m.v.RegisterSwIfAddDelHook(m.SwIfAddDel)
 	m.v.RegisterSwIfAdminUpDownHook(m.SwIfAdminUpDown)
 	m.v.RegisterHwIfLinkUpDownHook(m.HwIfLinkUpDown)
-	m.dev_net_tun_fd = fd
 	return
 }
 
@@ -427,9 +425,13 @@ func (m *Main) Exit() (err error) {
 			}
 			intf.ioctl(ifreq_SETIFFLAGS, uintptr(unsafe.Pointer(&r)))
 		}
-		syscall.Close(intf.Fd)
+		if intf.Fd != 0 {
+			syscall.Close(intf.Fd)
+		}
+		if intf.dev_net_tun_fd != 0 {
+			syscall.Close(intf.dev_net_tun_fd)
+		}
 	})
-	syscall.Close(m.dev_net_tun_fd)
 	return
 }
 
