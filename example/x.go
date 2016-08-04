@@ -148,7 +148,7 @@ func arpTemplate(t *hw.BufferTemplate) {
 func (n *myNode) Init() (err error) {
 	v := n.Vnet
 	config := &ethernet.InterfaceConfig{
-		Address: ethernet.Address{1, 2, 3, 4, 5, 6},
+		Address: ethernet.Address{0, 1, 2, 3, 4, 5},
 	}
 	ethernet.RegisterInterface(v, MyNode, config, "my-node")
 
@@ -167,6 +167,8 @@ func (n *myNode) Init() (err error) {
 	n.pool.Init()
 	return
 }
+
+func (n *myNode) IsUnix() bool { return false } // set to true to test tuntap.
 
 func (n *myNode) InterfaceInput(o *vnet.RefOut) {
 	toErr := &o.Outs[next_error]
