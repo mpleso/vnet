@@ -18,7 +18,9 @@ func (hi *Hi) ParseWithArgs(in *parse.Input, args *parse.Args) {
 func (si *Si) ParseWithArgs(in *parse.Input, args *parse.Args) {
 	v := args.Get().(*Vnet)
 	var hi Hi
-	in.Parse("%v", v.hwIfIndexByName, &hi)
+	if !in.Parse("%v", v.hwIfIndexByName, &hi) {
+		panic(parse.ErrInput)
+	}
 	// Initially get software interface from hardware interface.
 	hw := v.HwIf(hi)
 	*si = hw.si
@@ -197,9 +199,12 @@ func (v *Vnet) setSwIf(c cli.Commander, w cli.Writer, in *cli.Input) (err error)
 		isUp parse.UpDown
 		si   Si
 	)
-	if in.Parse("state %v %v", &si, v, &isUp) {
+	switch {
+	case in.Parse("state %v %v", &si, v, &isUp):
 		s := v.SwIf(si)
 		err = s.SetAdminUp(v, bool(isUp))
+	default:
+		err = cli.ParseError
 	}
 	return
 }
@@ -207,28 +212,26 @@ func (v *Vnet) setSwIf(c cli.Commander, w cli.Writer, in *cli.Input) (err error)
 func (v *Vnet) setHwIf(c cli.Commander, w cli.Writer, in *cli.Input) (err error) {
 	var hi Hi
 
-	var mtu uint
-	if in.Parse("mtu %v %d", &hi, v, &mtu) {
+	var (
+		mtu       uint
+		bw        Bandwidth
+		provision parse.Enable
+	)
+
+	switch {
+	case in.Parse("mtu %v %d", &hi, v, &mtu):
 		h := v.HwIf(hi)
 		err = h.SetMaxPacketSize(mtu)
-		return
-	}
-
-	var bw Bandwidth
-	if in.Parse("speed %v %", &hi, &bw) {
+	case in.Parse("speed %v %", &hi, &bw):
 		h := v.HwIf(hi)
 		err = h.SetSpeed(bw)
-		return
-	}
-
-	var provision parse.Enable
-	if in.Parse("provision %v %v", &hi, v, &provision) {
+	case in.Parse("provision %v %v", &hi, v, &provision):
 		h := v.HwIf(hi)
 		err = h.SetProvisioned(bool(provision))
-		return
+	default:
+		err = cli.ParseError
 	}
-
-	return cli.ParseError
+	return
 }
 
 func init() {

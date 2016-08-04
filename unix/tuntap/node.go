@@ -114,25 +114,30 @@ func (n *node) InterfaceInput(o *vnet.RefOut) {
 	toTx := &o.Outs[rxNextTx]
 	toTx.BufferPool = m.bufferPool
 	t := n.GetIfThread()
-	nPackets, nBytes := uint(0), uint(0)
+	nPackets, nBytes, nDrops := uint(0), uint(0), uint(0)
 
 	done := false
 	for !done {
 		select {
 		case r := <-n.rxRefs:
-			nBytes += r.len
-			toTx.Refs[nPackets] = r.ref
-			nPackets++
-			if m.verbose {
-				m.v.Logf("tuntap rx %d: %x\n", r.len, r.ref.DataSlice())
+			if r.len == ^uint(0) {
+				nDrops++
+			} else {
+				nBytes += r.len
+				toTx.Refs[nPackets] = r.ref
+				nPackets++
+				if m.verbose {
+					m.v.Logf("tuntap rx %d: %x\n", r.len, r.ref.DataSlice())
+				}
+				done = nPackets >= uint(len(toTx.Refs))
 			}
-			done = nPackets >= uint(len(toTx.Refs))
 		default:
 			done = true
 		}
 	}
 
 	vnet.IfRxCounter.Add(t, n.Si(), nPackets, nBytes)
+	vnet.IfDrops.Add(t, n.Si(), nDrops)
 	toTx.SetLen(m.v, nPackets)
 	n.Activate(false)
 }
@@ -146,9 +151,11 @@ func (intf *Interface) ReadReady() (err error) {
 	)
 	nRead, errno = readv(intf.Fd, p.iovs)
 	if errno != 0 {
-		err = fmt.Errorf("readv: %s", errno)
-		t := n.GetIfThread()
-		vnet.IfDrops.Add(t, n.Si(), 1)
+		// Ignore "network is down" errors.  Just silently drop packet.
+		if errno != syscall.ENETDOWN {
+			err = fmt.Errorf("readv: %s", errno)
+		}
+		n.rxRefs <- rxRef{len: ^uint(0)}
 		return
 	}
 	size := m.bufferPool.Size
