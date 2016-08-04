@@ -4,6 +4,8 @@ package tuntap
 
 import (
 	"github.com/platinasystems/elib"
+	"github.com/platinasystems/elib/hw"
+	"github.com/platinasystems/elib/iomux"
 	"github.com/platinasystems/elib/parse"
 	"github.com/platinasystems/vnet"
 	"github.com/platinasystems/vnet/ethernet"
@@ -14,34 +16,18 @@ import (
 	"unsafe"
 )
 
-type iovec syscall.Iovec
-
-//go:generate gentemplate -d Package=tuntap -id iovec -d VecType=iovecVec -d Type=iovec github.com/platinasystems/elib/vec.tmpl
-
-func rwv(fd int, iov []syscall.Iovec, isWrite bool) (n int, err error) {
-	nm, sc := "readv", syscall.SYS_READV
-	if isWrite {
-		nm, sc = "writev", syscall.SYS_WRITEV
-	}
-	r0, _, e := syscall.Syscall(uintptr(sc), uintptr(fd), uintptr(unsafe.Pointer(&iov[0])), uintptr(len(iov)))
-	if e != 0 {
-		err = fmt.Errorf("%s: %s", nm, e)
-	}
-	n = int(r0)
-	return
-}
-
-func readv(fd int, iov []syscall.Iovec) (int, error)  { return rwv(fd, iov, false) }
-func writev(fd int, iov []syscall.Iovec) (int, error) { return rwv(fd, iov, true) }
-
 type Interface struct {
-	hi        vnet.Hi
-	si        vnet.Si
-	name      ifreq_name
-	poolIndex uint // index in ifPool
-	socket    int  // provisioning socket
-	ifindex   int  // linux interface index
-	flags     iff_flag
+	m          *Main
+	iomux.File // provisioning socket
+	hi         vnet.Hi
+	si         vnet.Si
+	name       ifreq_name
+	poolIndex  uint // index in ifPool
+	ifindex    int  // linux interface index
+	flags      iff_flag
+	node       node
+	mtuBytes   uint
+	mtuBuffers uint
 }
 
 //go:generate gentemplate -d Package=tuntap -id ifPool -d PoolType=ifPool -d Type=Interface -d Data=elts github.com/platinasystems/elib/pool.tmpl
@@ -51,30 +37,46 @@ func (m *Main) interfaceForSi(si vnet.Si) (i *Interface) {
 	return
 }
 
+func (i *Interface) Name() string   { return i.name.String() }
+func (i *Interface) String() string { return i.Name() }
+
+func (i *Interface) setMtu(m *Main, mtu uint) {
+	i.mtuBytes = mtu
+	i.mtuBuffers = mtu / m.bufferPool.Size
+	if mtu%m.bufferPool.Size != 0 {
+		i.mtuBuffers++
+	}
+}
+
 type Main struct {
 	vnet.Package
+
+	nodeMain
 
 	v *vnet.Vnet
 
 	// Selects whether we create tun or tap interfaces.
 	isTun bool
 
-	disable parse.Enable
+	disableShutdownOnExit bool
+
+	mtuBytes uint
 
 	// /dev/net/tun
 	dev_net_tun_fd int
-
-	mtu_bytes, mtu_buffers uint32
 
 	ifPool ifPool
 
 	ifPoolIndexByName map[ifreq_name]uint
 	ifPoolIndexBySi   elib.Uint32Vec
+
+	bufferPool *hw.BufferPool
 }
 
 func Init(v *vnet.Vnet) {
 	m := &Main{}
 	m.v = v
+	m.bufferPool = hw.DefaultBufferPool
 	v.AddPackage("tuntap", m)
 }
 
@@ -165,6 +167,7 @@ const (
 	ifreq_GETIFFLAGS    ifreq_type = syscall.SIOCGIFFLAGS
 	ifreq_SETIFFLAGS    ifreq_type = syscall.SIOCSIFFLAGS
 	ifreq_SETIFHWADDR   ifreq_type = syscall.SIOCSIFHWADDR
+	ifreq_SETIFMTU      ifreq_type = syscall.SIOCSIFMTU
 )
 
 var ifreq_type_names = map[ifreq_type]string{
@@ -174,13 +177,14 @@ var ifreq_type_names = map[ifreq_type]string{
 	ifreq_GETIFFLAGS:    "GETIFFLAGS",
 	ifreq_SETIFFLAGS:    "SETIFFLAGS",
 	ifreq_SETIFHWADDR:   "SETIFHWADDR",
+	ifreq_SETIFMTU:      "SETIFMTU",
 }
 
 func (t ifreq_type) String() string {
 	if s, ok := ifreq_type_names[t]; ok {
 		return s
 	}
-	return fmt.Sprintf("0x%x", t)
+	return fmt.Sprintf("0x%x", int(t))
 }
 
 // Create tuntap interfaces for all vnet interfaces not marked as special.
@@ -196,7 +200,7 @@ func (m *Main) ioctl(req ifreq_type, arg uintptr) (err error) {
 }
 
 func (i *Interface) ioctl(req ifreq_type, arg uintptr) (err error) {
-	_, _, e := syscall.Syscall(syscall.SYS_IOCTL, uintptr(i.socket), uintptr(req), arg)
+	_, _, e := syscall.Syscall(syscall.SYS_IOCTL, uintptr(i.Fd), uintptr(req), arg)
 	if e != 0 {
 		err = fmt.Errorf("tuntap %s ioctl %s: %s", i.name, req, e)
 	}
@@ -215,6 +219,7 @@ func (m *Main) SwIfAddDel(v *vnet.Vnet, si vnet.Si, isDel bool) (err error) {
 	}
 
 	intf := Interface{
+		m:  m,
 		hi: hi,
 		si: si,
 	}
@@ -240,17 +245,17 @@ func (m *Main) SwIfAddDel(v *vnet.Vnet, si vnet.Si, isDel bool) (err error) {
 
 	// Create provisioning socket.
 	eth_p_all := uint16(vnet.Uint16(syscall.ETH_P_ALL).FromHost())
-	if intf.socket, err = syscall.Socket(syscall.AF_PACKET, syscall.SOCK_RAW, int(eth_p_all)); err != nil {
+	if intf.Fd, err = syscall.Socket(syscall.AF_PACKET, syscall.SOCK_RAW, int(eth_p_all)); err != nil {
 		err = fmt.Errorf("tuntap socket: %s", err)
 		return
 	}
 	defer func() {
 		if err != nil {
-			syscall.Close(intf.socket)
+			syscall.Close(intf.Fd)
 		}
 	}()
 
-	if err = syscall.SetNonblock(intf.socket, true); err != nil {
+	if err = syscall.SetNonblock(intf.Fd, true); err != nil {
 		err = fmt.Errorf("tuntap set non-blocking: %s", err)
 		return
 	}
@@ -270,7 +275,7 @@ func (m *Main) SwIfAddDel(v *vnet.Vnet, si vnet.Si, isDel bool) (err error) {
 			Ifindex:  intf.ifindex,
 			Protocol: eth_p_all,
 		}
-		if err = syscall.Bind(intf.socket, &sa); err != nil {
+		if err = syscall.Bind(intf.Fd, &sa); err != nil {
 			err = fmt.Errorf("tuntap bind: %s", err)
 			return
 		}
@@ -287,6 +292,20 @@ func (m *Main) SwIfAddDel(v *vnet.Vnet, si vnet.Si, isDel bool) (err error) {
 
 	if eifer, ok := m.v.HwIfer(hi).(ethernet.HwInterfacer); ok {
 		ei := eifer.GetInterface()
+
+		// Set MTU.
+		{
+			intf.mtuBytes = ei.MaxPacketSize()
+			if intf.mtuBytes == 0 {
+				intf.mtuBytes = m.mtuBytes
+			}
+			r := ifreq_int{name: intf.name}
+			r.i = int(intf.mtuBytes)
+			if err = intf.ioctl(ifreq_SETIFMTU, uintptr(unsafe.Pointer(&r))); err != nil {
+				return
+			}
+			intf.setMtu(m, intf.mtuBytes)
+		}
 
 		// For tap interfaces, set ethernet address of interface.
 		if !m.isTun {
@@ -310,6 +329,13 @@ func (m *Main) SwIfAddDel(v *vnet.Vnet, si vnet.Si, isDel bool) (err error) {
 		m.ifPoolIndexByName = make(map[ifreq_name]uint)
 	}
 	m.ifPoolIndexByName[intf.name] = intf.poolIndex
+
+	// Create Vnet interface.
+	{
+		i := &m.ifPool.elts[intf.poolIndex]
+		i.interfaceNodeInit(m)
+	}
+
 	return
 }
 
@@ -365,6 +391,9 @@ func (m *Main) Init() (err error) {
 		return
 	}
 
+	// Suitable defaults for an Ethernet-like tun/tap device.
+	m.mtuBytes = 4096 + 256
+
 	m.v.RegisterSwIfAddDelHook(m.SwIfAddDel)
 	m.v.RegisterSwIfAdminUpDownHook(m.SwIfAdminUpDown)
 	m.v.RegisterHwIfLinkUpDownHook(m.HwIfLinkUpDown)
@@ -375,35 +404,30 @@ func (m *Main) Init() (err error) {
 // Shutdown interfaces on main loop exit.
 func (m *Main) Exit() (err error) {
 	m.ifPool.Foreach(func(intf Interface) {
-		intf.flags &^= iff_up | iff_running
-		r := ifreq_int{
-			name: intf.name,
-			i:    int(intf.flags),
+		if !m.disableShutdownOnExit {
+			intf.flags &^= iff_up | iff_running
+			r := ifreq_int{
+				name: intf.name,
+				i:    int(intf.flags),
+			}
+			intf.ioctl(ifreq_SETIFFLAGS, uintptr(unsafe.Pointer(&r)))
 		}
-		intf.ioctl(ifreq_SETIFFLAGS, uintptr(unsafe.Pointer(&r)))
-		syscall.Close(intf.socket)
+		syscall.Close(intf.Fd)
 	})
 	syscall.Close(m.dev_net_tun_fd)
 	return
 }
 
 func (m *Main) Configure(in *parse.Input) {
-	// Suitable defaults for an Ethernet-like tun/tap device.
-	if m.mtu_bytes == 0 {
-		m.mtu_bytes = 4096 + 256
-	}
-
 	for !in.End() {
 		switch {
-		case in.Parse("mtu %d", &m.mtu_bytes):
+		case in.Parse("mtu %d", &m.mtuBytes):
 		case in.Parse("tap"):
 			m.isTun = false
 		case in.Parse("tun"):
 			m.isTun = true
-		case in.Parse("en*able"):
-			m.disable = false
-		case in.Parse("dis*able"):
-			m.disable = true
+		case in.Parse("no-shut"):
+			m.disableShutdownOnExit = true
 		default:
 			panic(parse.ErrInput)
 		}
