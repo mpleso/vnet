@@ -142,6 +142,16 @@ func (n *node) InterfaceInput(o *vnet.RefOut) {
 	n.Activate(false)
 }
 
+func errorForErrno(tag string, errno syscall.Errno) (err error) {
+	// Ignore "network is down" errors.  Just silently drop packet.
+	switch errno {
+	case syscall.ENETDOWN:
+	default:
+		err = fmt.Errorf("%s: %s", tag, errno)
+	}
+	return
+}
+
 func (intf *Interface) ReadReady() (err error) {
 	m, n := intf.m, &intf.node
 	p := m.getRxPacket(intf)
@@ -151,10 +161,7 @@ func (intf *Interface) ReadReady() (err error) {
 	)
 	nRead, errno = readv(intf.Fd, p.iovs)
 	if errno != 0 {
-		// Ignore "network is down" errors.  Just silently drop packet.
-		if errno != syscall.ENETDOWN {
-			err = fmt.Errorf("readv: %s", errno)
-		}
+		err = errorForErrno("readv", errno)
 		n.rxRefs <- rxRef{len: ^uint(0)}
 		return
 	}
@@ -264,4 +271,13 @@ func (intf *Interface) WriteReady() (err error) {
 	return
 }
 
-func (intf *Interface) ErrorReady() (err error) { return }
+func (intf *Interface) ErrorReady() (err error) {
+	var e int
+	if e, err = syscall.GetsockoptInt(intf.Fd, syscall.SOL_SOCKET, syscall.SO_ERROR); err == nil {
+		err = errorForErrno("error ready", syscall.Errno(e))
+	}
+	if err != nil {
+		panic(err)
+	}
+	return
+}
