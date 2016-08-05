@@ -32,12 +32,9 @@ type Interface struct {
 	mtuBuffers     uint
 }
 
-//go:generate gentemplate -d Package=tuntap -id ifPool -d PoolType=ifPool -d Type=Interface -d Data=elts github.com/platinasystems/elib/pool.tmpl
+//go:generate gentemplate -d Package=tuntap -id ifVec -d VecType=interfaceVec -d Type=*Interface github.com/platinasystems/elib/vec.tmpl
 
-func (m *Main) interfaceForSi(si vnet.Si) (i *Interface) {
-	i = &m.ifPool.elts[m.ifPoolIndexBySi[si]]
-	return
-}
+func (m *Main) interfaceForSi(si vnet.Si) *Interface { return m.ifVec[si] }
 
 func (i *Interface) Name() string   { return i.name.String() }
 func (i *Interface) String() string { return i.Name() }
@@ -66,10 +63,7 @@ type Main struct {
 
 	mtuBytes uint
 
-	ifPool ifPool
-
-	ifPoolIndexByName map[ifreq_name]uint
-	ifPoolIndexBySi   elib.Uint32Vec
+	ifVec interfaceVec
 
 	bufferPool *hw.BufferPool
 }
@@ -219,7 +213,7 @@ func (m *Main) SwIfAddDel(v *vnet.Vnet, si vnet.Si, isDel bool) (err error) {
 		return
 	}
 
-	intf := Interface{
+	intf := &Interface{
 		m:  m,
 		hi: hi,
 		si: si,
@@ -324,21 +318,11 @@ func (m *Main) SwIfAddDel(v *vnet.Vnet, si vnet.Si, isDel bool) (err error) {
 		}
 	}
 
-	intf.poolIndex = m.ifPool.GetIndex()
-	m.ifPool.elts[intf.poolIndex] = intf
-
-	m.ifPoolIndexBySi.ValidateInit(uint(si), ^uint32(0))
-	m.ifPoolIndexBySi[si] = uint32(intf.poolIndex)
-	if m.ifPoolIndexByName == nil {
-		m.ifPoolIndexByName = make(map[ifreq_name]uint)
-	}
-	m.ifPoolIndexByName[intf.name] = intf.poolIndex
+	m.ifVec.Validate(uint(si))
+	m.ifVec[si] = intf
 
 	// Create Vnet interface.
-	{
-		i := &m.ifPool.elts[intf.poolIndex]
-		i.interfaceNodeInit(m)
-	}
+	intf.interfaceNodeInit(m)
 
 	return
 }
@@ -416,7 +400,10 @@ func (m *Main) Init() (err error) {
 
 // Shutdown interfaces on main loop exit.
 func (m *Main) Exit() (err error) {
-	m.ifPool.Foreach(func(intf Interface) {
+	for _, intf := range m.ifVec {
+		if intf == nil {
+			continue
+		}
 		if !m.disableShutdownOnExit {
 			intf.flags &^= iff_up | iff_running
 			r := ifreq_int{
@@ -431,7 +418,7 @@ func (m *Main) Exit() (err error) {
 		if intf.dev_net_tun_fd != 0 {
 			syscall.Close(intf.dev_net_tun_fd)
 		}
-	})
+	}
 	return
 }
 
