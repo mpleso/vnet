@@ -44,6 +44,14 @@ type Noder interface {
 	GetVnetNode() *Node
 }
 
+func (v *Vnet) AddNamedNext(n Noder, name string) uint {
+	if nextIndex, err := v.loop.AddNamedNext(n, name); err == nil {
+		return nextIndex
+	} else {
+		panic(err)
+	}
+}
+
 type Ref struct {
 	hw.RefHeader
 
