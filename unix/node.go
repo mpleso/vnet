@@ -272,7 +272,7 @@ func errorForErrno(tag string, errno syscall.Errno) (err error) {
 	// Ignore "network is down" errors.  Just silently drop packet.
 	// These happen when interface is IFF_RUNNING (e.g. link up) but not yet IFF_UP (admin up).
 	switch errno {
-	case syscall.ENETDOWN:
+	case 0, syscall.ENETDOWN:
 	default:
 		err = fmt.Errorf("%s: %s", tag, errno)
 	}
