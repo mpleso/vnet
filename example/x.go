@@ -9,7 +9,7 @@ import (
 	"github.com/platinasystems/vnet/ethernet"
 	"github.com/platinasystems/vnet/ip"
 	"github.com/platinasystems/vnet/ip4"
-	"github.com/platinasystems/vnet/unix/tuntap"
+	"github.com/platinasystems/vnet/unix"
 
 	"fmt"
 	"os"
@@ -213,7 +213,7 @@ func main() {
 	v := &vnet.Vnet{}
 	var in parse.Input
 	in.Add(os.Args[1:]...)
-	tuntap.Init(v)
+	unix.Init(v)
 	myNodePackage = v.AddPackage("my-node", MyNode)
 	err := v.Run(&in)
 	if err != nil {

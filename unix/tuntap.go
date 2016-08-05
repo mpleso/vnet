@@ -1,6 +1,6 @@
 // +build linux
 
-package tuntap
+package unix
 
 import (
 	"github.com/platinasystems/elib"
@@ -32,7 +32,7 @@ type Interface struct {
 	mtuBuffers     uint
 }
 
-//go:generate gentemplate -d Package=tuntap -id ifVec -d VecType=interfaceVec -d Type=*Interface github.com/platinasystems/elib/vec.tmpl
+//go:generate gentemplate -d Package=unix -id ifVec -d VecType=interfaceVec -d Type=*Interface github.com/platinasystems/elib/vec.tmpl
 
 func (m *Main) interfaceForSi(si vnet.Si) *Interface { return m.ifVec[si] }
 
@@ -382,7 +382,7 @@ func (i *Interface) close() (err error) {
 }
 
 func (m *Main) Init() (err error) {
-	m.nodeMain.Init()
+	m.nodeMain.Init(m)
 
 	// Suitable defaults for an Ethernet-like tun/tap device.
 	m.mtuBytes = 4096 + 256

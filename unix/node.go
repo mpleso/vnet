@@ -1,6 +1,7 @@
-package tuntap
+package unix
 
 import (
+	"github.com/platinasystems/elib"
 	"github.com/platinasystems/elib/iomux"
 	"github.com/platinasystems/vnet"
 	"github.com/platinasystems/vnet/ethernet"
@@ -12,13 +13,16 @@ import (
 )
 
 type nodeMain struct {
+	v            *vnet.Vnet
 	rxPacketPool chan *packet
 	txPacketPool chan *packet
+	puntNode     puntNode
 }
 
-func (m *nodeMain) Init() {
-	m.rxPacketPool = make(chan *packet, 64)
-	m.txPacketPool = make(chan *packet, 64)
+func (nm *nodeMain) Init(m *Main) {
+	nm.rxPacketPool = make(chan *packet, 64)
+	nm.txPacketPool = make(chan *packet, 64)
+	m.v.RegisterInOutNode(&nm.puntNode, "punt")
 }
 
 type node struct {
@@ -50,6 +54,9 @@ func (intf *Interface) interfaceNodeInit(m *Main) {
 		rxNextTx: ifName,
 	}
 	m.v.RegisterInterfaceNode(n, n.Hi(), vnetName)
+	ni := m.v.AddNamedNext(&m.puntNode, vnetName)
+	m.puntNode.nextBySi.Validate(uint(intf.si))
+	m.puntNode.nextBySi[intf.si] = uint32(ni)
 	iomux.Add(intf)
 }
 
@@ -58,7 +65,7 @@ func (n *node) ValidateSpeed(speed vnet.Bandwidth) (err error)                  
 
 type iovec syscall.Iovec
 
-//go:generate gentemplate -d Package=tuntap -id iovec -d VecType=iovecVec -d Type=iovec github.com/platinasystems/elib/vec.tmpl
+//go:generate gentemplate -d Package=unix -id iovec -d VecType=iovecVec -d Type=iovec github.com/platinasystems/elib/vec.tmpl
 
 func rwv(fd int, iov []iovec, isWrite bool) (n int, e syscall.Errno) {
 	sc := syscall.SYS_READV
@@ -127,7 +134,7 @@ func (n *node) InterfaceInput(o *vnet.RefOut) {
 				toTx.Refs[nPackets] = r.ref
 				nPackets++
 				if m.verbose {
-					m.v.Logf("tuntap rx %d: %x\n", r.len, r.ref.DataSlice())
+					m.v.Logf("unix rx %d: %x\n", r.len, r.ref.DataSlice())
 				}
 				done = nPackets >= uint(len(toTx.Refs))
 			}
@@ -140,16 +147,6 @@ func (n *node) InterfaceInput(o *vnet.RefOut) {
 	vnet.IfDrops.Add(t, n.Si(), nDrops)
 	toTx.SetLen(m.v, nPackets)
 	n.Activate(false)
-}
-
-func errorForErrno(tag string, errno syscall.Errno) (err error) {
-	// Ignore "network is down" errors.  Just silently drop packet.
-	switch errno {
-	case syscall.ENETDOWN:
-	default:
-		err = fmt.Errorf("%s: %s", tag, errno)
-	}
-	return
 }
 
 func (intf *Interface) ReadReady() (err error) {
@@ -261,13 +258,24 @@ func (intf *Interface) WriteReady() (err error) {
 					panic("partial packet write")
 				}
 				if intf.m.verbose {
-					intf.m.v.Logf("tuntap tx %d: %x\n", nWrite, ri.in.Refs[ri.i].DataSlice())
+					intf.m.v.Logf("unix tx %d: %x\n", nWrite, ri.in.Refs[ri.i].DataSlice())
 				}
 			}
 			ri.i += nIovecs
 		}
 	}
 
+	return
+}
+
+func errorForErrno(tag string, errno syscall.Errno) (err error) {
+	// Ignore "network is down" errors.  Just silently drop packet.
+	// These happen when interface is IFF_RUNNING (e.g. link up) but not yet IFF_UP (admin up).
+	switch errno {
+	case syscall.ENETDOWN:
+	default:
+		err = fmt.Errorf("%s: %s", tag, errno)
+	}
 	return
 }
 
@@ -280,4 +288,19 @@ func (intf *Interface) ErrorReady() (err error) {
 		panic(err)
 	}
 	return
+}
+
+type puntNode struct {
+	vnet.InOutNode
+	nextBySi elib.Uint32Vec
+}
+
+func (n *puntNode) NodeInput(in *vnet.RefIn, o *vnet.RefOut) {
+	for i := uint(0); i < in.Len(); i++ {
+		r := in.Refs[i]
+		x := n.nextBySi[r.Si]
+		o.Outs[x].BufferPool = in.BufferPool
+		n := o.Outs[x].AddLen(n.Vnet)
+		o.Outs[x].Refs[n] = r
+	}
 }
