@@ -136,6 +136,7 @@ func (n *node) InterfaceInput(o *vnet.RefOut) {
 				nDrops++
 			} else {
 				nBytes += r.len
+				r.ref.Si = n.Si()
 				toTx.Refs[nPackets] = r.ref
 				nPackets++
 				if m.verbose {
