@@ -19,8 +19,8 @@ type myNode struct {
 	vnet.InterfaceNode
 	ethernet.Interface
 	vnet.Package
-	pool  hw.BufferPool
-	count uint
+	pool     hw.BufferPool
+	nPackets uint
 }
 
 var (
@@ -36,7 +36,7 @@ const (
 
 const (
 	next_error = iota
-	next_self
+	next_punt
 	n_next
 )
 
@@ -48,7 +48,7 @@ func init() {
 		}
 		MyNode.Next = []string{
 			next_error: "error",
-			next_self:  "my-node",
+			next_punt:  "punt",
 		}
 
 		v.RegisterInterfaceNode(MyNode, MyNode.Hi(), "my-node")
@@ -58,9 +58,9 @@ func init() {
 			ShortHelp: "a short help",
 			Action: func(c cli.Commander, w cli.Writer, in *cli.Input) error {
 				n := MyNode
-				n.count = 1
+				n.nPackets = 1
 				if !in.End() {
-					if in.Parse("%d", &n.count) {
+					if in.Parse("%d", &n.nPackets) {
 					} else {
 						return cli.ParseError
 					}
@@ -158,7 +158,7 @@ func (n *myNode) Init() (err error) {
 
 	t := &n.pool.BufferTemplate
 	*t = *hw.DefaultBufferTemplate
-	t.Size = 2048
+	t.Size = 64
 	if true {
 		ip4Template(t)
 	} else {
@@ -171,22 +171,27 @@ func (n *myNode) Init() (err error) {
 func (n *myNode) IsUnix() bool { return false } // set to true to test tuntap.
 
 func (n *myNode) InterfaceInput(o *vnet.RefOut) {
-	toErr := &o.Outs[next_error]
-	toErr.BufferPool = &n.pool
-	toErr.AllocPoolRefs(&n.pool)
+	out := &o.Outs[next_punt]
+	out.BufferPool = &n.pool
+	out.AllocPoolRefs(&n.pool)
 	t := n.GetIfThread()
-	rs := toErr.Refs[:]
+	rs := out.Refs[:]
+	nPackets := n.nPackets
+	if l := uint(len(rs)); nPackets > l {
+		nPackets = l
+	}
 	nBytes := uint(0)
-	for i := range rs {
+	for i := uint(0); i < nPackets; i++ {
 		r := &rs[i]
 		n.SetError(r, uint(i%n_error))
 		nBytes += r.DataLen()
 	}
-	vnet.IfRxCounter.Add(t, n.Si(), uint(len(rs)), nBytes)
-	c1_counter.Add(t, n.Hi(), uint(len(rs)), nBytes)
-	s1_counter.Add(t, n.Hi(), uint(len(rs)))
-	toErr.SetLen(n.Vnet, uint(len(toErr.Refs)))
-	n.Activate(n.count == 0)
+	vnet.IfRxCounter.Add(t, n.Si(), nPackets, nBytes)
+	c1_counter.Add(t, n.Hi(), nPackets, nBytes)
+	s1_counter.Add(t, n.Hi(), nPackets)
+	out.SetLen(n.Vnet, nPackets)
+	n.nPackets -= nPackets
+	n.Activate(n.nPackets > 0)
 }
 
 func (n *myNode) InterfaceOutput(i *vnet.RefVecIn, f chan *vnet.RefVecIn) {
