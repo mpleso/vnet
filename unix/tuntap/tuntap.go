@@ -253,11 +253,6 @@ func (m *Main) SwIfAddDel(v *vnet.Vnet, si vnet.Si, isDel bool) (err error) {
 		}
 	}()
 
-	if err = syscall.SetNonblock(intf.Fd, true); err != nil {
-		err = fmt.Errorf("tuntap set non-blocking: %s", err)
-		return
-	}
-
 	// Find linux interface index.
 	{
 		r := ifreq_int{name: intf.name}
