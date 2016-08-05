@@ -205,6 +205,8 @@ func (i *Interface) ioctl(req ifreq_type, arg uintptr) (err error) {
 func (m *Main) SwIfAddDel(v *vnet.Vnet, si vnet.Si, isDel bool) (err error) {
 	hi := m.v.SupHi(si)
 	if !m.okHi(hi) {
+		// Unknown interface punts get sent to error node.
+		m.puntNode.setNext(si, puntNextError)
 		return
 	}
 

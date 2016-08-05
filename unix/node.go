@@ -22,6 +22,12 @@ type nodeMain struct {
 func (nm *nodeMain) Init(m *Main) {
 	nm.rxPacketPool = make(chan *packet, 64)
 	nm.txPacketPool = make(chan *packet, 64)
+	nm.puntNode.Errors = []string{
+		puntErrorNonUnix: "non-unix interface",
+	}
+	nm.puntNode.Next = []string{
+		puntNextError: "error",
+	}
 	m.v.RegisterInOutNode(&nm.puntNode, "punt")
 }
 
@@ -55,8 +61,7 @@ func (intf *Interface) interfaceNodeInit(m *Main) {
 	}
 	m.v.RegisterInterfaceNode(n, n.Hi(), vnetName)
 	ni := m.v.AddNamedNext(&m.puntNode, vnetName)
-	m.puntNode.nextBySi.Validate(uint(intf.si))
-	m.puntNode.nextBySi[intf.si] = uint32(ni)
+	m.puntNode.setNext(intf.si, ni)
 	iomux.Add(intf)
 }
 
@@ -290,17 +295,30 @@ func (intf *Interface) ErrorReady() (err error) {
 	return
 }
 
+const (
+	puntErrorNonUnix uint = iota
+)
+const (
+	puntNextError uint = iota
+)
+
 type puntNode struct {
 	vnet.InOutNode
 	nextBySi elib.Uint32Vec
 }
 
+func (n *puntNode) setNext(si vnet.Si, next uint) {
+	n.nextBySi.ValidateInit(uint(si), uint32(next))
+	n.nextBySi[si] = uint32(next)
+}
+
 func (n *puntNode) NodeInput(in *vnet.RefIn, o *vnet.RefOut) {
 	for i := uint(0); i < in.Len(); i++ {
-		r := in.Refs[i]
+		r := &in.Refs[i]
 		x := n.nextBySi[r.Si]
+		n.SetError(r, puntErrorNonUnix)
 		o.Outs[x].BufferPool = in.BufferPool
-		n := o.Outs[x].AddLen(n.Vnet)
-		o.Outs[x].Refs[n] = r
+		no := o.Outs[x].AddLen(n.Vnet)
+		o.Outs[x].Refs[no] = *r
 	}
 }
