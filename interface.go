@@ -193,7 +193,8 @@ func (i Hi) Name(v *Vnet) string { return v.HwIf(i).name }
 
 func (i *swIf) Id() IfIndex { return i.id }
 
-func (i *swIf) IsAdminUp() bool { return i.flags&swIfAdminUp != 0 }
+func (i *swIf) IsAdminUp() bool      { return i.flags&swIfAdminUp != 0 }
+func (si Si) IsAdminUp(v *Vnet) bool { return v.SwIf(si).IsAdminUp() }
 
 func (sw *swIf) SetAdminUp(v *Vnet, wantUp bool) (err error) {
 	isUp := sw.flags&swIfAdminUp != 0
@@ -251,7 +252,8 @@ func (h *HwIf) SetProvisioned(v bool) (err error) {
 	return
 }
 
-func (h *HwIf) LinkUp() bool { return h.linkUp }
+func (h *HwIf) IsLinkUp() bool      { return h.linkUp }
+func (hi Hi) IsLinkUp(v *Vnet) bool { return v.HwIf(hi).IsLinkUp() }
 
 func (h *HwIf) SetLinkUp(v bool) (err error) {
 	if h.linkUp == v {
