@@ -21,6 +21,7 @@ type myNode struct {
 	vnet.Package
 	pool     hw.BufferPool
 	nPackets uint
+	next     int
 }
 
 var (
@@ -59,8 +60,16 @@ func init() {
 			Action: func(c cli.Commander, w cli.Writer, in *cli.Input) error {
 				n := MyNode
 				n.nPackets = 1
+				n.next = next_error
 				if !in.End() {
 					if in.Parse("%d", &n.nPackets) {
+						if n.nPackets == 0 { // no limit
+							n.nPackets = ^uint(0)
+						}
+					} else if in.Parse("punt") {
+						n.next = next_punt
+					} else if in.Parse("error") {
+						n.next = next_error
 					} else {
 						return cli.ParseError
 					}
@@ -168,10 +177,10 @@ func (n *myNode) Init() (err error) {
 	return
 }
 
-func (n *myNode) IsUnix() bool { return false } // set to true to test tuntap.
+func (n *myNode) IsUnix() bool { return true } // set to true to test tuntap.
 
 func (n *myNode) InterfaceInput(o *vnet.RefOut) {
-	out := &o.Outs[next_punt]
+	out := &o.Outs[n.next]
 	out.BufferPool = &n.pool
 	out.AllocPoolRefs(&n.pool)
 	t := n.GetIfThread()
@@ -190,7 +199,9 @@ func (n *myNode) InterfaceInput(o *vnet.RefOut) {
 	c1_counter.Add(t, n.Hi(), nPackets, nBytes)
 	s1_counter.Add(t, n.Hi(), nPackets)
 	out.SetLen(n.Vnet, nPackets)
-	n.nPackets -= nPackets
+	if n.nPackets != ^uint(0) {
+		n.nPackets -= nPackets
+	}
 	n.Activate(n.nPackets > 0)
 }
 
