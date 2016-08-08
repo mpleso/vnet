@@ -167,7 +167,7 @@ func (m *interfaceMain) doHwCombined(f foreachFn, nm *InterfaceCounterNames, zer
 		t.hw.combined[k].Get(i, &w)
 		v.Add(&w)
 	}
-	if v.Packets != 0 || zero {
+	if v.Packets != 0 || (zero && k < uint(len(nm.Combined))) {
 		f(nm.Combined[k]+" packets", v.Packets)
 		f(nm.Combined[k]+" bytes", v.Bytes)
 	}
