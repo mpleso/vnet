@@ -31,6 +31,27 @@ func (e *netlinkEvent) EventAction() {
 		intf := e.m.getInterface(v.Index)
 		// Respect flag admin state changes from unix shell via ifconfig or "ip link" commands.
 		err = intf.si.SetAdminUp(vn, v.Flags&netlink.IFF_UP != 0)
+	case *netlink.IfAddrMessage:
+		switch v.Family {
+		case netlink.AF_INET6:
+			// not yet
+		case netlink.AF_INET:
+			// not yet
+		}
+	case *netlink.RouteMessage:
+		switch v.Family {
+		case netlink.AF_INET6:
+			// not yet
+		case netlink.AF_INET:
+			// not yet
+		}
+	case *netlink.NeighborMessage:
+		switch v.Family {
+		case netlink.AF_INET6:
+			// not yet
+		case netlink.AF_INET:
+			// not yet
+		}
 	default:
 		err = fmt.Errorf("unkown")
 	}
