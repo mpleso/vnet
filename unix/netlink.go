@@ -30,10 +30,10 @@ func (e *netlinkEvent) EventAction() {
 		intf := e.m.getInterface(v.Index)
 		// Respect flag admin state changes from unix shell via ifconfig or "ip link" commands.
 		if is, was := (v.Flags&netlink.IFF_UP != 0), ((intf.flags & iff_up) != 0); is != was {
-			err = intf.node.SetAdminUp(is)
+			err = intf.si.SetAdminUp(e.m.v, is)
 		}
 	default:
-		err = fmt.Errorf("uknown")
+		err = fmt.Errorf("unkown")
 	}
 	if err != nil {
 		e.m.v.Logf("netlink %s: %s\n", err, e.msg.String())
