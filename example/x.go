@@ -61,7 +61,7 @@ func init() {
 				n := MyNode
 				n.nPackets = 1
 				n.next = next_error
-				if !in.End() {
+				for !in.End() {
 					if in.Parse("%d", &n.nPackets) {
 						if n.nPackets == 0 { // no limit
 							n.nPackets = ^uint(0)
