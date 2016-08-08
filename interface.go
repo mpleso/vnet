@@ -210,6 +210,11 @@ func (sw *swIf) SetAdminUp(v *Vnet, wantUp bool) (err error) {
 	return
 }
 
+func (si Si) SetAdminUp(v *Vnet, isUp bool) (err error) {
+	s := v.SwIf(si)
+	return s.SetAdminUp(v, isUp)
+}
+
 func (h *HwIf) SetAdminUp(isUp bool) (err error) {
 	if h.unprovisioned {
 		err = errors.New("hardware interface is unprovisioned")
@@ -219,6 +224,11 @@ func (h *HwIf) SetAdminUp(isUp bool) (err error) {
 	s := h.vnet.SwIf(h.si)
 	err = s.SetAdminUp(h.vnet, isUp)
 	return
+}
+
+func (hi Hi) SetAdminUp(v *Vnet, isUp bool) (err error) {
+	h := v.HwIf(hi)
+	return h.SetAdminUp(isUp)
 }
 
 func (h *HwIf) IsProvisioned() bool { return !h.unprovisioned }
