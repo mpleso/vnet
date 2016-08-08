@@ -177,7 +177,7 @@ func (n *myNode) Init() (err error) {
 	return
 }
 
-func (n *myNode) IsUnix() bool { return true } // set to true to test tuntap.
+func (n *myNode) IsUnix() bool { return false } // set to true to test tuntap.
 
 func (n *myNode) InterfaceInput(o *vnet.RefOut) {
 	out := &o.Outs[n.next]
