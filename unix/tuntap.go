@@ -49,10 +49,14 @@ func (i *Interface) setMtu(m *Main, mtu uint) {
 type Main struct {
 	vnet.Package
 
+	netlinkMain
 	nodeMain
+	tuntapMain
 
 	v *vnet.Vnet
+}
 
+type tuntapMain struct {
 	// Selects whether we create tun or tap interfaces.
 	isTun bool
 
@@ -62,16 +66,14 @@ type Main struct {
 
 	mtuBytes uint
 
-	ifVec interfaceVec
+	ifVec     interfaceVec
+	ifByIndex map[int]*Interface
 
 	bufferPool *hw.BufferPool
 }
 
-func Init(v *vnet.Vnet) {
-	m := &Main{}
-	m.v = v
+func (m *tuntapMain) Init() {
 	m.bufferPool = hw.DefaultBufferPool
-	v.AddPackage("tuntap", m)
 }
 
 const (
@@ -114,7 +116,7 @@ const (
 )
 
 var iff_flag_names = [...]string{
-	iff_up_bit:          "up",
+	iff_up_bit:          "admin-up",
 	iff_broadcast_bit:   "broadcast",
 	iff_debug_bit:       "debug",
 	iff_loopback_bit:    "loopback",
@@ -130,7 +132,7 @@ var iff_flag_names = [...]string{
 	iff_portsel_bit:     "portsel",
 	iff_automedia_bit:   "automedia",
 	iff_dynamic_bit:     "dynamic",
-	iff_lower_up_bit:    "lower-up",
+	iff_lower_up_bit:    "link-up",
 	iff_dormant_bit:     "dormant",
 	iff_echo_bit:        "echo",
 }
@@ -316,6 +318,10 @@ func (m *Main) SwIfAddDel(v *vnet.Vnet, si vnet.Si, isDel bool) (err error) {
 
 	m.ifVec.Validate(uint(si))
 	m.ifVec[si] = intf
+	if m.ifByIndex == nil {
+		m.ifByIndex = make(map[int]*Interface)
+	}
+	m.ifByIndex[intf.ifindex] = intf
 
 	// Create Vnet interface.
 	intf.interfaceNodeInit(m)
@@ -326,7 +332,7 @@ func (m *Main) SwIfAddDel(v *vnet.Vnet, si vnet.Si, isDel bool) (err error) {
 func (m *Main) maybeChangeFlag(intf *Interface, isUp bool, flag iff_flag) (err error) {
 	change := false
 	switch {
-	case isUp && intf.flags&flag == 0:
+	case isUp && intf.flags&flag != flag:
 		change = true
 		intf.flags |= flag
 	case !isUp && intf.flags&flag != 0:
@@ -348,7 +354,7 @@ func (m *Main) SwIfAdminUpDown(v *vnet.Vnet, si vnet.Si, isUp bool) (err error) 
 		return
 	}
 	intf := m.interfaceForSi(si)
-	err = m.maybeChangeFlag(intf, isUp, iff_up)
+	err = m.maybeChangeFlag(intf, isUp, iff_up|iff_running)
 	if err != nil {
 		return
 	}
@@ -362,7 +368,7 @@ func (m *Main) HwIfLinkUpDown(v *vnet.Vnet, hi vnet.Hi, isUp bool) (err error) {
 		return
 	}
 	intf := m.interfaceForSi(v.HwIf(hi).Si())
-	err = m.maybeChangeFlag(intf, isUp, iff_running)
+	err = m.maybeChangeFlag(intf, isUp, iff_lower_up)
 	if err != nil {
 		return
 	}

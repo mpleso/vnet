@@ -215,6 +215,8 @@ type Vnet struct {
 	packageMain
 }
 
+func (v *Vnet) GetLoop() *loop.Loop { return &v.loop }
+
 func (v *Vnet) RegisterNode(n Noder, format string, args ...interface{}) {
 	v.loop.RegisterNode(n, format, args...)
 	x := n.GetVnetNode()
