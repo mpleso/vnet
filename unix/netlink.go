@@ -25,13 +25,12 @@ func (e *netlinkEvent) String() string { return "netlink-message" }
 
 func (e *netlinkEvent) EventAction() {
 	var err error
+	vn := e.m.v
 	switch v := e.msg.(type) {
 	case *netlink.IfInfoMessage:
 		intf := e.m.getInterface(v.Index)
 		// Respect flag admin state changes from unix shell via ifconfig or "ip link" commands.
-		if is, was := (v.Flags&netlink.IFF_UP != 0), ((intf.flags & iff_up) != 0); is != was {
-			err = intf.si.SetAdminUp(e.m.v, is)
-		}
+		err = intf.si.SetAdminUp(vn, v.Flags&netlink.IFF_UP != 0)
 	default:
 		err = fmt.Errorf("unkown")
 	}
