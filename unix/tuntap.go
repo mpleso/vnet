@@ -24,8 +24,7 @@ type Interface struct {
 	hi             vnet.Hi
 	si             vnet.Si
 	name           ifreq_name
-	poolIndex      uint // index in ifPool
-	ifindex        int  // linux interface index
+	ifindex        int // linux interface index
 	flags          iff_flag
 	node           node
 	mtuBytes       uint

@@ -136,7 +136,7 @@ func (n *node) InterfaceInput(o *vnet.RefOut) {
 				nDrops++
 			} else {
 				nBytes += r.len
-				r.ref.Si = n.Si()
+				r.ref.Si = n.Si() // use xxx-unix interface as receive interface.
 				toTx.Refs[nPackets] = r.ref
 				nPackets++
 				if m.verbose {
