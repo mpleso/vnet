@@ -57,12 +57,12 @@ func (v *Vnet) RegisterOutputInterfaceNode(n outputInterfaceNoder, hi Hi, name s
 	v.RegisterNode(n, name, args...)
 }
 
-func (n *interfaceNode) slowPath(rv *RefVec, rs []Ref, is, ivʹ, nBytesʹ uint) (iv, nBytes uint) {
-	iv, nBytes = ivʹ, nBytesʹ
+func (n *interfaceNode) slowPath(rvʹ RefVec, rs []Ref, is, ivʹ, nBytesʹ uint) (rv RefVec, iv, nBytes uint) {
+	rv, iv, nBytes = rvʹ, ivʹ, nBytesʹ
 	s := rs[is]
 	for {
 		// Copy buffer reference.
-		(*rv)[iv] = s
+		rv[iv] = s
 		iv++
 
 		if h := s.NextRef(); h == nil {
@@ -134,10 +134,10 @@ func (n *interfaceNode) InterfaceOutput(ri *RefIn) {
 		n_left -= 4
 		if RefFlag4(NextValid, rs, is-4) {
 			iv -= 4
-			iv, nBytes = n.slowPath(&rv, rs, is-4, iv, nBytes)
-			iv, nBytes = n.slowPath(&rv, rs, is-3, iv, nBytes)
-			iv, nBytes = n.slowPath(&rv, rs, is-2, iv, nBytes)
-			iv, nBytes = n.slowPath(&rv, rs, is-1, iv, nBytes)
+			rv, iv, nBytes = n.slowPath(rv, rs, is-4, iv, nBytes)
+			rv, iv, nBytes = n.slowPath(rv, rs, is-3, iv, nBytes)
+			rv, iv, nBytes = n.slowPath(rv, rs, is-2, iv, nBytes)
+			rv, iv, nBytes = n.slowPath(rv, rs, is-1, iv, nBytes)
 		}
 	}
 	for n_left > 0 {
@@ -148,7 +148,7 @@ func (n *interfaceNode) InterfaceOutput(ri *RefIn) {
 		n_left -= 1
 		if RefFlag1(NextValid, rs, is-1) {
 			iv -= 1
-			iv, nBytes = n.slowPath(&rv, rs, is-1, iv, nBytes)
+			rv, iv, nBytes = n.slowPath(rv, rs, is-1, iv, nBytes)
 		}
 	}
 
