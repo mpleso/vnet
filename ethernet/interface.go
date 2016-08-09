@@ -106,6 +106,7 @@ var rewriteTypeMap = [...]Type{
 	vnet.IP6:            IP6,
 	vnet.MPLS_UNICAST:   MPLS_UNICAST,
 	vnet.MPLS_MULTICAST: MPLS_MULTICAST,
+	vnet.ARP:            ARP,
 }
 
 func (hi *Interface) SetRewrite(v *vnet.Vnet, rw *vnet.Rewrite, packetType vnet.PacketType, da []byte) {
