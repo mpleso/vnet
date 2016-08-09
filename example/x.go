@@ -22,6 +22,7 @@ type myNode struct {
 	pool     hw.BufferPool
 	nPackets uint
 	next     int
+	isUnix   bool
 }
 
 var (
@@ -177,7 +178,15 @@ func (n *myNode) Init() (err error) {
 	return
 }
 
-func (n *myNode) IsUnix() bool { return false } // set to true to test tuntap.
+func (n *myNode) Configure(in *parse.Input) {
+	if in.Parse("tuntap") {
+		n.isUnix = true
+	} else {
+		panic(parse.ErrInput)
+	}
+}
+
+func (n *myNode) IsUnix() bool { return n.isUnix }
 
 func (n *myNode) InterfaceInput(o *vnet.RefOut) {
 	out := &o.Outs[n.next]
@@ -209,27 +218,12 @@ func (n *myNode) InterfaceOutput(i *vnet.RefVecIn, f chan *vnet.RefVecIn) {
 	f <- i
 }
 
-type zap int
-
-func (n *myNode) Configure(in *parse.Input) {
-	var (
-		s string
-		z zap
-	)
-	if in.Parse("bar %v", &s) {
-		fmt.Printf("configure bar %s\n", s)
-	} else if in.Parse("zap %d", &z) {
-		fmt.Printf("configure zap %d\n", z)
-	} else {
-		panic(parse.ErrInput)
-	}
-}
-
 func main() {
 	v := &vnet.Vnet{}
 	var in parse.Input
 	in.Add(os.Args[1:]...)
 	unix.Init(v)
+	ip4.Init(v)
 	myNodePackage = v.AddPackage("my-node", MyNode)
 	err := v.Run(&in)
 	if err != nil {

@@ -29,6 +29,9 @@ type packageMain struct {
 
 func (v *Vnet) AddPackage(name string, r Packager) uint {
 	m := &v.packageMain
+	if len(m.packages) == 0 { // 0th package is always empty.
+		m.packages = append(m.packages, nil)
+	}
 	i := uint(len(m.packages))
 	m.packageByName.Set(name, i)
 	m.packages = append(m.packages, r)
@@ -73,7 +76,10 @@ func (m *packageMain) ConfigurePackages(in *parse.Input) (err error) {
 
 func (m *packageMain) InitPackages() (err error) {
 	// Call package init functions.
-	for _, p := range m.packages {
+	for i, p := range m.packages {
+		if i == 0 {
+			continue
+		}
 		err = p.Init()
 		if err != nil {
 			return
@@ -84,7 +90,7 @@ func (m *packageMain) InitPackages() (err error) {
 
 func (m *packageMain) ExitPackages() (err error) {
 	l := len(m.packages)
-	for i := l - 1; i >= 0; i-- {
+	for i := l - 1; i > 0; i-- {
 		p := m.packages[i]
 		err = p.Exit()
 		if err != nil {

@@ -257,13 +257,17 @@ func (m *Main) setInterfaceAdjacency(a *ip.Adjacency, si vnet.Si, ia ip.IfAddr) 
 }
 
 type Main struct {
-	*vnet.Vnet
+	vnet.Package
 	ip.Ip
+	fibMain
+	ifAddrAddDelHooks IfAddrAddDelHookVec
+}
+
+type fibMain struct {
 	fibs FibVec
 	// Hooks to call on set/unset.
 	fibAddDelHooks      FibAddDelHookVec
 	ifRouteAdjIndexBySi map[vnet.Si]ip.Adj
-	ifAddrAddDelHooks   IfAddrAddDelHookVec
 }
 
 //go:generate gentemplate -d Package=ip4 -id Fib -d VecType=FibVec -d Type=*Fib github.com/platinasystems/elib/vec.tmpl
@@ -446,19 +450,4 @@ func (m *Main) swIfAdminUpDown(v *vnet.Vnet, si vnet.Si, isUp bool) (err error) 
 		return
 	})
 	return
-}
-
-func (m *Main) init(v *vnet.Vnet) {
-	m.Vnet = v
-	v.RegisterSwIfAdminUpDownHook(m.swIfAdminUpDown)
-	m.Ip.Init(v)
-}
-
-var mainIndex uint = ^uint(0)
-
-func init() {
-	vnet.AddInit(func(v *vnet.Vnet) {
-		m := &Main{}
-		m.init(v)
-	})
 }

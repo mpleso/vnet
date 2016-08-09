@@ -7,5 +7,5 @@ import (
 func GetHeader(r *vnet.Ref) *Header { return (*Header)(r.Data()) }
 
 // Empty for now.
-var rewriteNode vnet.Noder
-var arpNode vnet.Noder
+var rewriteNode = &vnet.Node{}
+var arpNode = &vnet.Node{}
