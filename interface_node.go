@@ -62,6 +62,7 @@ func (n *interfaceNode) slowPath(rvʹ RefVec, rs []Ref, is, ivʹ, nBytesʹ uint)
 	s := rs[is]
 	for {
 		// Copy buffer reference.
+		rv.Validate(iv)
 		rv[iv] = s
 		iv++
 
@@ -71,7 +72,6 @@ func (n *interfaceNode) slowPath(rvʹ RefVec, rs []Ref, is, ivʹ, nBytesʹ uint)
 			s.RefHeader = *h
 		}
 		nBytes += s.DataLen()
-		rv.Validate(iv)
 	}
 	return
 }
@@ -140,6 +140,7 @@ func (n *interfaceNode) InterfaceOutput(ri *RefIn) {
 			rv, iv, nBytes = n.slowPath(rv, rs, is-1, iv, nBytes)
 		}
 	}
+	rv.Validate(iv + n_left - 1)
 	for n_left > 0 {
 		rv[iv+0] = rs[is+0]
 		nBytes += rs[is+0].DataLen()
