@@ -138,6 +138,7 @@ type adjacencyMain struct {
 	threads []*adjacencyThread
 
 	adjAddDelHookVec
+	adjSyncHookVec
 
 	missAdjIndex  Adj
 	dropAdjIndex  Adj
@@ -145,8 +146,10 @@ type adjacencyMain struct {
 }
 
 type adjAddDelHook func(m *Main, adj Adj, isDel bool)
+type adjSyncHook func(m *Main)
 
 //go:generate gentemplate -id adjAddDelHook -d Package=ip -d DepsType=adjAddDelHookVec -d Type=adjAddDelHook -d Data=adjAddDelHooks github.com/platinasystems/elib/dep/dep.tmpl
+//go:generate gentemplate -id adjSyncHook -d Package=ip -d DepsType=adjSyncHookVec -d Type=adjSyncHook -d Data=adjSyncHooks github.com/platinasystems/elib/dep/dep.tmpl
 
 type NextHopWeight uint32
 
@@ -585,6 +588,12 @@ func (m *Main) callAdjAddDelHooks(a Adj, isDel bool) {
 func (m *Main) CallAdjAddHooks(a Adj) { m.callAdjAddDelHooks(a, false) }
 func (m *Main) CallAdjDelHooks(a Adj) { m.callAdjAddDelHooks(a, true) }
 
+func (m *Main) CallAdjSyncHooks() {
+	for i := range m.adjSyncHooks {
+		m.adjSyncHookVec.Get(i)(m)
+	}
+}
+
 func (ma *multipathAdjacency) free(m *Main) {
 	m.CallAdjDelHooks(ma.adj)
 
@@ -615,6 +624,15 @@ func (m *adjacencyMain) clearCounter(a Adj) {
 	for _, t := range m.threads {
 		t.counters.Clear(uint(a))
 	}
+}
+
+func (m *adjacencyMain) GetCounter(a Adj) (v vnet.CombinedCounter) {
+	for _, t := range m.threads {
+		var u vnet.CombinedCounter
+		t.counters.Get(uint(a), &u)
+		v.Add(&u)
+	}
+	return
 }
 
 func (m *adjacencyMain) GetAdj(a Adj) (as []Adjacency) { return m.adjacencyHeap.Slice(uint(a)) }

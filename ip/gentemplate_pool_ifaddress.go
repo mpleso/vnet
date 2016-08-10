@@ -25,8 +25,12 @@ func (p *ifAddressPool) PutIndex(i uint) (ok bool) {
 	return p.Pool.PutIndex(i)
 }
 
-func (p *ifAddressPool) IsFree(i uint) (ok bool) {
-	return p.Pool.IsFree(i)
+func (p *ifAddressPool) IsFree(i uint) (v bool) {
+	v = i >= uint(len(p.ifAddrs))
+	if !v {
+		v = p.Pool.IsFree(i)
+	}
+	return
 }
 
 func (p *ifAddressPool) Resize(n uint) {
