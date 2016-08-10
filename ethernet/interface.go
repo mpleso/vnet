@@ -161,11 +161,13 @@ var rewriteTypeMap = [...]Type{
 	vnet.ARP:            ARP,
 }
 
+type rwHeader struct {
+	Header
+	vlan [2]VlanHeader
+}
+
 func (hi *Interface) SetRewrite(v *vnet.Vnet, rw *vnet.Rewrite, packetType vnet.PacketType, da []byte) {
-	var h struct {
-		Header
-		vlan [2]VlanHeader
-	}
+	var h rwHeader
 	sw := v.SwIf(rw.Si)
 	sup := v.SupSwIf(sw)
 	t := rewriteTypeMap[packetType].FromHost()
@@ -185,6 +187,11 @@ func (hi *Interface) SetRewrite(v *vnet.Vnet, rw *vnet.Rewrite, packetType vnet.
 	}
 	copy(h.Src[:], hi.Address[:])
 	rw.AddData(unsafe.Pointer(&h), size)
+}
+
+func (hi *Interface) FormatRewrite(rw *vnet.Rewrite) string {
+	h := (*rwHeader)(rw.GetData())
+	return h.String()
 }
 
 // Block of ethernet addresses for allocation by a switch.

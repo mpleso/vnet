@@ -80,6 +80,21 @@ type Adjacency struct {
 	vnet.Rewrite
 }
 
+func (a *Adjacency) String(m *Main) (ss []string) {
+	s := a.LookupNextIndex.String()
+	ni := a.LookupNextIndex
+
+	if a.IfAddr != IfAddrNil {
+		s += " " + a.IfAddr.String(m)
+	}
+
+	if ni == LookupNextRewrite {
+		s += " " + a.Rewrite.String(m.v)
+	}
+	ss = append(ss, s)
+	return
+}
+
 // Index into adjacency table.
 type Adj uint32
 
@@ -602,12 +617,12 @@ func (m *adjacencyMain) clearCounter(a Adj) {
 	}
 }
 
-func (m *adjacencyMain) Get(a Adj) (as []Adjacency) { return m.adjacencyHeap.Slice(uint(a)) }
+func (m *adjacencyMain) GetAdj(a Adj) (as []Adjacency) { return m.adjacencyHeap.Slice(uint(a)) }
 
 func (m *adjacencyMain) NewAdjWithTemplate(n uint, template *Adjacency) (ai Adj, as []Adjacency) {
 	ai = Adj(m.adjacencyHeap.Get(n))
 	m.validateCounter(ai)
-	as = m.Get(ai)
+	as = m.GetAdj(ai)
 	for i := range as {
 		if template != nil {
 			as[i] = *template

@@ -25,6 +25,11 @@ type IfAddress struct {
 	next, prev IfAddr
 }
 
+func (i IfAddr) String(m *Main) string {
+	a := m.GetIfAddr(i)
+	return a.Si.Name(m.v)
+}
+
 //go:generate gentemplate -d Package=ip -id ifaddress -d PoolType=ifAddressPool -d Type=IfAddress -d Data=ifAddrs github.com/platinasystems/elib/pool.tmpl
 
 type ifAddressMain struct {

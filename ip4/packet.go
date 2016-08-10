@@ -60,6 +60,19 @@ func (a *Address) FromUint32(x vnet.Uint32) { *(*vnet.Uint32)(unsafe.Pointer(&a[
 func (a *Address) IsEqual(b *Address) bool  { return a.AsUint32() == b.AsUint32() }
 func (a *Address) IsZero() bool             { return a.AsUint32() == 0 }
 
+// Compare 2 addresses for sorting.
+func (a *Address) Diff(b *Address) (v int) {
+	cmp := int(a.AsUint32().ToHost()) - int(b.AsUint32().ToHost())
+	v = 0
+	if cmp != 0 {
+		v = 1
+		if cmp < 0 {
+			v = -1
+		}
+	}
+	return
+}
+
 func IpAddress(a *ip.Address) *Address { return (*Address)(unsafe.Pointer(&a[0])) }
 func (a *Address) ToIp() (v ip.Address) {
 	for i := range a {

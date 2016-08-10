@@ -1,6 +1,7 @@
 package ip4
 
 import (
+	"github.com/platinasystems/elib/cli"
 	"github.com/platinasystems/vnet"
 	"github.com/platinasystems/vnet/ip"
 )
@@ -27,5 +28,17 @@ func (m *Main) Init() (err error) {
 		AddDelRoute:     m.addDelRoute,
 	}
 	m.Main.Init(m.Vnet, cf)
+
+	cmds := [...]cli.Command{
+		cli.Command{
+			Name:      "show ip fib",
+			ShortHelp: "show ip4 forwarding table",
+			Action:    m.showIpFib,
+		},
+	}
+	for i := range cmds {
+		m.Vnet.CliAdd(&cmds[i])
+	}
+
 	return
 }

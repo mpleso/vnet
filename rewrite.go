@@ -28,6 +28,12 @@ type Rewrite struct {
 	data [hw.BufferRewriteBytes]byte
 }
 
+func (r *Rewrite) String(v *Vnet) string {
+	hi := v.SupHi(r.Si)
+	h := v.HwIfer(hi)
+	return h.FormatRewrite(r)
+}
+
 func (r *Rewrite) SetData(d []byte) { r.dataLen = uint16(copy(r.data[:], d)) }
 func (r *Rewrite) AddData(p unsafe.Pointer, size uintptr) (l uintptr) {
 	l = uintptr(r.dataLen)
@@ -38,6 +44,7 @@ func (r *Rewrite) AddData(p unsafe.Pointer, size uintptr) (l uintptr) {
 	return l + size
 }
 func (r *Rewrite) getData() []byte           { return r.data[:r.dataLen] }
+func (r *Rewrite) GetData() unsafe.Pointer   { return unsafe.Pointer(&r.data[0]) }
 func (r *Rewrite) SetMaxPacketSize(hw *HwIf) { r.MaxL3PacketSize = uint16(hw.maxPacketSize) }
 
 func (v *Vnet) SetRewrite(rw *Rewrite, si Si, noder Noder, t PacketType, dstAddr []byte) {

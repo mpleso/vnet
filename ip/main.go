@@ -24,6 +24,7 @@ type Main struct {
 }
 
 func (m *Main) Init(v *vnet.Vnet, c FamilyConfig) {
+	m.v = v
 	m.FamilyConfig = c
 	m.adjacencyMain.init()
 	m.ifAddressMain.init(v)

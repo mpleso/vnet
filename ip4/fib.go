@@ -18,6 +18,13 @@ func (a *Address) toPrefix() (p Prefix) {
 	return
 }
 
+func (p *Prefix) LessThan(q *Prefix) bool {
+	if cmp := p.Address.Diff(&q.Address); cmp != 0 {
+		return cmp < 0
+	}
+	return p.Len < q.Len
+}
+
 // True if given destination matches prefix.
 func (dst *Address) MatchesPrefix(p *Prefix) bool {
 	return 0 == (dst.AsUint32()^p.Address.AsUint32())&mapFibMasks[p.Len]
@@ -102,6 +109,17 @@ func (m *mapFib) foreachMatchingPrefix(key *Prefix, fn func(p *Prefix, a ip.Adj)
 	for l := key.Len + 1; l <= 32; l++ {
 		p.Len = l
 		if a, ok := m.maps[l][p.mapFibKey()]; ok {
+			fn(&p, a)
+		}
+	}
+}
+
+func (m *mapFib) foreach(fn func(p *Prefix, a ip.Adj)) {
+	var p Prefix
+	for l := 32; l >= 0; l-- {
+		p.Len = uint32(l)
+		for k, a := range m.maps[l] {
+			p.Address.FromUint32(k)
 			fn(&p, a)
 		}
 	}

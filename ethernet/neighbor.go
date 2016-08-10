@@ -75,7 +75,7 @@ func (m *ipNeighborMain) AddDelIpNeighbor(im *ip.Main, n *IpNeighbor, isDel bool
 		if !ok {
 			panic("get route")
 		}
-		as = im.Get(ai)
+		as = im.GetAdj(ai)
 		delete(nf.indexByAddress, k)
 	}
 	if isDel {
@@ -85,6 +85,7 @@ func (m *ipNeighborMain) AddDelIpNeighbor(im *ip.Main, n *IpNeighbor, isDel bool
 			ai, as = im.NewAdj(1)
 		}
 		m.v.SetRewrite(&as[0].Rewrite, n.Si, im.RewriteNode, im.PacketType, n.Ethernet[:])
+		as[0].LookupNextIndex = ip.LookupNextRewrite
 
 		_, ok = im.AddDelRoute(&prefix, n.Si, ai, isDel)
 		if !ok {
