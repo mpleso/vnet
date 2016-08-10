@@ -49,8 +49,11 @@ func (c *showIfConfig) parse(v *Vnet, in *cli.Input, isHw bool) {
 	c.colMap = map[string]bool{
 		"Rate": false,
 	}
-	c.siMap = make(map[Si]bool)
-	c.hiMap = make(map[Hi]bool)
+	if isHw {
+		c.hiMap = make(map[Hi]bool)
+	} else {
+		c.siMap = make(map[Si]bool)
+	}
 	for !in.End() {
 		var (
 			si Si

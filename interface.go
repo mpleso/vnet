@@ -321,9 +321,9 @@ func (v *Vnet) RegisterHwInterface(h HwInterfacer, format string, args ...interf
 	hi := Hi(v.hwIferPool.GetIndex())
 	v.hwIferPool.elts[hi] = h
 	hw := h.GetHwIf()
+	hw.hi = hi
 	hw.SetName(v, fmt.Sprintf(format, args...))
 	hw.vnet = v
-	hw.hi = hi
 	hw.si = v.NewSwIf(swIfTypeHardware, IfIndex(hw.hi))
 	return
 }

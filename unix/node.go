@@ -50,7 +50,7 @@ const (
 
 func (intf *Interface) interfaceNodeInit(m *Main) {
 	ifName := intf.Name()
-	vnetName := ifName + " unix"
+	vnetName := ifName + "-unix"
 	n := &intf.node
 	n.i = intf
 	n.rxRefs = make(chan rxRef, vnet.MaxVectorLen)
