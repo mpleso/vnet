@@ -220,12 +220,15 @@ func (n *myNode) InterfaceOutput(i *vnet.RefVecIn, f chan *vnet.RefVecIn) {
 
 func main() {
 	v := &vnet.Vnet{}
-	var in parse.Input
-	in.Add(os.Args[1:]...)
+
+	// Select packages we want to run with.
 	unix.Init(v)
 	ethernet.Init(v)
 	ip4.Init(v)
 	myNodePackage = v.AddPackage("my-node", MyNode)
+
+	var in parse.Input
+	in.Add(os.Args[1:]...)
 	err := v.Run(&in)
 	if err != nil {
 		fmt.Printf("%s\n", err)
