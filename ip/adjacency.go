@@ -129,7 +129,7 @@ type adjacencyMain struct {
 	localAdjIndex Adj
 }
 
-type adjAddDelHook func(m *Ip, adj Adj, isDel bool)
+type adjAddDelHook func(m *Main, adj Adj, isDel bool)
 
 //go:generate gentemplate -id adjAddDelHook -d Package=ip -d DepsType=adjAddDelHookVec -d Type=adjAddDelHook -d Data=adjAddDelHooks github.com/platinasystems/elib/dep/dep.tmpl
 
@@ -349,7 +349,7 @@ type multipathAdjacency struct {
 	unnormalizedNextHops nextHopBlock
 }
 
-func (m *Ip) getMpAdj(unnorm nextHopVec, create bool) (madj *multipathAdjacency, madjIndex uint, ok bool) {
+func (m *Main) getMpAdj(unnorm nextHopVec, create bool) (madj *multipathAdjacency, madjIndex uint, ok bool) {
 	mp := &m.multipathMain
 	nAdj, norm := unnorm.normalizePow2(mp, &mp.cachedNextHopVec[1])
 
@@ -388,7 +388,7 @@ func (m *Ip) getMpAdj(unnorm nextHopVec, create bool) (madj *multipathAdjacency,
 	ok = true
 	return
 }
-func (m *Ip) createMpAdj(unnorm nextHopVec) (*multipathAdjacency, uint, bool) {
+func (m *Main) createMpAdj(unnorm nextHopVec) (*multipathAdjacency, uint, bool) {
 	return m.getMpAdj(unnorm, true)
 }
 
@@ -403,7 +403,7 @@ func (m *adjacencyMain) mpAdjForAdj(a Adj, validate bool) (ma *multipathAdjacenc
 	return
 }
 
-func (m *Ip) AddDelNextHop(oldAdj Adj, isDel bool, nextHopAdj Adj, nextHopWeight NextHopWeight) (newAdj Adj, ok bool) {
+func (m *Main) AddDelNextHop(oldAdj Adj, isDel bool, nextHopAdj Adj, nextHopWeight NextHopWeight) (newAdj Adj, ok bool) {
 	mm := &m.multipathMain
 	var (
 		old, new   *multipathAdjacency
@@ -490,14 +490,14 @@ func (m *adjacencyMain) PoisonAdj(a Adj) {
 	elib.PointerPoison(unsafe.Pointer(&as[0]), uintptr(len(as))*unsafe.Sizeof(as[0]))
 }
 
-func (m *Ip) FreeAdj(a Adj, delMultipath bool) {
+func (m *Main) FreeAdj(a Adj, delMultipath bool) {
 	if delMultipath {
 		m.delMultipathAdj(a)
 	}
 	m.adjacencyHeap.Put(uint(a))
 }
 
-func (m *Ip) DelAdj(a Adj) { m.FreeAdj(a, true) }
+func (m *Main) DelAdj(a Adj) { m.FreeAdj(a, true) }
 
 func (nhs nextHopVec) find(target Adj) (i uint, ok bool) {
 	for i = 0; i < uint(len(nhs)); i++ {
@@ -522,7 +522,7 @@ func (m *multipathMain) delNextHop(nhs nextHopVec, result nextHopVec, nhi uint) 
 	return r
 }
 
-func (m *Ip) delMultipathAdj(toDel Adj) {
+func (m *Main) delMultipathAdj(toDel Adj) {
 	mm := &m.multipathMain
 
 	m.Remaps.Validate(uint(len(m.adjacencyHeap.elts)))
@@ -562,15 +562,15 @@ func (m *Ip) delMultipathAdj(toDel Adj) {
 func (a *multipathAdjacency) invalidate()   { a.nAdj = 0 }
 func (a *multipathAdjacency) isValid() bool { return a.nAdj != 0 }
 
-func (m *Ip) callAdjAddDelHooks(a Adj, isDel bool) {
+func (m *Main) callAdjAddDelHooks(a Adj, isDel bool) {
 	for i := range m.adjAddDelHooks {
 		m.adjAddDelHookVec.Get(i)(m, a, isDel)
 	}
 }
-func (m *Ip) CallAdjAddHooks(a Adj) { m.callAdjAddDelHooks(a, false) }
-func (m *Ip) CallAdjDelHooks(a Adj) { m.callAdjAddDelHooks(a, true) }
+func (m *Main) CallAdjAddHooks(a Adj) { m.callAdjAddDelHooks(a, false) }
+func (m *Main) CallAdjDelHooks(a Adj) { m.callAdjAddDelHooks(a, true) }
 
-func (ma *multipathAdjacency) free(m *Ip) {
+func (ma *multipathAdjacency) free(m *Main) {
 	m.CallAdjDelHooks(ma.adj)
 
 	mm := &m.multipathMain

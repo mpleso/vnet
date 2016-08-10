@@ -59,7 +59,14 @@ func (a *Address) AsUint32() vnet.Uint32    { return *(*vnet.Uint32)(unsafe.Poin
 func (a *Address) FromUint32(x vnet.Uint32) { *(*vnet.Uint32)(unsafe.Pointer(&a[0])) = x }
 func (a *Address) IsEqual(b *Address) bool  { return a.AsUint32() == b.AsUint32() }
 func (a *Address) IsZero() bool             { return a.AsUint32() == 0 }
-func IpAddress(a *ip.Address) *Address      { return (*Address)(unsafe.Pointer(&a[0])) }
+
+func IpAddress(a *ip.Address) *Address { return (*Address)(unsafe.Pointer(&a[0])) }
+func (a *Address) ToIp() (v ip.Address) {
+	for i := range a {
+		v[i] = a[i]
+	}
+	return
+}
 
 // 20 byte ip4 header wide access for efficient checksum.
 type header64 struct {

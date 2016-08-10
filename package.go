@@ -1,6 +1,7 @@
 package vnet
 
 import (
+	"github.com/platinasystems/elib/cli"
 	"github.com/platinasystems/elib/parse"
 
 	"fmt"
@@ -21,6 +22,9 @@ type Package struct {
 func (p *Package) GetPackage() *Package { return p }
 func (p *Package) Init() (err error)    { return } // likely overridden
 func (p *Package) Exit() (err error)    { return } // likely overridden
+func (p *Package) Configure(in *parse.Input) {
+	panic(cli.ParseError)
+}
 
 type packageMain struct {
 	packageByName parse.StringMap

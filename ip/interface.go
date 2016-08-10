@@ -4,24 +4,7 @@ import (
 	"github.com/platinasystems/vnet"
 
 	"fmt"
-	"strconv"
 )
-
-// Generic ip4/ip6 address: big enough for either.
-type Address [16]uint8
-
-type Prefix struct {
-	Address
-	Len uint32
-}
-
-type Addresser interface {
-	String(a *Address) string
-}
-
-func (p *Prefix) String(m *ifAddressMain) string {
-	return m.String(&p.Address) + "/" + strconv.Itoa(int(p.Len))
-}
 
 type IfAddr uint32
 
@@ -45,10 +28,6 @@ type IfAddress struct {
 //go:generate gentemplate -d Package=ip -id ifaddress -d PoolType=ifAddressPool -d Type=IfAddress -d Data=ifAddrs github.com/platinasystems/elib/pool.tmpl
 
 type ifAddressMain struct {
-	*vnet.Vnet
-
-	Addresser
-
 	ifAddressPool
 
 	// Maps ip4/ip6 address to pool index.
@@ -64,7 +43,6 @@ func (m *ifAddressMain) swIfAddDel(v *vnet.Vnet, si vnet.Si, isDel bool) (err er
 }
 
 func (m *ifAddressMain) init(v *vnet.Vnet) {
-	m.Vnet = v
 	v.RegisterSwIfAddDelHook(m.swIfAddDel)
 }
 
@@ -92,7 +70,7 @@ func (m *ifAddressMain) ForeachIfAddress(si vnet.Si, f func(ia IfAddr, i *IfAddr
 	return nil
 }
 
-func (m *ifAddressMain) AddDelInterfaceAddress(si vnet.Si, p *Prefix, isDel bool) (ai IfAddr, exists bool, err error) {
+func (m *Main) AddDelInterfaceAddress(si vnet.Si, p *Prefix, isDel bool) (ai IfAddr, exists bool, err error) {
 	var a *IfAddress
 	if ai, exists = m.addrMap[p.Address]; exists {
 		a = m.GetIfAddr(ai)
@@ -100,7 +78,7 @@ func (m *ifAddressMain) AddDelInterfaceAddress(si vnet.Si, p *Prefix, isDel bool
 
 	if isDel {
 		if a == nil {
-			err = fmt.Errorf("%s: address %s not found", si.Name(m.Vnet), p.String(m))
+			err = fmt.Errorf("%s: address %s not found", si.Name(m.v), p.String(m))
 			return
 		}
 		if a.prev != IfAddrNil {

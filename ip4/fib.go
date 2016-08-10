@@ -237,9 +237,9 @@ func (f *Fib) Lookup(a *Address) (r ip.Adj) {
 }
 
 func (m *Main) setInterfaceAdjacency(a *ip.Adjacency, si vnet.Si, ia ip.IfAddr) {
-	sw := m.SwIf(si)
-	hw := m.SupHwIf(sw)
-	h := m.HwIfer(hw.Hi())
+	sw := m.Vnet.SwIf(si)
+	hw := m.Vnet.SupHwIf(sw)
+	h := m.Vnet.HwIfer(hw.Hi())
 
 	next := ip.LookupNextRewrite
 	noder := rewriteNode
@@ -253,12 +253,12 @@ func (m *Main) setInterfaceAdjacency(a *ip.Adjacency, si vnet.Si, ia ip.IfAddr) 
 	}
 
 	a.LookupNextIndex = next
-	m.SetRewrite(&a.Rewrite, si, noder, packetType, nil /* dstAdr meaning broadcast */)
+	m.Vnet.SetRewrite(&a.Rewrite, si, noder, packetType, nil /* dstAdr meaning broadcast */)
 }
 
 type Main struct {
 	vnet.Package
-	ip.Ip
+	ip.Main
 	fibMain
 	ifAddrAddDelHooks IfAddrAddDelHookVec
 }
@@ -297,6 +297,20 @@ func (m *Main) fibBySi(si vnet.Si) *Fib { return m.fibs[m.FibIndexForSi(si)] }
 func (m *Main) validateDefaultFibForSi(si vnet.Si) {
 	i := m.ValidateFibIndexForSi(si)
 	m.fibByIndex(i, true)
+}
+
+func (m *Main) getRoute(p *ip.Prefix, si vnet.Si) (ai ip.Adj, ok bool) {
+	f := m.fibBySi(si)
+	q := FromIp4Prefix(p)
+	ai, ok = f.Get(&q)
+	return
+}
+
+func (m *Main) addDelRoute(p *ip.Prefix, si vnet.Si, newAdj ip.Adj, isDel bool) (oldAdj ip.Adj, ok bool) {
+	f := m.fibBySi(si)
+	q := FromIp4Prefix(p)
+	oldAdj, ok = f.addDel(m, &q, newAdj, isDel)
+	return
 }
 
 type NextHop struct {
@@ -365,8 +379,8 @@ func (f *Fib) deleteMatchingRoutes(m *Main, key *Prefix) {
 func (m *Main) addDelInterfaceRoutes(ia ip.IfAddr, isDel bool) {
 	ifa := m.GetIfAddr(ia)
 	si := ifa.Si
-	sw := m.SwIf(si)
-	hw := m.SupHwIf(sw)
+	sw := m.Vnet.SwIf(si)
+	hw := m.Vnet.SupHwIf(sw)
 	fib := m.fibBySi(si)
 	p := FromIp4Prefix(&ifa.Prefix)
 
@@ -425,11 +439,11 @@ func (m *Main) AddDelInterfaceAddress(si vnet.Si, addr *Prefix, isDel bool) (err
 		ia     ip.IfAddr
 		exists bool
 	)
-	if ia, exists, err = m.Ip.AddDelInterfaceAddress(si, &pa, isDel); err != nil {
+	if ia, exists, err = m.Main.AddDelInterfaceAddress(si, &pa, isDel); err != nil {
 		return
 	}
 
-	if sw := m.SwIf(si); sw.IsAdminUp() {
+	if sw := m.Vnet.SwIf(si); sw.IsAdminUp() {
 		m.addDelInterfaceRoutes(ia, isDel)
 	}
 
