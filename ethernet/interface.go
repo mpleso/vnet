@@ -2,6 +2,7 @@
 package ethernet
 
 import (
+	"github.com/platinasystems/elib"
 	"github.com/platinasystems/vnet"
 
 	"unsafe"
@@ -19,6 +20,18 @@ const (
 	Forward
 )
 
+var spanningTreeStateNames = [...]string{
+	Disable: "disable",
+	Block:   "block",
+	Listen:  "listen",
+	Learn:   "learn",
+	Forward: "forward",
+}
+
+func (x IfSpanningTreeState) String() string {
+	return elib.StringerHex(spanningTreeStateNames[:], int(x))
+}
+
 // Full or half duplex.
 type IfDuplex int
 
@@ -26,6 +39,13 @@ const (
 	Full IfDuplex = iota + 1
 	Half
 )
+
+var ifDuplexNames = [...]string{
+	Full: "full",
+	Half: "half",
+}
+
+func (x IfDuplex) String() string { return elib.StringerHex(ifDuplexNames[:], int(x)) }
 
 // Physical interface between ethernet MAC and PHY.
 type PhyInterface int
@@ -63,7 +83,39 @@ const (
 	ZR
 )
 
-//go:generate stringer -type=PhyInterface,IfSpanningTreeState,IfDuplex
+var phyInterfaceNames = [...]string{
+	CAUI:       "caui",
+	CR:         "cr",
+	CR2:        "cr2",
+	CR4:        "cr4",
+	GMII:       "gmii",
+	INTERLAKEN: "interlaken",
+	KR:         "kr",
+	KR2:        "kr2",
+	KR4:        "kr4",
+	KX:         "kx",
+	LR:         "lr",
+	LR4:        "lr4",
+	MII:        "mii",
+	QSGMII:     "qsgmii",
+	RGMII:      "rgmii",
+	RXAUI:      "rxaui",
+	SFI:        "sfi",
+	SGMII:      "sgmii",
+	SPAUI:      "spaui",
+	SR:         "sr",
+	SR10:       "sr10",
+	SR2:        "sr2",
+	SR4:        "sr4",
+	XAUI:       "xaui",
+	XFI:        "xfi",
+	XGMII:      "xgmii",
+	XLAUI:      "xlaui",
+	XLAUI2:     "xlaui2",
+	ZR:         "zr",
+}
+
+func (x PhyInterface) String() string { return elib.StringerHex(phyInterfaceNames[:], int(x)) }
 
 type InterfaceConfig struct {
 	Address      Address
