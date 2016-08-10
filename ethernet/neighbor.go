@@ -1,10 +1,11 @@
 package ethernet
 
 import (
-	"fmt"
 	"github.com/platinasystems/elib/cpu"
 	"github.com/platinasystems/vnet"
 	"github.com/platinasystems/vnet/ip"
+
+	"errors"
 )
 
 type ipNeighborFamily struct {
@@ -39,6 +40,8 @@ type ipNeighbor struct {
 
 //go:generate gentemplate -d Package=ethernet -id ipNeighbor -d PoolType=ipNeighborPool -d Data=neighbors -d Type=ipNeighbor github.com/platinasystems/elib/pool.tmpl
 
+var ErrDelUnknownNeighbor = errors.New("delete unknown neighbor")
+
 func (m *ipNeighborMain) AddDelIpNeighbor(im *ip.Main, n *IpNeighbor, isDel bool) (err error) {
 	nf := &m.ipNeighborFamilies[im.Family]
 
@@ -50,7 +53,7 @@ func (m *ipNeighborMain) AddDelIpNeighbor(im *ip.Main, n *IpNeighbor, isDel bool
 	k.Si, k.Ip = n.Si, n.Ip
 	if i, ok = nf.indexByAddress[k]; !ok {
 		if isDel {
-			err = fmt.Errorf("delete of unknown neighbor address %s for interface %s", im.AddressStringer(&n.Ip), n.Si.Name(m.v))
+			err = ErrDelUnknownNeighbor
 			return
 		}
 		i = nf.pool.GetIndex()
