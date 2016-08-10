@@ -223,6 +223,7 @@ func main() {
 	var in parse.Input
 	in.Add(os.Args[1:]...)
 	unix.Init(v)
+	ethernet.Init(v)
 	ip4.Init(v)
 	myNodePackage = v.AddPackage("my-node", MyNode)
 	err := v.Run(&in)
