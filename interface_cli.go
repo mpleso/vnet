@@ -133,12 +133,16 @@ func (v *Vnet) showSwIfs(c cli.Commander, w cli.Writer, in *cli.Input) (err erro
 			}
 			sifs = append(sifs, s)
 		})
-		// Always at least report name and state.
-		if first {
+		// Always at least report name and state for specified interfaces.
+		if first && len(cf.siMap) > 0 {
 			sifs = append(sifs, firstIf)
 		}
 	}
-	elib.Tabulate(sifs).WriteCols(w, cf.colMap)
+	if len(sifs) > 0 {
+		elib.Tabulate(sifs).WriteCols(w, cf.colMap)
+	} else {
+		fmt.Println("All counters are zero")
+	}
 	return
 }
 
@@ -217,12 +221,16 @@ func (v *Vnet) showHwIfs(c cli.Commander, w cli.Writer, in *cli.Input) (err erro
 			}
 			ifs = append(ifs, s)
 		})
-		// Always at least report name and state.
-		if first {
+		// Always at least report name and state for specified interfaces.
+		if first && len(cf.hiMap) > 0 {
 			ifs = append(ifs, firstIf)
 		}
 	}
-	elib.Tabulate(ifs).WriteCols(w, cf.colMap)
+	if len(ifs) > 0 {
+		elib.Tabulate(ifs).WriteCols(w, cf.colMap)
+	} else {
+		fmt.Println("All counters are zero")
+	}
 	return
 }
 
