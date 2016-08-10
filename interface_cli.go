@@ -12,7 +12,9 @@ import (
 
 func (hi *Hi) ParseWithArgs(in *parse.Input, args *parse.Args) {
 	v := args.Get().(*Vnet)
-	in.Parse("%v", v.hwIfIndexByName, hi)
+	if !in.Parse("%v", v.hwIfIndexByName, hi) {
+		panic(parse.ErrInput)
+	}
 }
 
 func (si *Si) ParseWithArgs(in *parse.Input, args *parse.Args) {
@@ -38,15 +40,27 @@ func (si *Si) ParseWithArgs(in *parse.Input, args *parse.Args) {
 type showIfConfig struct {
 	detail bool
 	colMap map[string]bool
+	siMap  map[Si]bool
+	hiMap  map[Hi]bool
 }
 
-func (c *showIfConfig) parse(in *cli.Input) {
+func (c *showIfConfig) parse(v *Vnet, in *cli.Input, isHw bool) {
 	c.detail = false
 	c.colMap = map[string]bool{
 		"Rate": false,
 	}
+	c.siMap = make(map[Si]bool)
+	c.hiMap = make(map[Hi]bool)
 	for !in.End() {
+		var (
+			si Si
+			hi Hi
+		)
 		switch {
+		case !isHw && in.Parse("%v", &si, v):
+			c.siMap[si] = true
+		case isHw && in.Parse("%v", &hi, v):
+			c.hiMap[hi] = true
 		case in.Parse("d%*etail"):
 			c.detail = true
 		case in.Parse("r%*ate"):
@@ -62,62 +76,69 @@ type swIfIndices struct {
 	ifs []Si
 }
 
-func (x *swIfIndices) Init(v *Vnet) {
-	x.Vnet = v
-	for i := range v.swInterfaces.elts {
-		if !v.swInterfaces.IsFree(uint(i)) {
-			x.ifs = append(x.ifs, Si(i))
-		}
-	}
-}
-
 func (h *swIfIndices) Less(i, j int) bool { return h.SwLessThan(h.SwIf(h.ifs[i]), h.SwIf(h.ifs[j])) }
 func (h *swIfIndices) Swap(i, j int)      { h.ifs[i], h.ifs[j] = h.ifs[j], h.ifs[i] }
 func (h *swIfIndices) Len() int           { return len(h.ifs) }
 
 type showSwIf struct {
-	Name    string  `format:"%-30s" align:"left"`
-	State   string  `format:"%-12s" align:"left"`
-	Counter string  `format:"%-30s" align:"left"`
-	Count   uint64  `format:"%16d" align:"center"`
-	Rate    float64 `format:"%16.2e" align:"center"`
+	Name    string `format:"%-30s" align:"left"`
+	State   string `format:"%-12s" align:"left"`
+	Counter string `format:"%-30s" align:"left"`
+	Count   string `format:"%16s" align:"right"`
+	Rate    string `format:"%16s" align:"right"`
 }
 type showSwIfs []showSwIf
 
 func (v *Vnet) showSwIfs(c cli.Commander, w cli.Writer, in *cli.Input) (err error) {
-	swIfs := &swIfIndices{}
-	swIfs.Init(v)
+
+	cf := &showIfConfig{}
+	cf.parse(v, in, false)
+
+	swIfs := &swIfIndices{Vnet: v}
+	if len(cf.siMap) == 0 {
+		for i := range v.swInterfaces.elts {
+			if !v.swInterfaces.IsFree(uint(i)) {
+				swIfs.ifs = append(swIfs.ifs, Si(i))
+			}
+		}
+	} else {
+		for si, _ := range cf.siMap {
+			swIfs.ifs = append(swIfs.ifs, si)
+		}
+	}
+
 	sort.Sort(swIfs)
 
 	v.syncSwIfCounters()
 
 	sifs := showSwIfs{}
-	cf := &showIfConfig{}
-	cf.parse(in)
-
 	dt := time.Since(v.timeLastClear).Seconds()
 	for i := range swIfs.ifs {
 		si := v.SwIf(swIfs.ifs[i])
 		first := true
+		firstIf := showSwIf{
+			Name:  si.IfName(v),
+			State: si.flags.String(),
+		}
 		v.foreachSwIfCounter(cf.detail, si.si, func(counter string, count uint64) {
 			s := showSwIf{
 				Counter: counter,
-				Count:   count,
-				Rate:    float64(count) / dt,
+				Count:   fmt.Sprintf("%d", count),
+				Rate:    fmt.Sprintf("%.2e", float64(count)/dt),
 			}
 			if first {
 				first = false
-				s.Name = si.IfName(v)
-				s.State = si.flags.String()
+				s.Name = firstIf.Name
+				s.State = firstIf.State
 			}
 			sifs = append(sifs, s)
 		})
+		// Always at least report name and state.
+		if first {
+			sifs = append(sifs, firstIf)
+		}
 	}
-	if len(sifs) > 0 {
-		elib.Tabulate(sifs).WriteCols(w, cf.colMap)
-	} else {
-		fmt.Fprintln(w, "All interface counters are zero.")
-	}
+	elib.Tabulate(sifs).WriteCols(w, cf.colMap)
 	return
 }
 
@@ -131,30 +152,16 @@ type hwIfIndices struct {
 	ifs []Hi
 }
 
-func (x *hwIfIndices) Init(v *Vnet) {
-	x.Vnet = v
-	for i := range v.hwIferPool.elts {
-		if v.hwIferPool.IsFree(uint(i)) {
-			continue
-		}
-		h := v.hwIferPool.elts[i].GetHwIf()
-		if h.unprovisioned {
-			continue
-		}
-		x.ifs = append(x.ifs, Hi(i))
-	}
-}
-
 func (h *hwIfIndices) Less(i, j int) bool { return h.HwLessThan(h.HwIf(h.ifs[i]), h.HwIf(h.ifs[j])) }
 func (h *hwIfIndices) Swap(i, j int)      { h.ifs[i], h.ifs[j] = h.ifs[j], h.ifs[i] }
 func (h *hwIfIndices) Len() int           { return len(h.ifs) }
 
 type showHwIf struct {
-	Name    string  `format:"%-30s"`
-	Link    string  `width:12`
-	Counter string  `format:"%-30s" align:"left"`
-	Count   uint64  `format:"%16d" align:"center"`
-	Rate    float64 `format:"%16.2e" align:"center"`
+	Name    string `format:"%-30s"`
+	Link    string `width:12`
+	Counter string `format:"%-30s" align:"left"`
+	Count   string `format:"%16s" align:"right"`
+	Rate    string `format:"%16s" align:"right"`
 }
 type showHwIfs []showHwIf
 
@@ -163,12 +170,29 @@ func (ns showHwIfs) Swap(i, j int)      { ns[i], ns[j] = ns[j], ns[i] }
 func (ns showHwIfs) Len() int           { return len(ns) }
 
 func (v *Vnet) showHwIfs(c cli.Commander, w cli.Writer, in *cli.Input) (err error) {
-	hwIfs := &hwIfIndices{}
-	hwIfs.Init(v)
-	sort.Sort(hwIfs)
-
 	cf := showIfConfig{}
-	cf.parse(in)
+	cf.parse(v, in, true)
+
+	hwIfs := &hwIfIndices{Vnet: v}
+
+	if len(cf.hiMap) == 0 {
+		for i := range v.hwIferPool.elts {
+			if v.hwIferPool.IsFree(uint(i)) {
+				continue
+			}
+			h := v.hwIferPool.elts[i].GetHwIf()
+			if h.unprovisioned {
+				continue
+			}
+			hwIfs.ifs = append(hwIfs.ifs, Hi(i))
+		}
+	} else {
+		for hi, _ := range cf.hiMap {
+			hwIfs.ifs = append(hwIfs.ifs, hi)
+		}
+	}
+
+	sort.Sort(hwIfs)
 
 	ifs := showHwIfs{}
 	dt := time.Since(v.timeLastClear).Seconds()
@@ -176,19 +200,27 @@ func (v *Vnet) showHwIfs(c cli.Commander, w cli.Writer, in *cli.Input) (err erro
 		hi := v.HwIfer(hwIfs.ifs[i])
 		h := hi.GetHwIf()
 		first := true
+		firstIf := showHwIf{
+			Name: h.name,
+			Link: h.LinkString(),
+		}
 		v.foreachHwIfCounter(cf.detail, h.hi, func(counter string, count uint64) {
 			s := showHwIf{
 				Counter: counter,
-				Count:   count,
-				Rate:    float64(count) / dt,
+				Count:   fmt.Sprintf("%d", count),
+				Rate:    fmt.Sprintf("%.2e", float64(count)/dt),
 			}
 			if first {
 				first = false
-				s.Name = h.name
-				s.Link = h.LinkString()
+				s.Name = firstIf.Name
+				s.Link = firstIf.Link
 			}
 			ifs = append(ifs, s)
 		})
+		// Always at least report name and state.
+		if first {
+			ifs = append(ifs, firstIf)
+		}
 	}
 	elib.Tabulate(ifs).WriteCols(w, cf.colMap)
 	return
