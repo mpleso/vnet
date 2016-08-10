@@ -4,7 +4,6 @@ import (
 	"github.com/platinasystems/elib/loop"
 	"github.com/platinasystems/netlink"
 	"github.com/platinasystems/vnet"
-	"github.com/platinasystems/vnet/arp"
 	"github.com/platinasystems/vnet/ethernet"
 	"github.com/platinasystems/vnet/ip4"
 	"github.com/platinasystems/vnet/ip6"
@@ -91,10 +90,10 @@ func (e *netlinkEvent) EventAction() {
 		switch v.Family {
 		case netlink.AF_INET:
 			known = true
-			e.m.ip4IfaddrMsg(v)
+			err = e.m.ip4IfaddrMsg(v)
 		case netlink.AF_INET6:
 			known = true
-			e.m.ip6IfaddrMsg(v)
+			err = e.m.ip6IfaddrMsg(v)
 		}
 	case *netlink.RouteMessage:
 		switch v.Family {
@@ -109,10 +108,10 @@ func (e *netlinkEvent) EventAction() {
 		switch v.Family {
 		case netlink.AF_INET:
 			known = true
-			e.m.ip4NeighborMsg(v)
+			err = e.m.ip4NeighborMsg(v)
 		case netlink.AF_INET6:
 			known = true
-			e.m.ip6NeighborMsg(v)
+			err = e.m.ip6NeighborMsg(v)
 		}
 	}
 	if !known {
@@ -161,35 +160,48 @@ func (m *Main) ifAttr(t netlink.Attr) (intf *Interface) {
 	return
 }
 
-func (m *Main) ip4IfaddrMsg(v *netlink.IfAddrMessage) {
+func (m *Main) ip4IfaddrMsg(v *netlink.IfAddrMessage) (err error) {
 	p := ip4Prefix(v.Attrs[netlink.IFA_ADDRESS], v.Prefixlen)
 	m4 := ip4.GetMain(m.v)
 	intf := m.getInterface(v.Index)
 	isDel := v.Header.Type == netlink.RTM_DELADDR
-	m4.AddDelInterfaceAddress(intf.si, &p, isDel)
+	err = m4.AddDelInterfaceAddress(intf.si, &p, isDel)
+	return
 }
 
-func (m *Main) ip4NeighborMsg(v *netlink.NeighborMessage) {
+func (m *Main) ip4NeighborMsg(v *netlink.NeighborMessage) (err error) {
 	if v.Type != netlink.RTN_UNICAST {
 		return
 	}
 	isDel := v.Header.Type == netlink.RTM_DELNEIGH
+	isStatic := false
 	switch v.State {
 	case netlink.NUD_NOARP, netlink.NUD_NONE:
 		// ignore these
 		return
 	case netlink.NUD_FAILED:
 		isDel = true
+	case netlink.NUD_PERMANENT:
+		isStatic = true
 	}
 	intf := m.getInterface(v.Index)
-	ea := arp.EthernetIp4Addr{
+	dst := ip4Address(v.Attrs[netlink.NDA_DST])
+	nbr := ethernet.IpNeighbor{
 		Ethernet: ethernetAddress(v.Attrs[netlink.NDA_LLADDR]),
-		Ip4:      ip4Address(v.Attrs[netlink.NDA_DST]),
+		Ip:       dst.ToIp(),
+	}
+	m4 := ip4.GetMain(m.v)
+	err = ethernet.GetMain(m.v).AddDelIpNeighbor(&m4.Main, &nbr, isDel)
+
+	// Ignore delete of unknown static Arp entry.
+	if err == ethernet.ErrDelUnknownNeighbor && isStatic {
+		err = nil
 	}
 	// not yet
-	if true {
-		fmt.Printf("nbr if %s, isDel %v, %s -> %s\n", intf, isDel, &ea.Ip4, &ea.Ethernet)
+	if false {
+		fmt.Printf("nbr if %s, isDel %v, %s -> %s\n", intf, isDel, m4.Main.AddressStringer(&nbr.Ip), &nbr.Ethernet)
 	}
+	return
 }
 
 func (m *Main) ip4RouteMsg(v *netlink.RouteMessage) (err error) {
@@ -233,6 +245,6 @@ func ip6Prefix(t netlink.Attr, l uint8) (p ip6.Prefix) {
 }
 
 // not yet
-func (m *Main) ip6IfaddrMsg(v *netlink.IfAddrMessage)           {}
-func (m *Main) ip6NeighborMsg(v *netlink.NeighborMessage)       {}
-func (m *Main) ip6RouteMsg(v *netlink.RouteMessage) (err error) { return }
+func (m *Main) ip6IfaddrMsg(v *netlink.IfAddrMessage) (err error)     { return }
+func (m *Main) ip6NeighborMsg(v *netlink.NeighborMessage) (err error) { return }
+func (m *Main) ip6RouteMsg(v *netlink.RouteMessage) (err error)       { return }
