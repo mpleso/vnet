@@ -39,6 +39,7 @@ func (si *Si) ParseWithArgs(in *parse.Input, args *parse.Args) {
 
 type showIfConfig struct {
 	detail bool
+	re     parse.Regexp
 	colMap map[string]bool
 	siMap  map[Si]bool
 	hiMap  map[Hi]bool
@@ -64,6 +65,7 @@ func (c *showIfConfig) parse(v *Vnet, in *cli.Input, isHw bool) {
 			c.siMap[si] = true
 		case isHw && in.Parse("%v", &hi, v):
 			c.hiMap[hi] = true
+		case in.Parse("m%*atching %v", &c.re):
 		case in.Parse("d%*etail"):
 			c.detail = true
 		case in.Parse("r%*ate"):
@@ -100,14 +102,24 @@ func (v *Vnet) showSwIfs(c cli.Commander, w cli.Writer, in *cli.Input) (err erro
 	swIfs := &swIfIndices{Vnet: v}
 	if len(cf.siMap) == 0 {
 		for i := range v.swInterfaces.elts {
-			if !v.swInterfaces.IsFree(uint(i)) {
-				swIfs.ifs = append(swIfs.ifs, Si(i))
+			si := Si(i)
+			if v.swInterfaces.IsFree(uint(si)) {
+				continue
 			}
+			if cf.re.Valid() && !cf.re.MatchString(si.Name(v)) {
+				continue
+			}
+			swIfs.ifs = append(swIfs.ifs, si)
 		}
 	} else {
 		for si, _ := range cf.siMap {
 			swIfs.ifs = append(swIfs.ifs, si)
 		}
+	}
+
+	if cf.re.Valid() && len(swIfs.ifs) == 0 {
+		fmt.Fprintf(w, "No interfaces match expression: `%s'\n", cf.re)
+		return
 	}
 
 	sort.Sort(swIfs)
@@ -116,6 +128,7 @@ func (v *Vnet) showSwIfs(c cli.Commander, w cli.Writer, in *cli.Input) (err erro
 
 	sifs := showSwIfs{}
 	dt := time.Since(v.timeLastClear).Seconds()
+	alwaysReport := len(cf.siMap) > 0 || cf.re.Valid()
 	for i := range swIfs.ifs {
 		si := v.SwIf(swIfs.ifs[i])
 		first := true
@@ -137,14 +150,14 @@ func (v *Vnet) showSwIfs(c cli.Commander, w cli.Writer, in *cli.Input) (err erro
 			sifs = append(sifs, s)
 		})
 		// Always at least report name and state for specified interfaces.
-		if first && len(cf.siMap) > 0 {
+		if first && alwaysReport {
 			sifs = append(sifs, firstIf)
 		}
 	}
 	if len(sifs) > 0 {
 		elib.Tabulate(sifs).WriteCols(w, cf.colMap)
 	} else {
-		fmt.Println("All counters are zero")
+		fmt.Fprintln(w, "All counters are zero")
 	}
 	return
 }
@@ -191,6 +204,9 @@ func (v *Vnet) showHwIfs(c cli.Commander, w cli.Writer, in *cli.Input) (err erro
 			if h.unprovisioned {
 				continue
 			}
+			if cf.re.Valid() && !cf.re.MatchString(h.name) {
+				continue
+			}
 			hwIfs.ifs = append(hwIfs.ifs, Hi(i))
 		}
 	} else {
@@ -199,10 +215,16 @@ func (v *Vnet) showHwIfs(c cli.Commander, w cli.Writer, in *cli.Input) (err erro
 		}
 	}
 
+	if cf.re.Valid() && len(hwIfs.ifs) == 0 {
+		fmt.Fprintf(w, "No interfaces match expression: `%s'\n", cf.re)
+		return
+	}
+
 	sort.Sort(hwIfs)
 
 	ifs := showHwIfs{}
 	dt := time.Since(v.timeLastClear).Seconds()
+	alwaysReport := len(cf.siMap) > 0 || cf.re.Valid()
 	for i := range hwIfs.ifs {
 		hi := v.HwIfer(hwIfs.ifs[i])
 		h := hi.GetHwIf()
@@ -225,7 +247,7 @@ func (v *Vnet) showHwIfs(c cli.Commander, w cli.Writer, in *cli.Input) (err erro
 			ifs = append(ifs, s)
 		})
 		// Always at least report name and state for specified interfaces.
-		if first && len(cf.hiMap) > 0 {
+		if first && alwaysReport {
 			ifs = append(ifs, firstIf)
 		}
 	}
