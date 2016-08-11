@@ -140,9 +140,7 @@ type adjacencyMain struct {
 	adjAddDelHookVec
 	adjSyncHookVec
 
-	missAdjIndex  Adj
-	dropAdjIndex  Adj
-	localAdjIndex Adj
+	missAdjIndex Adj
 }
 
 type adjAddDelHook func(m *Main, adj Adj, isDel bool)
@@ -657,22 +655,15 @@ func (m *multipathMain) init() {
 	m.nextHopHash.Init(m, 32)
 }
 
-func (m *adjacencyMain) init() {
-	var as []Adjacency
+func (m *Main) adjacencyInit() {
+	m.multipathMain.init()
 
-	// Build miss, drop and local adjacencies.
+	// Build miss adjacency.
+	var as []Adjacency
 	m.missAdjIndex, as = m.NewAdj(1)
 	as[0].LookupNextIndex = LookupNextMiss
 	if m.missAdjIndex != AdjMiss {
 		panic("miss adjacency must be index 0")
 	}
-
-	m.dropAdjIndex, as = m.NewAdj(1)
-	as[0].LookupNextIndex = LookupNextDrop
-
-	m.localAdjIndex, as = m.NewAdj(1)
-	as[0].LookupNextIndex = LookupNextLocal
-	as[0].IfAddr = IfAddrNil
-
-	m.multipathMain.init()
+	m.CallAdjAddHooks(m.missAdjIndex)
 }
