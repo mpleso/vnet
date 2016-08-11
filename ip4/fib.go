@@ -18,6 +18,8 @@ func (a *Address) toPrefix() (p Prefix) {
 	return
 }
 
+func (p *Prefix) IsEqual(q *Prefix) bool { return p.Len == q.Len && p.Address.IsEqual(&q.Address) }
+
 func (p *Prefix) LessThan(q *Prefix) bool {
 	if cmp := p.Address.Diff(&q.Address); cmp != 0 {
 		return cmp < 0
@@ -441,9 +443,8 @@ func (m *Main) AddDelInterfaceAddress(si vnet.Si, addr *Prefix, isDel bool) (err
 	if !isDel {
 		err = m.ForeachIfAddress(si, func(ia ip.IfAddr, ifa *ip.IfAddress) (err error) {
 			p := FromIp4Prefix(&ifa.Prefix)
-			if addr.Address.MatchesPrefix(&p) || p.Address.MatchesPrefix(addr) {
-				err = fmt.Errorf("%s: failed to add %s which conflicts with existing address %s",
-					si.Name(m.Vnet), addr, p)
+			if !p.IsEqual(addr) && (addr.Address.MatchesPrefix(&p) || p.Address.MatchesPrefix(addr)) {
+				err = fmt.Errorf("%s: add %s conflicts with existing address %s", si.Name(m.Vnet), addr, &p)
 			}
 			return
 		})
@@ -478,7 +479,8 @@ func (m *Main) AddDelInterfaceAddress(si vnet.Si, addr *Prefix, isDel bool) (err
 func (m *Main) swIfAdminUpDown(v *vnet.Vnet, si vnet.Si, isUp bool) (err error) {
 	m.validateDefaultFibForSi(si)
 	m.ForeachIfAddress(si, func(ia ip.IfAddr, ifa *ip.IfAddress) (err error) {
-		m.addDelInterfaceRoutes(ia, isUp)
+		isDel := !isUp
+		m.addDelInterfaceRoutes(ia, isDel)
 		return
 	})
 	return
