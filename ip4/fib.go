@@ -60,7 +60,8 @@ func init() {
 	}
 }
 
-func (p *Prefix) mapFibKey() vnet.Uint32 { return p.Address.AsUint32() & mapFibMasks[p.Len] }
+func (p *Prefix) Mask() vnet.Uint32      { return mapFibMasks[p.Len] }
+func (p *Prefix) mapFibKey() vnet.Uint32 { return p.Address.AsUint32() & p.Mask() }
 
 func (m *mapFib) set(p *Prefix, r ip.Adj) (oldAdj ip.Adj, ok bool) {
 	l := p.Len

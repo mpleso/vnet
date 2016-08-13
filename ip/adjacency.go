@@ -199,7 +199,7 @@ func (a nextHopVec) Equal(b nextHopVec) bool {
 		return false
 	} else {
 		for i := uint(0); i < la; i++ {
-			if a[i].Compare(&b[i]) == 0 {
+			if a[i].Compare(&b[i]) != 0 {
 				return false
 			}
 		}
@@ -241,6 +241,7 @@ func (raw nextHopVec) normalizePow2(m *multipathMain, result *nextHopVec) (nAdj 
 	*result = t
 
 	n := nRaw
+	nAdj = n
 	switch n {
 	case 1:
 		t[0] = raw[0]
@@ -410,11 +411,12 @@ func (m *Main) createMpAdj(unnorm nextHopVec) (*multipathAdjacency, uint, bool) 
 
 func (m *adjacencyMain) mpAdjForAdj(a Adj, validate bool) (ma *multipathAdjacency, maIndex uint) {
 	maIndex = uint(m.adjacencyHeap.Id(uint(a)))
+	mm := &m.multipathMain
 	if validate {
-		m.multipathMain.Validate(maIndex)
+		mm.mpAdjVec.Validate(maIndex)
 	}
 	if maIndex < m.multipathMain.mpAdjVec.Len() {
-		ma = &m.multipathMain.mpAdjVec[maIndex]
+		ma = &mm.mpAdjVec[maIndex]
 	}
 	return
 }
@@ -445,8 +447,9 @@ func (m *Main) AddDelNextHop(oldAdj Adj, isDel bool, nextHopAdj Adj, nextHopWeig
 	}
 
 	t := mm.cachedNextHopVec[0]
-	t.Validate(nnh + 1)
+	t.Validate(nnh)
 	mm.cachedNextHopVec[0] = t // save for next call
+	t = t[:nnh+1]
 
 	newAdj = AdjNil
 	if isDel {
@@ -602,11 +605,11 @@ func (ma *multipathAdjacency) free(m *Main) {
 		panic("unknown multipath adjacency")
 	}
 	mm.nextHopHeapOffsets[i] = 0
-	mm.freeNextHopBlock(&ma.unnormalizedNextHops)
-	mm.freeNextHopBlock(&ma.normalizedNextHops)
 
 	m.PoisonAdj(ma.adj)
 	m.FreeAdj(ma.adj, ma.referenceCount == 0)
+	mm.freeNextHopBlock(&ma.unnormalizedNextHops)
+	mm.freeNextHopBlock(&ma.normalizedNextHops)
 
 	// Nothing to free since multipath adjacencies are indexed by adjacency index.
 

@@ -165,6 +165,7 @@ func (intf *Interface) ReadReady() (err error) {
 	nRead, errno = readv(intf.Fd, p.iovs)
 	if errno != 0 {
 		err = errorForErrno("readv", errno)
+		m.putRxPacket(p)
 		n.rxRefs <- rxRef{len: ^uint(0)}
 		return
 	}

@@ -80,6 +80,9 @@ func (e *netlinkEvent) EventAction() {
 	var err error
 	vn := e.m.v
 	known := false
+	if e.m.verbose {
+		e.m.v.Logf("netlink %s\n", e.msg.String())
+	}
 	switch v := e.msg.(type) {
 	case *netlink.IfInfoMessage:
 		known = true

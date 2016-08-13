@@ -49,6 +49,8 @@ func (i *Interface) setMtu(m *Main, mtu uint) {
 type Main struct {
 	vnet.Package
 
+	verbose bool
+
 	netlinkMain
 	nodeMain
 	tuntapMain
@@ -61,8 +63,6 @@ type tuntapMain struct {
 	isTun bool
 
 	disableShutdownOnExit bool
-
-	verbose bool
 
 	mtuBytes uint
 
