@@ -7,6 +7,7 @@ import (
 
 	"fmt"
 	"sort"
+	"sync/atomic"
 )
 
 type ErrorRef uint32
@@ -99,6 +100,10 @@ func (n *Node) NewError(s string) (r ErrorRef) {
 }
 
 func (n *Node) SetError(r *Ref, i uint) { r.Err = n.errorRefs[i] }
+func (n *Node) CountError(i, count uint) {
+	ts := ErrorNode.getThread(0)
+	atomic.AddUint64(&ts.counts[n.errorRefs[i]], uint64(count))
+}
 
 type errNode struct {
 	Node  string `format:"%-30s"`

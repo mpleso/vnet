@@ -33,6 +33,7 @@ var (
 const (
 	error_one = iota
 	error_two
+	tx_packets_dropped
 	n_error
 )
 
@@ -45,8 +46,9 @@ const (
 func init() {
 	vnet.AddInit(func(v *vnet.Vnet) {
 		MyNode.Errors = []string{
-			error_one: "error one",
-			error_two: "error two",
+			error_one:          "error one",
+			error_two:          "error two",
+			tx_packets_dropped: "tx packets dropped",
 		}
 		MyNode.Next = []string{
 			next_error: "error",
@@ -215,6 +217,7 @@ func (n *myNode) InterfaceInput(o *vnet.RefOut) {
 }
 
 func (n *myNode) InterfaceOutput(i *vnet.RefVecIn, f chan *vnet.RefVecIn) {
+	n.CountError(tx_packets_dropped, i.NPackets())
 	f <- i
 }
 
