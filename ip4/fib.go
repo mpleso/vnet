@@ -384,7 +384,12 @@ func (m *Main) AddDelRouteNextHop(p *Prefix, nh *NextHop, isDel bool) (err error
 	}
 
 	if oldAdj != newAdj {
-		f.addDel(m, p, newAdj, isDel)
+		// Only remove from fib on delete of final adjacency.
+		isFibDel := isDel
+		if isFibDel && newAdj != ip.AdjNil {
+			isFibDel = false
+		}
+		f.addDel(m, p, newAdj, isFibDel)
 	}
 
 	return

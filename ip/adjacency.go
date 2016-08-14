@@ -370,7 +370,7 @@ func (m *Main) getMpAdj(unnorm nextHopVec, create bool) (madj *multipathAdjacenc
 	mp := &m.multipathMain
 	nAdj, norm := unnorm.normalizePow2(mp, &mp.cachedNextHopVec[1])
 
-	// Use normalized next hops to see if we've seen a block equivalent to this one before.
+	// Use unnormalized next hops to see if we've seen a block equivalent to this one before.
 	if _, ok = mp.nextHopHash.Get(norm); ok || !create {
 		return
 	}
@@ -599,12 +599,12 @@ func (ma *multipathAdjacency) free(m *Main) {
 	m.CallAdjDelHooks(ma.adj)
 
 	mm := &m.multipathMain
-	nhs := nextHopVec(mm.getNextHopBlock(&ma.unnormalizedNextHops))
+	nhs := nextHopVec(mm.getNextHopBlock(&ma.normalizedNextHops))
 	i, ok := mm.nextHopHash.Unset(nhs)
 	if !ok {
 		panic("unknown multipath adjacency")
 	}
-	mm.nextHopHeapOffsets[i] = 0
+	mm.nextHopHeapOffsets[i] = ^uint32(0)
 
 	m.PoisonAdj(ma.adj)
 	m.FreeAdj(ma.adj, ma.referenceCount == 0)
