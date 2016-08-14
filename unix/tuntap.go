@@ -415,6 +415,7 @@ func (m *Main) Exit() (err error) {
 			intf.ioctl(ifreq_SETIFFLAGS, uintptr(unsafe.Pointer(&r)))
 		}
 		if intf.Fd != 0 {
+			iomux.Del(intf) // stop polling Fd
 			syscall.Close(intf.Fd)
 		}
 		if intf.dev_net_tun_fd != 0 {
