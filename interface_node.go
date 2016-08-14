@@ -111,6 +111,7 @@ func (n *interfaceNode) InterfaceOutput(ri *RefIn) {
 	}
 	nt := n.threads[id]
 	rvi := nt.getRefVecIn(n, ri)
+	rvi.nPackets = ri.Len()
 
 	// Copy common fields.
 	rvi.refInCommon = ri.refInCommon

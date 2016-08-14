@@ -116,6 +116,10 @@ type RefIn struct {
 
 type RefVecIn struct {
 	refInCommon
+
+	// Number of packets corresponding to vector of buffer refs.
+	nPackets uint
+
 	Refs RefVec
 }
 
@@ -139,7 +143,8 @@ func (i *RefIn) AddLen(v *Vnet) (l uint) {
 func (r *RefVecIn) FreePoolRefs(pool *hw.BufferPool) {
 	pool.FreeRefs(&r.Refs[0].RefHeader, uint(len(r.Refs)))
 }
-func (r *RefVecIn) FreeRefs() { r.FreePoolRefs(r.BufferPool) }
+func (r *RefVecIn) NPackets() uint { return r.nPackets }
+func (r *RefVecIn) FreeRefs()      { r.FreePoolRefs(r.BufferPool) }
 
 type InputNode struct {
 	Node
