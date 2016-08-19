@@ -62,6 +62,9 @@ func (intf *Interface) interfaceNodeInit(m *Main) {
 	m.v.RegisterInterfaceNode(n, n.Hi(), vnetName)
 	ni := m.v.AddNamedNext(&m.puntNode, vnetName)
 	m.puntNode.setNext(intf.si, ni)
+
+	// Use /dev/net/tun file descriptor for input/output.
+	intf.Fd = intf.dev_net_tun_fd
 	iomux.Add(intf)
 }
 
@@ -139,7 +142,7 @@ func (n *node) InterfaceInput(o *vnet.RefOut) {
 				r.ref.Si = n.Si() // use xxx-unix interface as receive interface.
 				toTx.Refs[nPackets] = r.ref
 				nPackets++
-				if m.verbose {
+				if m.verbosePackets {
 					m.v.Logf("unix rx %d: %x\n", r.len, r.ref.DataSlice())
 				}
 				done = nPackets >= uint(len(toTx.Refs))
@@ -264,7 +267,7 @@ func (intf *Interface) WriteReady() (err error) {
 				if uint(nWrite) != nWriteLeft {
 					panic("partial packet write")
 				}
-				if intf.m.verbose {
+				if intf.m.verbosePackets {
 					intf.m.v.Logf("unix tx %d: %x\n", nWrite, ri.in.Refs[ri.i].DataSlice())
 				}
 			}

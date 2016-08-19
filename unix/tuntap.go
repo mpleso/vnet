@@ -20,15 +20,17 @@ type Interface struct {
 	m *Main
 	// /dev/net/tun
 	dev_net_tun_fd int
-	iomux.File     // provisioning socket
-	hi             vnet.Hi
-	si             vnet.Si
-	name           ifreq_name
-	ifindex        int // linux interface index
-	flags          iff_flag
-	node           node
-	mtuBytes       uint
-	mtuBuffers     uint
+	// Raw socket bound to this interface used for provisioning.
+	provision_fd int
+	iomux.File   // provisioning socket
+	hi           vnet.Hi
+	si           vnet.Si
+	name         ifreq_name
+	ifindex      int // linux interface index
+	flags        iff_flag
+	node         node
+	mtuBytes     uint
+	mtuBuffers   uint
 }
 
 //go:generate gentemplate -d Package=unix -id ifVec -d VecType=interfaceVec -d Type=*Interface github.com/platinasystems/elib/vec.tmpl
@@ -49,7 +51,8 @@ func (i *Interface) setMtu(m *Main, mtu uint) {
 type Main struct {
 	vnet.Package
 
-	verbose bool
+	verbosePackets bool
+	verboseNetlink bool
 
 	netlinkMain
 	nodeMain
@@ -61,8 +64,6 @@ type Main struct {
 type tuntapMain struct {
 	// Selects whether we create tun or tap interfaces.
 	isTun bool
-
-	disableShutdownOnExit bool
 
 	mtuBytes uint
 
@@ -187,18 +188,10 @@ func (t ifreq_type) String() string {
 func (m *Main) okHi(hi vnet.Hi) (ok bool) { return m.v.HwIfer(hi).IsUnix() }
 func (m *Main) okSi(si vnet.Si) bool      { return m.okHi(m.v.SupHi(si)) }
 
-func (i *Interface) mioctl(req ifreq_type, arg uintptr) (err error) {
-	_, _, e := syscall.Syscall(syscall.SYS_IOCTL, uintptr(i.dev_net_tun_fd), uintptr(req), arg)
+func (i *Interface) ioctl(fd int, req ifreq_type, arg uintptr) (err error) {
+	_, _, e := syscall.Syscall(syscall.SYS_IOCTL, uintptr(fd), uintptr(req), arg)
 	if e != 0 {
 		err = fmt.Errorf("tuntap ioctl %s: %s", req, e)
-	}
-	return
-}
-
-func (i *Interface) ioctl(req ifreq_type, arg uintptr) (err error) {
-	_, _, e := syscall.Syscall(syscall.SYS_IOCTL, uintptr(i.Fd), uintptr(req), arg)
-	if e != 0 {
-		err = fmt.Errorf("tuntap %s ioctl %s: %s", i.name, req, e)
 	}
 	return
 }
@@ -236,30 +229,30 @@ func (m *Main) SwIfAddDel(v *vnet.Vnet, si vnet.Si, isDel bool) (err error) {
 		if err = intf.open(); err != nil {
 			return
 		}
-		if err = intf.mioctl(ifreq_TUNSETIFF, uintptr(unsafe.Pointer(&r))); err != nil {
+		if err = intf.ioctl(intf.dev_net_tun_fd, ifreq_TUNSETIFF, uintptr(unsafe.Pointer(&r))); err != nil {
 			return
 		}
-		if err = intf.mioctl(ifreq_TUNSETPERSIST, 1); err != nil {
+		if err = intf.ioctl(intf.dev_net_tun_fd, ifreq_TUNSETPERSIST, 1); err != nil {
 			return
 		}
 	}
 
 	// Create provisioning socket.
 	eth_p_all := uint16(vnet.Uint16(syscall.ETH_P_ALL).FromHost())
-	if intf.Fd, err = syscall.Socket(syscall.AF_PACKET, syscall.SOCK_RAW, int(eth_p_all)); err != nil {
+	if intf.provision_fd, err = syscall.Socket(syscall.AF_PACKET, syscall.SOCK_RAW, int(eth_p_all)); err != nil {
 		err = fmt.Errorf("tuntap socket: %s", err)
 		return
 	}
 	defer func() {
 		if err != nil {
-			syscall.Close(intf.Fd)
+			syscall.Close(intf.provision_fd)
 		}
 	}()
 
 	// Find linux interface index.
 	{
 		r := ifreq_int{name: intf.name}
-		if err = intf.ioctl(ifreq_GETIFINDEX, uintptr(unsafe.Pointer(&r))); err != nil {
+		if err = intf.ioctl(intf.provision_fd, ifreq_GETIFINDEX, uintptr(unsafe.Pointer(&r))); err != nil {
 			return
 		}
 		intf.ifindex = r.i
@@ -271,7 +264,7 @@ func (m *Main) SwIfAddDel(v *vnet.Vnet, si vnet.Si, isDel bool) (err error) {
 			Ifindex:  intf.ifindex,
 			Protocol: eth_p_all,
 		}
-		if err = syscall.Bind(intf.Fd, &sa); err != nil {
+		if err = syscall.Bind(intf.provision_fd, &sa); err != nil {
 			err = fmt.Errorf("tuntap bind: %s", err)
 			return
 		}
@@ -280,7 +273,7 @@ func (m *Main) SwIfAddDel(v *vnet.Vnet, si vnet.Si, isDel bool) (err error) {
 	// Fetch initial interface flags.
 	{
 		r := ifreq_int{name: intf.name}
-		if err = intf.ioctl(ifreq_GETIFFLAGS, uintptr(unsafe.Pointer(&r))); err != nil {
+		if err = intf.ioctl(intf.provision_fd, ifreq_GETIFFLAGS, uintptr(unsafe.Pointer(&r))); err != nil {
 			return
 		}
 		intf.flags = iff_flag(r.i)
@@ -297,7 +290,7 @@ func (m *Main) SwIfAddDel(v *vnet.Vnet, si vnet.Si, isDel bool) (err error) {
 			}
 			r := ifreq_int{name: intf.name}
 			r.i = int(intf.mtuBytes)
-			if err = intf.ioctl(ifreq_SETIFMTU, uintptr(unsafe.Pointer(&r))); err != nil {
+			if err = intf.ioctl(intf.provision_fd, ifreq_SETIFMTU, uintptr(unsafe.Pointer(&r))); err != nil {
 				return
 			}
 			intf.setMtu(m, intf.mtuBytes)
@@ -310,7 +303,7 @@ func (m *Main) SwIfAddDel(v *vnet.Vnet, si vnet.Si, isDel bool) (err error) {
 			for i := range ei.Address {
 				r.sockaddr.Addr.Data[i] = int8(ei.Address[i])
 			}
-			if err = intf.ioctl(ifreq_SETIFHWADDR, uintptr(unsafe.Pointer(&r))); err != nil {
+			if err = intf.ioctl(intf.provision_fd, ifreq_SETIFHWADDR, uintptr(unsafe.Pointer(&r))); err != nil {
 				return
 			}
 		}
@@ -344,7 +337,7 @@ func (m *Main) maybeChangeFlag(intf *Interface, isUp bool, flag iff_flag) (err e
 			name: intf.name,
 			i:    int(intf.flags),
 		}
-		err = intf.ioctl(ifreq_SETIFFLAGS, uintptr(unsafe.Pointer(&r)))
+		err = intf.ioctl(intf.provision_fd, ifreq_SETIFFLAGS, uintptr(unsafe.Pointer(&r)))
 	}
 	return
 }
@@ -383,8 +376,10 @@ func (i *Interface) open() (err error) {
 }
 
 func (i *Interface) close() (err error) {
+	err = syscall.Close(i.provision_fd)
 	err = syscall.Close(i.dev_net_tun_fd)
 	i.dev_net_tun_fd = -1
+	i.provision_fd = -1
 	return
 }
 
@@ -400,31 +395,6 @@ func (m *Main) Init() (err error) {
 	return
 }
 
-// Shutdown interfaces on main loop exit.
-func (m *Main) Exit() (err error) {
-	for _, intf := range m.ifVec {
-		if intf == nil {
-			continue
-		}
-		if !m.disableShutdownOnExit {
-			intf.flags &^= iff_up | iff_running
-			r := ifreq_int{
-				name: intf.name,
-				i:    int(intf.flags),
-			}
-			intf.ioctl(ifreq_SETIFFLAGS, uintptr(unsafe.Pointer(&r)))
-		}
-		if intf.Fd != 0 {
-			iomux.Del(intf) // stop polling Fd
-			syscall.Close(intf.Fd)
-		}
-		if intf.dev_net_tun_fd != 0 {
-			syscall.Close(intf.dev_net_tun_fd)
-		}
-	}
-	return
-}
-
 func (m *Main) Configure(in *parse.Input) {
 	for !in.End() {
 		switch {
@@ -433,10 +403,10 @@ func (m *Main) Configure(in *parse.Input) {
 			m.isTun = false
 		case in.Parse("tun"):
 			m.isTun = true
-		case in.Parse("no-shut"):
-			m.disableShutdownOnExit = true
-		case in.Parse("verbose"):
-			m.verbose = true
+		case in.Parse("dump-packets"):
+			m.verbosePackets = true
+		case in.Parse("dump-netlink"):
+			m.verboseNetlink = true
 		default:
 			panic(parse.ErrInput)
 		}
