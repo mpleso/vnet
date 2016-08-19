@@ -10,6 +10,7 @@ import (
 
 const (
 	AddressBytes              = 4
+	AddressBits               = 8 * AddressBytes
 	HeaderBytes               = 20
 	MoreFragments HeaderFlags = 1 << 13
 	DontFragment  HeaderFlags = 1 << 14
