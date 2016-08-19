@@ -186,6 +186,7 @@ func (hi *Interface) SetRewrite(v *vnet.Vnet, rw *vnet.Rewrite, packetType vnet.
 		h.Dst = BroadcastAddr
 	}
 	copy(h.Src[:], hi.Address[:])
+	rw.SetData(nil)
 	rw.AddData(unsafe.Pointer(&h), size)
 }
 
