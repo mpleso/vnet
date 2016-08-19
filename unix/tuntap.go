@@ -79,12 +79,17 @@ func (m *tuntapMain) Init() {
 
 const (
 	// TUNSETIFF ifReq flags
-	iff_tun   = 1 << 0
-	iff_tap   = 1 << 1
-	iff_no_pi = 1 << 10
-
-	iff_persist  = 1 << 9
-	iff_nofilter = 1 << 10
+	iff_tun          = 1 << 0
+	iff_tap          = 1 << 1
+	iff_multi_queue  = 1 << 8
+	iff_attach_queue = 1 << 9
+	iff_detach_queue = 1 << 10
+	iff_persist      = 1 << 11
+	iff_no_pi        = 1 << 12
+	iff_one_queue    = 1 << 13
+	iff_vnet_hdr     = 1 << 14
+	iff_tun_excl     = 1 << 15
+	iff_nofilter     = 1 << 12
 )
 
 type ifreq_name [16]byte
