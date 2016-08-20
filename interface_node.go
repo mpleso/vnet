@@ -140,6 +140,7 @@ func (n *interfaceNode) InterfaceOutput(ri *RefIn) {
 			rv, iv, nBytes = n.slowPath(rv, rs, is-3, iv, nBytes)
 			rv, iv, nBytes = n.slowPath(rv, rs, is-2, iv, nBytes)
 			rv, iv, nBytes = n.slowPath(rv, rs, is-1, iv, nBytes)
+			rv.Validate(iv + n_left - 1)
 		}
 	}
 	rv.Validate(iv + n_left - 1)
@@ -152,6 +153,7 @@ func (n *interfaceNode) InterfaceOutput(ri *RefIn) {
 		if RefFlag1(NextValid, rs, is-1) {
 			iv -= 1
 			rv, iv, nBytes = n.slowPath(rv, rs, is-1, iv, nBytes)
+			rv.Validate(iv + n_left - 1)
 		}
 	}
 
@@ -159,5 +161,6 @@ func (n *interfaceNode) InterfaceOutput(ri *RefIn) {
 	hw := n.Vnet.HwIf(n.hi)
 	IfTxCounter.Add(t, hw.si, nRef, nBytes)
 
+	rvi.Refs = rv
 	n.tx.InterfaceOutput(rvi, nt.freeChan)
 }
