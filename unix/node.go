@@ -194,8 +194,12 @@ func (intf *Interface) ReadReady() (err error) {
 		if nLeft < l {
 			l = nLeft
 		}
-		p.refs[nRefs].SetDataLen(l)
-		p.chain.Append(&p.refs[nRefs])
+		r := &p.refs[nRefs]
+		r.SetDataLen(l)
+		if r.NextValidFlag() != 0 {
+			panic("next")
+		}
+		p.chain.Append(r)
 		nLeft -= l
 	}
 
