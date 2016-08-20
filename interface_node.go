@@ -118,6 +118,7 @@ func (n *interfaceNode) InterfaceOutput(ri *RefIn) {
 
 	nRef := ri.Len()
 	rvi.Refs.Validate(nRef - 1)
+	rvi.Refs = rvi.Refs[:nRef]
 
 	n_left := nRef
 	rs := ri.Refs[:]
