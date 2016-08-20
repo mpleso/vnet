@@ -99,17 +99,21 @@ type packet struct {
 	refs  vnet.RefVec
 }
 
+func (p *packet) allocRefs(m *Main, n uint) {
+	m.bufferPool.AllocRefs(&p.refs[0].RefHeader, n)
+	for i := uint(0); i < n; i++ {
+		p.iovs[i].Base = (*byte)(p.refs[i].Data())
+		p.iovs[i].Len = uint64(m.bufferPool.Size)
+	}
+}
+
 func (p *packet) initForRx(m *Main, intf *Interface) {
 	n := intf.mtuBuffers
 	p.iovs.Validate(n - 1)
 	p.refs.Validate(n - 1)
 	p.iovs = p.iovs[:n]
 	p.refs = p.refs[:n]
-	m.bufferPool.AllocRefs(&p.refs[0].RefHeader, n)
-	for i := uint(0); i < n; i++ {
-		p.iovs[i].Base = (*byte)(p.refs[i].Data())
-		p.iovs[i].Len = uint64(m.bufferPool.Size)
-	}
+	p.allocRefs(m, n)
 }
 
 func (p *packet) free(m *Main) {
@@ -121,8 +125,8 @@ func (m *Main) getRxPacket(intf *Interface) (p *packet) {
 	case p = <-m.rxPacketPool:
 	default:
 		p = &packet{}
+		p.initForRx(m, intf)
 	}
-	p.initForRx(m, intf)
 	return
 }
 
@@ -202,8 +206,8 @@ func (intf *Interface) ReadReady() (err error) {
 	n.rxRefs <- r
 	n.Activate(true)
 
-	// Refill packet with new buffers & free.
-	m.bufferPool.AllocRefs(&p.refs[0].RefHeader, nRefs)
+	// Refill packet with new buffers & return for re-use.
+	p.allocRefs(m, nRefs)
 	m.putRxPacket(p)
 	return
 }
