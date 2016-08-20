@@ -89,33 +89,32 @@ type RefOut struct {
 
 type BufferPool struct {
 	hw.BufferPool
-	name string
+	Name string
 }
 
 var DefaultBufferPool = &BufferPool{
 	BufferPool: *hw.DefaultBufferPool,
-	name:       "default",
+	Name:       "default",
 }
 
 type bufferMain struct {
 	poolByName map[string]*BufferPool
 }
 
-func (m *bufferMain) init() {
-	m.registerPool(DefaultBufferPool)
-}
+func (m *bufferMain) init() { m.RegisterBufferPool(DefaultBufferPool) }
 
-func (m *bufferMain) registerPool(p *BufferPool) {
+func (m *bufferMain) RegisterBufferPool(p *BufferPool) {
 	if m.poolByName == nil {
 		m.poolByName = make(map[string]*BufferPool)
 	}
-	if len(p.name) == 0 {
-		p.name = "no name"
+	if len(p.Name) == 0 {
+		p.Name = "no name"
 	}
-	if _, ok := m.poolByName[p.name]; ok {
-		panic("duplicate pool name: " + p.name)
+	if _, ok := m.poolByName[p.Name]; ok {
+		panic("duplicate pool name: " + p.Name)
 	}
-	m.poolByName[p.name] = p
+	m.poolByName[p.Name] = p
+	p.Init()
 }
 
 func (r *RefIn) AllocPoolRefs(p *BufferPool) {
@@ -154,7 +153,7 @@ func (v *Vnet) showBufferUsage(c cli.Commander, w cli.Writer, in *cli.Input) (er
 	sps := []showPool{}
 	for _, p := range m.poolByName {
 		sps = append(sps, showPool{
-			Name:  p.name,
+			Name:  p.Name,
 			Usage: fmt.Sprintf("%30s", elib.MemorySize(p.DmaMemAllocBytes)),
 		})
 	}
