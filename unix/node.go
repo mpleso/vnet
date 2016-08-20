@@ -230,15 +230,17 @@ func (intf *Interface) WriteReady() (err error) {
 				ri.free <- ri.in
 				ri.in = nil
 			}
-			ri.i = 0
 			select {
 			case *ri = <-n.txRefIns:
 				atomic.AddInt32(&n.txAvailable, -1)
+				ri.i = 0
 			default:
+				iomux.Update(intf)
 				return
 			}
 		}
 
+		// Convert vnet buffer references for a single packet into iovecs for writing to kernel.
 		nIovecs, nWriteLeft := uint(0), uint(0)
 		for i := ri.i; i < ri.in.Refs.Len(); i++ {
 			n.txIovecs.Validate(nIovecs)
@@ -254,8 +256,8 @@ func (intf *Interface) WriteReady() (err error) {
 			}
 		}
 
+		// Inject packet into kernel tun/tap devices.
 		if nIovecs > 0 {
-			n.txIovecs = n.txIovecs[:nIovecs]
 			nWrite, errno := writev(intf.Fd, n.txIovecs[:nIovecs])
 			switch {
 			case errno == syscall.EWOULDBLOCK:
