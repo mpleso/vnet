@@ -139,6 +139,7 @@ func (r *RefVecIn) FreeRefs()                  { r.FreePoolRefs(r.BufferPool) }
 
 type showPool struct {
 	Name  string `format:"%-30s" align:"left"`
+	Size  string `format:"%-12s" align:"right"`
 	Usage string `format:"%-30s" align:"right"`
 }
 type showPools []showPool
@@ -154,6 +155,7 @@ func (v *Vnet) showBufferUsage(c cli.Commander, w cli.Writer, in *cli.Input) (er
 	for _, p := range m.poolByName {
 		sps = append(sps, showPool{
 			Name:  p.Name,
+			Size:  fmt.Sprintf("%12d", p.Size),
 			Usage: fmt.Sprintf("%30s", elib.MemorySize(p.DmaMemAllocBytes)),
 		})
 	}
