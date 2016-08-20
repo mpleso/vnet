@@ -83,7 +83,7 @@ func (en *errorNode) NodeOutput(ri *RefIn) {
 
 	ts.counts[cache] += cacheCount
 	ts.cache = cache
-	ri.BufferPool.FreeRefs(&ri.Refs[0].RefHeader, n)
+	ri.FreeRefs(n)
 }
 
 type err struct {

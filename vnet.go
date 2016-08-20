@@ -3,11 +3,8 @@ package vnet
 import (
 	"github.com/platinasystems/elib"
 	"github.com/platinasystems/elib/dep"
-	"github.com/platinasystems/elib/hw"
 	"github.com/platinasystems/elib/loop"
 	"github.com/platinasystems/elib/parse"
-
-	"unsafe"
 )
 
 type RxTx int
@@ -51,100 +48,6 @@ func (v *Vnet) AddNamedNext(n Noder, name string) uint {
 		panic(err)
 	}
 }
-
-type Ref struct {
-	hw.RefHeader
-
-	Err ErrorRef
-
-	Si Si
-}
-
-func (r *Ref) Flags() BufferFlag         { return BufferFlag(r.RefHeader.Flags()) }
-func (r *Ref) NextValidFlag() BufferFlag { return BufferFlag(r.RefHeader.NextValidFlag()) }
-
-type BufferFlag hw.BufferFlag
-
-const (
-	NextValid = BufferFlag(hw.NextValid)
-	Cloned    = BufferFlag(hw.Cloned)
-)
-
-func RefFlag1(f BufferFlag, r []Ref, i uint) bool {
-	return hw.RefFlag1(hw.BufferFlag(f), &r[i+0].RefHeader)
-}
-func RefFlag2(f BufferFlag, r []Ref, i uint) bool {
-	return hw.RefFlag2(hw.BufferFlag(f), &r[i+0].RefHeader, &r[i+1].RefHeader)
-}
-func RefFlag4(f BufferFlag, r []Ref, i uint) bool {
-	return hw.RefFlag4(hw.BufferFlag(f), &r[i+0].RefHeader, &r[i+1].RefHeader, &r[i+2].RefHeader, &r[i+3].RefHeader)
-}
-
-type RefChain hw.RefChain
-
-func (c *RefChain) Len() uint  { return (*hw.RefChain)(c).Len() }
-func (c *RefChain) Reset()     { *c = RefChain{} }
-func (c *RefChain) Head() *Ref { return (*Ref)(unsafe.Pointer((*hw.RefChain)(c).Head())) }
-func (c *RefChain) Validate()  { (*hw.RefChain)(c).Validate() }
-
-func (c *RefChain) Append(r *Ref) {
-	if c.Len() == 0 {
-		h := c.Head()
-		*h = *r
-	}
-	(*hw.RefChain)(c).Append(&r.RefHeader)
-	c.Validate()
-}
-func (c *RefChain) Done() (h Ref) {
-	h = *c.Head()
-	c.Validate()
-	c.Reset()
-	return
-}
-
-//go:generate gentemplate -d Package=vnet -id Ref -d VecType=RefVec -d Type=Ref github.com/platinasystems/elib/vec.tmpl
-
-type refInCommon struct {
-	loop.In
-	BufferPool *hw.BufferPool
-}
-
-type RefIn struct {
-	refInCommon
-	Refs [MaxVectorLen]Ref
-}
-
-type RefVecIn struct {
-	refInCommon
-
-	// Number of packets corresponding to vector of buffer refs.
-	nPackets uint
-
-	Refs RefVec
-}
-
-type RefOut struct {
-	loop.Out
-	Outs []RefIn
-}
-
-func (r *RefIn) AllocPoolRefs(pool *hw.BufferPool) {
-	r.BufferPool = pool
-	pool.AllocRefs(&r.Refs[0].RefHeader, uint(len(r.Refs)))
-}
-func (r *RefIn) AllocRefs()             { r.AllocPoolRefs(hw.DefaultBufferPool) }
-func (i *RefIn) SetLen(v *Vnet, l uint) { i.In.SetLen(&v.loop, l) }
-func (i *RefIn) AddLen(v *Vnet) (l uint) {
-	l = i.GetLen(&v.loop)
-	i.SetLen(v, l+1)
-	return
-}
-
-func (r *RefVecIn) FreePoolRefs(pool *hw.BufferPool) {
-	pool.FreeRefs(&r.Refs[0].RefHeader, uint(len(r.Refs)))
-}
-func (r *RefVecIn) NPackets() uint { return r.nPackets }
-func (r *RefVecIn) FreeRefs()      { r.FreePoolRefs(r.BufferPool) }
 
 type InputNode struct {
 	Node
@@ -215,8 +118,9 @@ func (v *Vnet) RegisterInOutNode(n InOutNoder, name string, args ...interface{})
 // Main structure.
 type Vnet struct {
 	loop loop.Loop
-	interfaceMain
+	bufferMain
 	cliMain
+	interfaceMain
 	packageMain
 }
 
@@ -258,6 +162,7 @@ func (v *Vnet) Run(in *parse.Input) (err error) {
 	loop.AddInit(func(l *loop.Loop) {
 		v.interfaceMain.init()
 		v.CliInit()
+		v.bufferMain.init()
 		for i := range initHooks.hooks {
 			initHooks.Get(i)(v)
 		}

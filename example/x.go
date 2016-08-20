@@ -19,7 +19,7 @@ type myNode struct {
 	vnet.InterfaceNode
 	ethernet.Interface
 	vnet.Package
-	pool     hw.BufferPool
+	pool     vnet.BufferPool
 	nPackets uint
 	next     int
 	isUnix   bool

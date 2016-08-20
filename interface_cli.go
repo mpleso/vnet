@@ -327,6 +327,11 @@ func init() {
 				ShortHelp: "set hardware interface commands",
 				Action:    v.setHwIf,
 			},
+			cli.Command{
+				Name:      "show buffers",
+				ShortHelp: "show dma buffer usage",
+				Action:    v.showBufferUsage,
+			},
 		}
 		for i := range cmds {
 			v.CliAdd(&cmds[i])
