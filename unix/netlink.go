@@ -47,8 +47,11 @@ func (m *Main) msgGeneratesEvent(msg netlink.Message) (ok bool) {
 func (m *Main) listener(l *loop.Loop) {
 	nm := &m.netlinkMain
 	for msg := range nm.c {
-		if m.msgGeneratesEvent(msg) {
+		switch {
+		case m.msgGeneratesEvent(msg):
 			l.AddEvent(&netlinkEvent{m: m, msg: msg}, nm)
+		case m.verboseNetlink:
+			m.v.Logf("netlink ignore %s\n", msg)
 		}
 	}
 }
