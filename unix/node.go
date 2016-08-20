@@ -112,6 +112,10 @@ func (p *packet) initForRx(m *Main, intf *Interface) {
 	}
 }
 
+func (p *packet) free(m *Main) {
+	m.bufferPool.FreeRefs(&p.refs[0].RefHeader, p.refs.Len())
+}
+
 func (m *Main) getRxPacket(intf *Interface) (p *packet) {
 	select {
 	case p = <-m.rxPacketPool:
@@ -122,7 +126,13 @@ func (m *Main) getRxPacket(intf *Interface) (p *packet) {
 	return
 }
 
-func (m *Main) putRxPacket(p *packet) { m.rxPacketPool <- p }
+func (m *Main) putRxPacket(p *packet) {
+	select {
+	case m.rxPacketPool <- p:
+	default:
+		p.free(m)
+	}
+}
 
 func (n *node) InterfaceInput(o *vnet.RefOut) {
 	m := n.i.m
