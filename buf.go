@@ -140,14 +140,14 @@ func (r *RefVecIn) NPackets() uint             { return r.nPackets }
 func (r *RefVecIn) FreeRefs()                  { r.FreePoolRefs(r.BufferPool) }
 
 type showPool struct {
-	Name string `format:"%-30s" align:"left"`
+	Pool string `format:"%-30s" align:"left"`
 	Size string `format:"%-12s" align:"right"`
 	Free string `format:"%-12s" align:"right"`
 	Used string `format:"%-12s" align:"right"`
 }
 type showPools []showPool
 
-func (x showPools) Less(i, j int) bool { return x[i].Name < x[i].Name }
+func (x showPools) Less(i, j int) bool { return x[i].Pool < x[j].Pool }
 func (x showPools) Swap(i, j int)      { x[i], x[j] = x[j], x[i] }
 func (x showPools) Len() int           { return len(x) }
 
@@ -155,9 +155,10 @@ func (v *Vnet) showBufferUsage(c cli.Commander, w cli.Writer, in *cli.Input) (er
 	m := &v.bufferMain
 
 	sps := []showPool{}
+	fmt.Fprintf(w, "DMA heap: %s\n", hw.DmaHeapUsage())
 	for _, p := range m.poolByName {
 		sps = append(sps, showPool{
-			Name: p.Name,
+			Pool: p.Name,
 			Size: fmt.Sprintf("%12d", p.Size),
 			Free: fmt.Sprintf("%12s", elib.MemorySize(p.SizeIncludingOverhead()*p.FreeLen())),
 			Used: fmt.Sprintf("%12s", elib.MemorySize(p.DmaMemAllocBytes)),
