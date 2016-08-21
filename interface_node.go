@@ -157,10 +157,11 @@ func (n *interfaceNode) InterfaceOutput(ri *RefIn) {
 		}
 	}
 
+	rvi.Refs = rv[:iv]
+
 	t := n.Vnet.GetIfThread(ri.ThreadId())
 	hw := n.Vnet.HwIf(n.hi)
 	IfTxCounter.Add(t, hw.si, nRef, nBytes)
 
-	rvi.Refs = rv
 	n.tx.InterfaceOutput(rvi, nt.freeChan)
 }
