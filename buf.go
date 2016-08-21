@@ -73,6 +73,8 @@ type RefIn struct {
 	Refs [MaxVectorLen]Ref
 }
 
+func (r *RefIn) Cap() uint { return uint(len(r.Refs)) }
+
 type RefVecIn struct {
 	refInCommon
 
@@ -117,15 +119,15 @@ func (m *bufferMain) RegisterBufferPool(p *BufferPool) {
 	p.Init()
 }
 
-func (r *RefIn) AllocPoolRefs(p *BufferPool) {
+func (r *RefIn) AllocPoolRefs(p *BufferPool, n uint) {
 	r.BufferPool = p
-	p.AllocRefs(&r.Refs[0].RefHeader, uint(len(r.Refs)))
+	p.AllocRefs(&r.Refs[0].RefHeader, n)
 }
 func (r *RefIn) FreePoolRefs(p *BufferPool, n uint) {
 	p.FreeRefs(&r.Refs[0].RefHeader, n)
 }
-func (r *RefIn) AllocRefs()             { r.AllocPoolRefs(DefaultBufferPool) }
-func (r *RefIn) FreeRefs(n uint)        { r.FreePoolRefs(DefaultBufferPool, n) }
+func (r *RefIn) AllocRefs(n uint)       { r.AllocPoolRefs(r.BufferPool, n) }
+func (r *RefIn) FreeRefs(n uint)        { r.FreePoolRefs(r.BufferPool, n) }
 func (i *RefIn) SetLen(v *Vnet, l uint) { i.In.SetLen(&v.loop, l) }
 func (i *RefIn) AddLen(v *Vnet) (l uint) {
 	l = i.GetLen(&v.loop)
@@ -138,9 +140,10 @@ func (r *RefVecIn) NPackets() uint             { return r.nPackets }
 func (r *RefVecIn) FreeRefs()                  { r.FreePoolRefs(r.BufferPool) }
 
 type showPool struct {
-	Name  string `format:"%-30s" align:"left"`
-	Size  string `format:"%-12s" align:"right"`
-	Usage string `format:"%-30s" align:"right"`
+	Name string `format:"%-30s" align:"left"`
+	Size string `format:"%-12s" align:"right"`
+	Free string `format:"%-12s" align:"right"`
+	Used string `format:"%-12s" align:"right"`
 }
 type showPools []showPool
 
@@ -154,9 +157,10 @@ func (v *Vnet) showBufferUsage(c cli.Commander, w cli.Writer, in *cli.Input) (er
 	sps := []showPool{}
 	for _, p := range m.poolByName {
 		sps = append(sps, showPool{
-			Name:  p.Name,
-			Size:  fmt.Sprintf("%12d", p.Size),
-			Usage: fmt.Sprintf("%30s", elib.MemorySize(p.DmaMemAllocBytes)),
+			Name: p.Name,
+			Size: fmt.Sprintf("%12d", p.Size),
+			Free: fmt.Sprintf("%12s", elib.MemorySize(p.SizeIncludingOverhead()*p.FreeLen())),
+			Used: fmt.Sprintf("%12s", elib.MemorySize(p.DmaMemAllocBytes)),
 		})
 	}
 	sort.Sort(showPools(sps))

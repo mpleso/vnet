@@ -176,7 +176,8 @@ func (n *myNode) Init() (err error) {
 	} else {
 		arpTemplate(t)
 	}
-	n.pool.Init()
+	n.pool.Name = n.Name()
+	v.RegisterBufferPool(&n.pool)
 	return
 }
 
@@ -193,13 +194,13 @@ func (n *myNode) IsUnix() bool { return n.isUnix }
 func (n *myNode) InterfaceInput(o *vnet.RefOut) {
 	out := &o.Outs[n.next]
 	out.BufferPool = &n.pool
-	out.AllocPoolRefs(&n.pool)
 	t := n.GetIfThread()
-	rs := out.Refs[:]
 	nPackets := n.nPackets
-	if l := uint(len(rs)); nPackets > l {
+	if l := out.Cap(); nPackets > l {
 		nPackets = l
 	}
+	out.AllocPoolRefs(&n.pool, nPackets)
+	rs := out.Refs[:]
 	nBytes := uint(0)
 	for i := uint(0); i < nPackets; i++ {
 		r := &rs[i]
