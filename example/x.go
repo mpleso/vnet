@@ -19,7 +19,7 @@ type myNode struct {
 	vnet.InterfaceNode
 	ethernet.Interface
 	vnet.Package
-	pool     vnet.BufferPool
+	pool     hw.BufferPool
 	nPackets uint
 	next     int
 	isUnix   bool
@@ -177,7 +177,7 @@ func (n *myNode) Init() (err error) {
 		arpTemplate(t)
 	}
 	n.pool.Name = n.Name()
-	v.RegisterBufferPool(&n.pool)
+	v.AddBufferPool(&n.pool)
 	return
 }
 

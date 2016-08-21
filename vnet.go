@@ -3,6 +3,7 @@ package vnet
 import (
 	"github.com/platinasystems/elib"
 	"github.com/platinasystems/elib/dep"
+	"github.com/platinasystems/elib/hw"
 	"github.com/platinasystems/elib/loop"
 	"github.com/platinasystems/elib/parse"
 )
@@ -118,7 +119,7 @@ func (v *Vnet) RegisterInOutNode(n InOutNoder, name string, args ...interface{})
 // Main structure.
 type Vnet struct {
 	loop loop.Loop
-	bufferMain
+	hw.BufferMain
 	cliMain
 	interfaceMain
 	packageMain
@@ -162,7 +163,7 @@ func (v *Vnet) Run(in *parse.Input) (err error) {
 	loop.AddInit(func(l *loop.Loop) {
 		v.interfaceMain.init()
 		v.CliInit()
-		v.bufferMain.init()
+		v.BufferMain.Init()
 		for i := range initHooks.hooks {
 			initHooks.Get(i)(v)
 		}

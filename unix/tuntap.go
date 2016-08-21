@@ -4,6 +4,7 @@ package unix
 
 import (
 	"github.com/platinasystems/elib"
+	"github.com/platinasystems/elib/hw"
 	"github.com/platinasystems/elib/iomux"
 	"github.com/platinasystems/elib/parse"
 	"github.com/platinasystems/vnet"
@@ -69,11 +70,11 @@ type tuntapMain struct {
 	ifVec     interfaceVec
 	ifByIndex map[int]*Interface
 
-	bufferPool *vnet.BufferPool
+	bufferPool *hw.BufferPool
 }
 
 func (m *tuntapMain) Init() {
-	m.bufferPool = vnet.DefaultBufferPool
+	m.bufferPool = hw.DefaultBufferPool
 }
 
 const (

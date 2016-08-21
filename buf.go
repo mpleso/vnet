@@ -65,7 +65,7 @@ func (c *RefChain) Done() (h Ref) {
 
 type refInCommon struct {
 	loop.In
-	BufferPool *BufferPool
+	BufferPool *hw.BufferPool
 }
 
 type RefIn struct {
@@ -89,41 +89,11 @@ type RefOut struct {
 	Outs []RefIn
 }
 
-type BufferPool struct {
-	hw.BufferPool
-	Name string
-}
-
-var DefaultBufferPool = &BufferPool{
-	BufferPool: *hw.DefaultBufferPool,
-	Name:       "default",
-}
-
-type bufferMain struct {
-	poolByName map[string]*BufferPool
-}
-
-func (m *bufferMain) init() { m.RegisterBufferPool(DefaultBufferPool) }
-
-func (m *bufferMain) RegisterBufferPool(p *BufferPool) {
-	if m.poolByName == nil {
-		m.poolByName = make(map[string]*BufferPool)
-	}
-	if len(p.Name) == 0 {
-		p.Name = "no name"
-	}
-	if _, ok := m.poolByName[p.Name]; ok {
-		panic("duplicate pool name: " + p.Name)
-	}
-	m.poolByName[p.Name] = p
-	p.Init()
-}
-
-func (r *RefIn) AllocPoolRefs(p *BufferPool, n uint) {
+func (r *RefIn) AllocPoolRefs(p *hw.BufferPool, n uint) {
 	r.BufferPool = p
 	p.AllocRefs(&r.Refs[0].RefHeader, n)
 }
-func (r *RefIn) FreePoolRefs(p *BufferPool, n uint) {
+func (r *RefIn) FreePoolRefs(p *hw.BufferPool, n uint) {
 	p.FreeRefs(&r.Refs[0].RefHeader, n)
 }
 func (r *RefIn) AllocRefs(n uint)       { r.AllocPoolRefs(r.BufferPool, n) }
@@ -135,9 +105,9 @@ func (i *RefIn) AddLen(v *Vnet) (l uint) {
 	return
 }
 
-func (r *RefVecIn) FreePoolRefs(p *BufferPool) { p.FreeRefs(&r.Refs[0].RefHeader, r.Refs.Len()) }
-func (r *RefVecIn) NPackets() uint             { return r.nPackets }
-func (r *RefVecIn) FreeRefs()                  { r.FreePoolRefs(r.BufferPool) }
+func (r *RefVecIn) FreePoolRefs(p *hw.BufferPool) { p.FreeRefs(&r.Refs[0].RefHeader, r.Refs.Len()) }
+func (r *RefVecIn) NPackets() uint                { return r.nPackets }
+func (r *RefVecIn) FreeRefs()                     { r.FreePoolRefs(r.BufferPool) }
 
 type showPool struct {
 	Pool string `format:"%-30s" align:"left"`
@@ -152,11 +122,11 @@ func (x showPools) Swap(i, j int)      { x[i], x[j] = x[j], x[i] }
 func (x showPools) Len() int           { return len(x) }
 
 func (v *Vnet) showBufferUsage(c cli.Commander, w cli.Writer, in *cli.Input) (err error) {
-	m := &v.bufferMain
+	m := &v.BufferMain
 
 	sps := []showPool{}
 	fmt.Fprintf(w, "DMA heap: %s\n", hw.DmaHeapUsage())
-	for _, p := range m.poolByName {
+	for _, p := range m.PoolByName {
 		sps = append(sps, showPool{
 			Pool: p.Name,
 			Size: fmt.Sprintf("%12d", p.Size),
