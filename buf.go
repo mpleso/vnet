@@ -94,7 +94,8 @@ func (r *RefIn) AllocPoolRefs(p *hw.BufferPool, n uint) {
 	p.AllocRefs(&r.Refs[0].RefHeader, n)
 }
 func (r *RefIn) FreePoolRefs(p *hw.BufferPool, n uint) {
-	p.FreeRefs(&r.Refs[0].RefHeader, n)
+	freeNext := true
+	p.FreeRefs(&r.Refs[0].RefHeader, n, freeNext)
 }
 func (r *RefIn) AllocRefs(n uint)       { r.AllocPoolRefs(r.BufferPool, n) }
 func (r *RefIn) FreeRefs(n uint)        { r.FreePoolRefs(r.BufferPool, n) }
@@ -105,9 +106,11 @@ func (i *RefIn) AddLen(v *Vnet) (l uint) {
 	return
 }
 
-func (r *RefVecIn) FreePoolRefs(p *hw.BufferPool) { p.FreeRefs(&r.Refs[0].RefHeader, r.Refs.Len()) }
-func (r *RefVecIn) NPackets() uint                { return r.nPackets }
-func (r *RefVecIn) FreeRefs()                     { r.FreePoolRefs(r.BufferPool) }
+func (r *RefVecIn) FreePoolRefs(p *hw.BufferPool, freeNext bool) {
+	p.FreeRefs(&r.Refs[0].RefHeader, r.Refs.Len(), freeNext)
+}
+func (r *RefVecIn) NPackets() uint         { return r.nPackets }
+func (r *RefVecIn) FreeRefs(freeNext bool) { r.FreePoolRefs(r.BufferPool, freeNext) }
 
 type showPool struct {
 	Pool string `format:"%-30s" align:"left"`

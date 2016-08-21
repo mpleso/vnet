@@ -87,7 +87,7 @@ func (t *interfaceNodeThread) getRefVecIn(n *interfaceNode, in *RefIn) (i *RefVe
 	for {
 		select {
 		case i = <-t.freeChan:
-			i.FreeRefs()
+			i.FreeRefs(false)
 		default:
 			if t.n_alloc < 2 {
 				i = &RefVecIn{}

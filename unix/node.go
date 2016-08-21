@@ -117,7 +117,7 @@ func (p *packet) initForRx(m *Main, intf *Interface) {
 }
 
 func (p *packet) free(m *Main) {
-	m.bufferPool.FreeRefs(&p.refs[0].RefHeader, p.refs.Len())
+	m.bufferPool.FreeRefs(&p.refs[0].RefHeader, p.refs.Len(), false)
 }
 
 func (m *Main) getRxPacket(intf *Interface) (p *packet) {
