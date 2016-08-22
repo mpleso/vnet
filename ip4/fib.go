@@ -459,16 +459,31 @@ func (m *Main) AddDelInterfaceAddress(si vnet.Si, addr *Prefix, isDel bool) (err
 		}
 	}
 
-	pa := addr.ToIpPrefix()
 	var (
 		ia     ip.IfAddr
 		exists bool
 	)
+
+	sw := m.Vnet.SwIf(si)
+	isUp := sw.IsAdminUp()
+	pa := addr.ToIpPrefix()
+
+	// If interface is admin up, delete interface routes *before* removing address.
+	if isUp && isDel {
+		ia, exists = m.Main.IfAddrForPrefix(&pa)
+		// For non-existing prefixes error will be signalled by AddDelInterfaceAddress below.
+		if exists {
+			m.addDelInterfaceRoutes(ia, isDel)
+		}
+	}
+
+	// Delete interface address.  Return error if deleting non-existent address.
 	if ia, exists, err = m.Main.AddDelInterfaceAddress(si, &pa, isDel); err != nil {
 		return
 	}
 
-	if sw := m.Vnet.SwIf(si); sw.IsAdminUp() {
+	// If interface is up remove interface routes.
+	if isUp && !isDel {
 		m.addDelInterfaceRoutes(ia, isDel)
 	}
 

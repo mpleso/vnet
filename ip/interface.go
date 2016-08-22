@@ -75,6 +75,11 @@ func (m *ifAddressMain) ForeachIfAddress(si vnet.Si, f func(ia IfAddr, i *IfAddr
 	return nil
 }
 
+func (m *Main) IfAddrForPrefix(p *Prefix) (ai IfAddr, exists bool) {
+	ai, exists = m.addrMap[p.Address]
+	return
+}
+
 func (m *Main) AddDelInterfaceAddress(si vnet.Si, p *Prefix, isDel bool) (ai IfAddr, exists bool, err error) {
 	var a *IfAddress
 	if ai, exists = m.addrMap[p.Address]; exists {
