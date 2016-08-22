@@ -97,13 +97,17 @@ func (r *RefIn) FreePoolRefs(p *hw.BufferPool, n uint) {
 	freeNext := true
 	p.FreeRefs(&r.Refs[0].RefHeader, n, freeNext)
 }
-func (r *RefIn) AllocRefs(n uint)       { r.AllocPoolRefs(r.BufferPool, n) }
-func (r *RefIn) FreeRefs(n uint)        { r.FreePoolRefs(r.BufferPool, n) }
+func (i *RefIn) AllocRefs(n uint)       { i.AllocPoolRefs(i.BufferPool, n) }
+func (i *RefIn) FreeRefs(n uint)        { i.FreePoolRefs(i.BufferPool, n) }
 func (i *RefIn) SetLen(v *Vnet, l uint) { i.In.SetLen(&v.loop, l) }
 func (i *RefIn) AddLen(v *Vnet) (l uint) {
 	l = i.GetLen(&v.loop)
 	i.SetLen(v, l+1)
 	return
+}
+func (i *RefIn) SetPoolAndLen(v *Vnet, p *hw.BufferPool, l uint) {
+	i.BufferPool = p
+	i.SetLen(v, l)
 }
 
 func (r *RefVecIn) FreePoolRefs(p *hw.BufferPool, freeNext bool) {
