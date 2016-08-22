@@ -237,8 +237,8 @@ func (intf *Interface) WriteAvailable() (ok bool) {
 
 func (intf *Interface) WriteReady() (err error) {
 	n := &intf.node
+	ri := &n.txRefIn
 	for {
-		ri := &n.txRefIn
 		l := uint(0)
 		if ri.in != nil {
 			l = ri.in.Refs.Len()
