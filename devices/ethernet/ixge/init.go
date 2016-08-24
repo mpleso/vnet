@@ -88,5 +88,5 @@ func Init(v *vnet.Vnet) {
 
 	vnetpci.Init(v)
 	v.AddPackage("ixge", m)
-	m.Package.DependedOnBy("pci")
+	m.Package.DependedOnBy("pci-discovery")
 }
