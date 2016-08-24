@@ -149,6 +149,20 @@ type regs struct {
 	}
 
 	interrupt struct {
+		// [15:0] rx queue
+		// [16] flow director
+		// [17] rx missed packet
+		// [18] pcie exception
+		// [19] mailbox
+		// [20] link state change
+		// [21] link sec reserved
+		// [22] manageability
+		// [24] time sync
+		// [27:25] gpi spd 012
+		// [28] ecc error
+		// [29] phy global interrupt
+		// [30] tcp timer expired
+		// [31] other cause
 		status_write_1_to_clear  reg
 		_                        [0x808 - 0x804]byte
 		status_write_1_to_set    reg
@@ -164,12 +178,15 @@ type regs struct {
 		   [31] write disable for credit and counter (write only). */
 		throttle0 [24]reg
 
+		// as above.
 		enable_write_1_to_set   reg
 		_                       [0x888 - 0x884]byte
 		enable_write_1_to_clear reg
 		_                       [0x890 - 0x88c]byte
 		enable_auto_clear       reg
-		msi_to_eitr_select      reg
+
+		msi_to_eitr_select reg
+
 		/* [3:0] spd 0-3 interrupt detection enable
 		   [4] msi-x enable
 		   [5] other clear disable (makes other bits in status not clear on read)
@@ -285,9 +302,13 @@ type regs struct {
 
 		pause_and_pace_control reg
 		_                      [0x425c - 0x424c]byte
-		phy_command            reg
-		phy_data               reg
-		_                      [0x4268 - 0x4264]byte
+
+		phy_command reg
+
+		// write data [15:0]
+		// read data [31:16]
+		phy_data reg
+		_        [0x4268 - 0x4264]byte
 
 		/* [31:16] max frame size in bytes. */
 		rx_max_frame_size reg
@@ -785,19 +806,34 @@ type regs struct {
 	   [1] done
 	   [15:2] address
 	   [31:16] read data. */
-	eeprom_read            reg
-	_                      [0x1001c - 0x10018]byte
-	flash_access           reg
-	_                      [0x10114 - 0x10020]byte
-	flash_data             reg
-	flash_control          reg
-	flash_read_data        reg
-	_                      [0x1013c - 0x10120]byte
-	flash_opcode           reg
-	software_semaphore     reg
-	_                      [0x10148 - 0x10144]byte
-	firmware_semaphore     reg
-	_                      [0x10160 - 0x1014c]byte
+	eeprom_read     reg
+	_               [0x1001c - 0x10018]byte
+	flash_access    reg
+	_               [0x10114 - 0x10020]byte
+	flash_data      reg
+	flash_control   reg
+	flash_read_data reg
+	_               [0x1013c - 0x10120]byte
+	flash_opcode    reg
+
+	// [0] sw driver semaphore
+	// [1] fw firmware semaphore
+	// [2] wake mng clock
+	// [31] register semaphore
+	software_semaphore reg
+	_                  [0x10148 - 0x10144]byte
+
+	// [0] eeprom
+	// [1] phy index 0
+	// [2] phy index 1
+	// [3] mac csr
+	// [4] flash
+	// [10] sw mng
+	// [11] i2c 0
+	// [12] i2c 1
+	firmware_semaphore reg
+	_                  [0x10160 - 0x1014c]byte
+
 	software_firmware_sync reg
 	_                      [0x10200 - 0x10164]byte
 	general_rx_control     reg
@@ -845,9 +881,22 @@ type regs struct {
 		pcie_interrupt_enable reg
 		_                     [0x110c0 - 0x110bc]byte
 		msi_x_pba_clear       [8]reg
-		_                     [0x12300 - 0x110e0]byte
+		_                     [0x11144 - 0x110e0]byte
 	}
 
+	phy_indirect struct {
+		// [15:0] address
+		// [19:18] status (0 => success, 1 => unsuccessful, 2 => reserved, 3 => powered down)
+		// [27:20] error status (when status == 1 unsuccessful)
+		// [30:28] phy select (0 => internal kr phy)
+		// [31] busy
+		control reg
+
+		// Read triggers read transaction; write triggers write transaction.
+		data reg
+	}
+
+	_                   [0x12300 - 0x1114c]byte
 	interrupt_throttle1 [128 - 24]reg
 	_                   [0x14f00 - 0x124a0]byte
 
