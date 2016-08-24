@@ -2,6 +2,7 @@ package vnet
 
 import (
 	"github.com/platinasystems/elib/cli"
+	"github.com/platinasystems/elib/dep"
 	"github.com/platinasystems/elib/parse"
 
 	"fmt"
@@ -14,9 +15,21 @@ type Packager interface {
 	Exit() (err error)
 }
 
+const (
+	// Dependencies: packages this package depends on.
+	forward = iota
+	// Anti-dependencies: packages that are dependent on this package.
+	anti
+	nDepType
+)
+
 type Package struct {
 	Vnet *Vnet
 	name string
+
+	depMap [nDepType]map[string]struct{}
+
+	dep dep.Dep
 }
 
 func (p *Package) GetPackage() *Package { return p }
@@ -29,23 +42,49 @@ func (p *Package) Configure(in *parse.Input) {
 type packageMain struct {
 	packageByName parse.StringMap
 	packages      []Packager
+	deps          dep.Deps
 }
 
-func (v *Vnet) AddPackage(name string, r Packager) uint {
-	m := &v.packageMain
-	if len(m.packages) == 0 { // 0th package is always empty.
-		m.packages = append(m.packages, nil)
+func (p *Package) addDep(name string, typ int) {
+	if len(name) == 0 {
+		panic("empty dependency")
 	}
-	i := uint(len(m.packages))
-	m.packageByName.Set(name, i)
+	if p.depMap[typ] == nil {
+		p.depMap[typ] = make(map[string]struct{})
+	}
+	p.depMap[typ][name] = struct{}{}
+}
+func (p *Package) DependsOn(name string)    { p.addDep(name, forward) }
+func (p *Package) DependedOnBy(name string) { p.addDep(name, anti) }
+
+func (v *Vnet) AddPackage(name string, r Packager) (pi uint) {
+	m := &v.packageMain
+	// Package with index zero is always empty.
+	// Protects against uninitialized package index variables.
+	if len(m.packages) == 0 {
+		m.packages = append(m.packages, &Package{name: "(empty)"})
+	}
+
+	// Already registered
+	var ok bool
+	if pi, ok = m.packageByName[name]; ok {
+		return
+	}
+
+	pi = uint(len(m.packages))
+	m.packageByName.Set(name, pi)
 	m.packages = append(m.packages, r)
 	p := r.GetPackage()
 	p.name = name
 	p.Vnet = v
-	return i
+	return
 }
 
 func (m *packageMain) GetPackage(i uint) Packager { return m.packages[i] }
+func (m *packageMain) PackageByName(name string) (i uint, ok bool) {
+	i, ok = m.packageByName[name]
+	return
+}
 
 func (p *Package) configure(r Packager, in *parse.Input) (err error) {
 	defer func() {
@@ -79,11 +118,29 @@ func (m *packageMain) ConfigurePackages(in *parse.Input) (err error) {
 }
 
 func (m *packageMain) InitPackages() (err error) {
-	// Call package init functions.
-	for i, p := range m.packages {
-		if i == 0 {
-			continue
+	// Resolve package dependencies.
+	for i := range m.packages {
+		p := m.packages[i].GetPackage()
+		for typ := range p.depMap {
+			for name := range p.depMap[typ] {
+				if j, ok := m.packageByName[name]; ok {
+					d := m.packages[j].GetPackage()
+					if typ == forward {
+						p.dep.Deps = append(p.dep.Deps, &d.dep)
+					} else {
+						p.dep.AntiDeps = append(p.dep.AntiDeps, &d.dep)
+					}
+				} else {
+					panic(fmt.Errorf("%s: unknown dependent package `%s'", p.name, name))
+				}
+			}
 		}
+		m.deps.Add(&p.dep)
+	}
+
+	// Call package init functions.
+	for i := range m.packages {
+		p := m.packages[m.deps.Index(i)]
 		err = p.Init()
 		if err != nil {
 			return
@@ -93,9 +150,8 @@ func (m *packageMain) InitPackages() (err error) {
 }
 
 func (m *packageMain) ExitPackages() (err error) {
-	l := len(m.packages)
-	for i := l - 1; i > 0; i-- {
-		p := m.packages[i]
+	for i := range m.packages {
+		p := m.packages[m.deps.IndexReverse(i)]
 		err = p.Exit()
 		if err != nil {
 			return
