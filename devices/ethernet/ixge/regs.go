@@ -9,11 +9,12 @@ import (
 
 type reg hw.Reg32
 
-func (r *reg) offset() uint           { return uint(uintptr(unsafe.Pointer(r)) - hw.RegsBaseAddress) }
-func (r *reg) addr(d *device) *uint32 { return (*uint32)(unsafe.Pointer(&d.mmaped_regs[r.offset()])) }
-func (r *reg) get(d *device) reg      { return reg(hw.LoadUint32(r.addr(d))) }
-func (r *reg) set(d *device, v reg)   { hw.StoreUint32(r.addr(d), uint32(v)) }
-func (r *reg) or(d *device, v reg)    { r.set(d, r.get(d)|v) }
+func (r *reg) offset() uint         { return uint(uintptr(unsafe.Pointer(r)) - hw.RegsBaseAddress) }
+func (r *reg) addr(d *dev) *uint32  { return (*uint32)(unsafe.Pointer(&d.mmaped_regs[r.offset()])) }
+func (r *reg) get(d *dev) reg       { return reg(hw.LoadUint32(r.addr(d))) }
+func (r *reg) set(d *dev, v reg)    { hw.StoreUint32(r.addr(d), uint32(v)) }
+func (r *reg) or(d *dev, v reg)     { r.set(d, r.get(d)|v) }
+func (r *reg) andnot(d *dev, v reg) { r.set(d, r.get(d)&^v) }
 
 type dma_regs struct {
 	// [31:7] 128 byte aligned.

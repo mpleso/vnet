@@ -6,26 +6,40 @@ import (
 	"github.com/platinasystems/elib/hw/pci"
 	"github.com/platinasystems/vnet"
 	vnetpci "github.com/platinasystems/vnet/devices/bus/pci"
+	"github.com/platinasystems/vnet/devices/phy/xge"
 	"github.com/platinasystems/vnet/ethernet"
+	"time"
 )
 
 type main struct {
 	vnet.Package
-	devices []*device
+	devs []*dev
 }
 
-type device struct {
+type phy struct {
+	mdio_address reg
+
+	// 32 bit ID read from ID registers.
+	id uint32
+}
+
+type dev struct {
 	m           *main
 	regs        *regs
 	mmaped_regs []byte
 	pciDev      *pci.Device
+
+	/* Phy index (0 or 1) and address on MDI bus. */
+	phy_index uint
+
+	phys [2]phy
 }
 
-func (d *device) bar0() []byte { return d.pciDev.Resources[0].Mem }
+func (d *dev) bar0() []byte { return d.pciDev.Resources[0].Mem }
 
-func (m *main) DeviceMatch(pdev *pci.Device) (dev pci.DriverDevice, err error) {
-	d := &device{m: m, pciDev: pdev}
-	m.devices = append(m.devices, d)
+func (m *main) DeviceMatch(pdev *pci.Device) (dd pci.DriverDevice, err error) {
+	d := &dev{m: m, pciDev: pdev}
+	m.devs = append(m.devs, d)
 	r := &pdev.Resources[0]
 	if _, err = pdev.MapResource(r); err != nil {
 		return
@@ -33,25 +47,24 @@ func (m *main) DeviceMatch(pdev *pci.Device) (dev pci.DriverDevice, err error) {
 	// Can't directly use mmapped registers because of compiler's read probes/nil checks.
 	d.regs = (*regs)(hw.RegsBasePointer)
 	d.mmaped_regs = d.bar0()
-	dev = d
-	return
+	return d, err
 }
 
-func (d *device) Init() {
+func (d *dev) Init() {
 	r := d.regs
 
 	// Reset chip.
 	{
 		const (
-			mac_reset    = 1 << 3
-			device_reset = 1 << 26
+			mac_reset = 1 << 3
+			dev_reset = 1 << 26
 		)
 		v := r.control.get(d)
-		v |= mac_reset | device_reset
+		v |= mac_reset | dev_reset
 		r.control.set(d, v)
 
 		// Timed to take ~1e-6 secs.  No need for timeout.
-		for r.control.get(d)&device_reset != 0 {
+		for r.control.get(d)&dev_reset != 0 {
 		}
 	}
 
@@ -71,9 +84,108 @@ func (d *device) Init() {
 		fmt.Printf("%s\n", d.get_dev_id())
 		fmt.Printf("%s\n", &e)
 	}
+
+	if ok := d.probe_phy(); ok {
+		fmt.Printf("found phy id %x\n", d.phys[d.phy_index].id)
+	}
 }
 
-// PCI device IDs
+func (d *dev) get_semaphore() {
+	r := d.regs
+	start := time.Now()
+	for r.software_semaphore.get(d)&(1<<0) == 0 {
+		if time.Since(start) > 100*time.Millisecond {
+			panic("ixge: semaphore get timeout")
+		}
+		time.Sleep(100 * time.Microsecond)
+	}
+	for {
+		r.software_semaphore.or(d, 1<<1)
+		if r.software_semaphore.get(d)&(1<<1) != 0 {
+			break
+		}
+		if time.Since(start) > 100*time.Millisecond {
+			panic("ixge: semaphore get timeout")
+		}
+	}
+}
+
+func (d *dev) release_semaphore() { d.regs.software_semaphore.andnot(d, 3) }
+
+func (d *dev) software_firmware_sync(sw_mask reg) {
+	r := d.regs
+	fw_mask := sw_mask << 5
+	done := false
+	for {
+		d.get_semaphore()
+		m := r.software_firmware_sync.get(d)
+		if done = m&fw_mask == 0; done {
+			r.software_firmware_sync.set(d, m|sw_mask)
+		}
+		d.release_semaphore()
+		if !done {
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+}
+
+func (d *dev) software_firmware_sync_release(sw_mask reg) {
+	d.get_semaphore()
+	d.regs.software_firmware_sync.andnot(d, sw_mask)
+	d.release_semaphore()
+}
+
+func (d *dev) rw_phy_reg(dev_type, reg_index, v reg, is_read bool) (w reg) {
+	const busy_bit = 1 << 30
+	sync_mask := reg(1) << (1 + d.phy_index)
+	d.software_firmware_sync(sync_mask)
+	if !is_read {
+		d.regs.xge_mac.phy_data.set(d, v)
+	}
+	// Address cycle.
+	x := reg_index | dev_type<<16 | d.phys[d.phy_index].mdio_address<<21
+	d.regs.xge_mac.phy_command.set(d, x|busy_bit)
+	for d.regs.xge_mac.phy_command.get(d)&busy_bit != 0 {
+	}
+	cmd := reg(1)
+	if is_read {
+		cmd = 2
+	}
+	d.regs.xge_mac.phy_command.set(d, x|busy_bit|cmd<<26)
+	for d.regs.xge_mac.phy_command.get(d)&busy_bit != 0 {
+	}
+	if is_read {
+		w = d.regs.xge_mac.phy_data.get(d)
+	} else {
+		w = v
+	}
+	d.software_firmware_sync_release(sync_mask)
+	return
+}
+
+func (d *dev) read_phy_reg(dev_type, reg_index reg) reg {
+	return d.rw_phy_reg(dev_type, reg_index, 0, true)
+}
+func (d *dev) write_phy_reg(dev_type, reg_index, v reg) {
+	d.rw_phy_reg(dev_type, reg_index, v, false)
+}
+
+func (d *dev) probe_phy() (ok bool) {
+	phy := &d.phys[d.phy_index]
+
+	phy.mdio_address = ^phy.mdio_address // poison
+	for i := reg(0); i < 32; i++ {
+		phy.mdio_address = i
+		v := d.read_phy_reg(xge.PHY_DEV_TYPE_PMA_PMD, xge.PHY_ID1)
+		if ok = v != 0xffff && v != 0; ok {
+			phy.id = uint32(v)
+			break
+		}
+	}
+	return
+}
+
+// PCI dev IDs
 const (
 	dev_id_82598                 = 0x10b6
 	dev_id_82598_bx              = 0x1508
@@ -128,7 +240,7 @@ const (
 
 type dev_id pci.VendorDeviceID
 
-func (d *device) get_dev_id() dev_id { return dev_id(d.pciDev.DeviceID()) }
+func (d *dev) get_dev_id() dev_id { return dev_id(d.pciDev.DeviceID()) }
 func (d dev_id) String() (v string) {
 	var ok bool
 	if v, ok = dev_id_names[d]; !ok {
@@ -180,10 +292,6 @@ var dev_id_names = map[dev_id]string{
 	dev_id_x550em_x_vf_hv:        "X550EM_X_VF_HV",
 }
 
-func (d *device) Interrupt() {
-	panic("ga")
-}
-
 func Init(v *vnet.Vnet) {
 	m := &main{}
 	devs := []pci.VendorDeviceID{}
@@ -198,4 +306,8 @@ func Init(v *vnet.Vnet) {
 	vnetpci.Init(v)
 	v.AddPackage("ixge", m)
 	m.Package.DependedOnBy("pci-discovery")
+}
+
+func (d *dev) Interrupt() {
+	panic("ga")
 }
