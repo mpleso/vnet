@@ -6,6 +6,7 @@ import (
 	"github.com/platinasystems/elib/parse"
 	"github.com/platinasystems/vnet"
 	"github.com/platinasystems/vnet/arp"
+	"github.com/platinasystems/vnet/devices/ethernet/ixge"
 	"github.com/platinasystems/vnet/ethernet"
 	"github.com/platinasystems/vnet/ip"
 	"github.com/platinasystems/vnet/ip4"
@@ -229,6 +230,7 @@ func main() {
 	unix.Init(v)
 	ethernet.Init(v)
 	ip4.Init(v)
+	ixge.Init(v)
 	myNodePackage = v.AddPackage("my-node", MyNode)
 
 	var in parse.Input
