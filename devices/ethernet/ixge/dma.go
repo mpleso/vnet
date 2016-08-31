@@ -76,14 +76,6 @@ type rx_dma_regs struct {
 	_ reg
 }
 
-func (q *rx_dma_queue) get_regs() *rx_dma_regs {
-	if q.index < 64 {
-		return &q.d.regs.rx_dma0[q.index]
-	} else {
-		return &q.d.regs.rx_dma1[q.index-64]
-	}
-}
-
 type tx_dma_regs struct {
 	dma_regs
 
@@ -92,6 +84,18 @@ type tx_dma_regs struct {
 
 	// [0] enables head write back.
 	head_index_write_back_address [2]reg
+}
+
+func (q *rx_dma_queue) get_regs() *rx_dma_regs {
+	if q.index < 64 {
+		return &q.d.regs.rx_dma0[q.index]
+	} else {
+		return &q.d.regs.rx_dma1[q.index-64]
+	}
+}
+
+func (q *tx_dma_queue) get_regs() *tx_dma_regs {
+	return &q.d.regs.tx_dma[q.index]
 }
 
 // Only advanced descriptors are supported.
@@ -103,6 +107,24 @@ type rx_to_hw_descriptor struct {
 func (d *rx_from_hw_descriptor) to_hw() *rx_to_hw_descriptor {
 	return (*rx_to_hw_descriptor)(unsafe.Pointer(d))
 }
+
+const (
+	status2_is_owned_by_software = 1 << iota
+	status2_is_end_of_packet
+	status2_is_flow_director_filter_match
+	status2_is_vlan
+	status2_is_udp_checksummed
+	status2_is_tcp_checksummed
+	status2_is_ip4_checksummed
+	status2_not_unicast
+	_
+	status2_is_double_vlan
+	status2_udp_checksum_error
+	// Extended errors
+	status2_ethernet_error     = 1 << (20 + 9)
+	status2_tcp_checksum_error = 1 << (20 + 10)
+	status2_ip4_checksum_error = 1 << (20 + 11)
+)
 
 // Rx writeback descriptor format.
 type rx_from_hw_descriptor struct {
@@ -153,15 +175,35 @@ type tx_dma_queue struct {
 
 type dma_dev struct {
 	dma_config
-	rx_queues rx_dma_queue_vec
-	rx_pool   hw.BufferPool
-	tx_queues tx_dma_queue_vec
+	rx_queues            rx_dma_queue_vec
+	rx_pool              hw.BufferPool
+	tx_queues            tx_dma_queue_vec
+	queues_for_interrupt [vnet.NRxTx]elib.BitmapVec
 }
 
 type dma_config struct {
 	rx_ring_len     uint
 	rx_buffer_bytes uint
 	tx_ring_len     uint
+}
+
+func (q *dma_queue) start(d *dev, dr *dma_regs) {
+	v := dr.control.get(d)
+	// prefetch threshold
+	v = (v &^ (0x3f << 0)) | (32 << 0)
+	// writeback theshold
+	v = (v &^ (0x3f << 16)) | (16 << 16)
+	// enable
+	v |= 1 << 25
+	dr.control.set(d, v)
+
+	// wait for hardware to initialize.
+	for dr.control.get(d)&(1<<25) == 0 {
+	}
+
+	// Set head/tail.
+	dr.head_index.set(d, q.head_index)
+	dr.tail_index.set(d, q.tail_index)
 }
 
 func (d *dev) rx_dma_init(queue uint) {
@@ -201,35 +243,56 @@ func (d *dev) rx_dma_init(queue uint) {
 		}
 	}
 
+	dr := q.get_regs()
+	dr.descriptor_address.set(d, uint64(q.rx_from_hw_descriptors[0].PhysAddress()))
+	n_desc := reg(len(q.rx_from_hw_descriptors))
+	dr.n_descriptor_bytes.set(d, n_desc*reg(unsafe.Sizeof(q.rx_from_hw_descriptors[0])))
+
 	{
-		dr := q.get_regs()
-		dr.descriptor_address.set(d, uint64(q.rx_from_hw_descriptors[0].PhysAddress()))
-		n_desc := reg(len(q.rx_from_hw_descriptors))
-		dr.n_descriptor_bytes.set(d, n_desc*reg(unsafe.Sizeof(q.rx_from_hw_descriptors[0])))
-
-		{
-			v := reg(d.rx_buffer_bytes/24) << 0
-			// Set lo free descriptor interrupt threshold to 1 * 64 descriptors.
-			v |= 1 << 22
-			// Descriptor type: advanced one buffer descriptors.
-			v |= 1 << 25
-			// Drop if out of descriptors.
-			v |= 1 << 28
-			dr.rx_split_control.set(d, v)
-		}
-
-		// Give hardware all but last cache line of descriptors.
-		q.tail_index = n_desc - 4
+		v := reg(d.rx_buffer_bytes/24) << 0
+		// Set lo free descriptor interrupt threshold to 1 * 64 descriptors.
+		v |= 1 << 22
+		// Descriptor type: advanced one buffer descriptors.
+		v |= 1 << 25
+		// Drop if out of descriptors.
+		v |= 1 << 28
+		dr.rx_split_control.set(d, v)
 	}
 
-	return
+	// Give hardware all but last cache line of descriptors.
+	q.tail_index = n_desc - 4
+
+	// enable [9] rx/tx descriptor relaxed order
+	// enable [11] rx/tx descriptor write back relaxed order
+	// enable [13] rx/tx data write/read relaxed order
+	dr.dca_control.or(d, 1<<9|1<<11|1<<13)
+
+	hw.MemoryBarrier()
+
+	// Make sure rx is enabled.
+	d.regs.rx_enable.or(d, 1<<0)
+
+	q.start(d, &dr.dma_regs)
 }
 
-func (d *dma_dev) tx_dma_init(queue uint) {
+func (d *dev) tx_dma_init(queue uint) {
 	if d.tx_ring_len == 0 {
 		d.tx_ring_len = 2 * vnet.MaxVectorLen
 	}
 	q := d.tx_queues.Validate(queue)
+	q.d = d
+	q.index = queue
 	q.tx_descriptors, q.desc_id = tx_descriptorAlloc(int(d.tx_ring_len))
-	return
+
+	dr := q.get_regs()
+	dr.descriptor_address.set(d, uint64(q.tx_descriptors[0].PhysAddress()))
+	n_desc := reg(len(q.tx_descriptors))
+	dr.n_descriptor_bytes.set(d, n_desc*reg(unsafe.Sizeof(q.tx_descriptors[0])))
+
+	hw.MemoryBarrier()
+
+	// Make sure tx is enabled.
+	d.regs.tx_dma_control.or(d, 1<<0)
+
+	q.start(d, &dr.dma_regs)
 }

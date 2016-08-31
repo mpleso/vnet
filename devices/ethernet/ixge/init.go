@@ -130,6 +130,20 @@ func (d *dev) Init() {
 
 	d.rx_dma_init(0)
 	d.tx_dma_init(0)
+	d.set_queue_interrupt_mapping(vnet.Rx, 0, 0)
+	d.set_queue_interrupt_mapping(vnet.Tx, 0, 1)
+
+	// Accept all broadcast packets.
+	// Multicasts must be explicitly added to dst_ethernet_address register array.
+	d.regs.filter_control.set(d, 1<<10)
+
+	// Enable frames up to size in mac frame size register.
+	// Set max frame size so we never drop frames.
+	d.regs.xge_mac.control |= 1 << 2
+	d.regs.xge_mac.rx_max_frame_size = 0xffff << 16
+
+	// Enable all interrupts.
+	d.regs.interrupt.enable_write_1_to_set.set(d, ^reg(0))
 }
 
 const (
@@ -179,8 +193,4 @@ func Init(v *vnet.Vnet) {
 	vnetpci.Init(v)
 	v.AddPackage("ixge", m)
 	m.Package.DependedOnBy("pci-discovery")
-}
-
-func (d *dev) Interrupt() {
-	panic("ga")
 }

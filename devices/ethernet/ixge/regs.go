@@ -135,7 +135,7 @@ type regs struct {
 	}
 
 	interrupt struct {
-		// [15:0] rx queue
+		// [15:0] rx/tx queue
 		// [16] flow director
 		// [17] rx missed packet
 		// [18] pcie exception
@@ -180,14 +180,15 @@ type regs struct {
 		control reg
 		_       [0x900 - 0x89c]byte
 
-		/* Defines interrupt mapping for 128 rx + 128 tx queues.
-		       64 x 4 8 bit entries.
-		       For register [i]:
-		         [5:0] bit in interrupt status for rx queue 2*i + 0
-			 [7] valid bit
-			 [13:8] bit for tx queue 2*i + 0
-			 [15] valid bit
-			 similar for rx 2*i + 1 and tx 2*i + 1. */
+		// Defines interrupt mapping for 128 rx + 128 tx queues into 16 interrupts.
+		// Multiple queues will map to a single interrupt.
+		// 64 x 4 8 bit entries.
+		// For register [i]:
+		//   [5:0] bit in interrupt status for rx queue 2*i + 0
+		//     [7] valid bit
+		//  [13:8] bit for tx queue 2*i + 0
+		//    [15] valid bit
+		// similar for rx 2*i + 1 and tx 2*i + 1.
 		queue_mapping [64]reg
 
 		/* tcp timer [7:0] and other interrupts [15:8] */
