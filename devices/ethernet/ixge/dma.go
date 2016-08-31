@@ -22,6 +22,10 @@ type dma_regs struct {
 
 	n_descriptor_bytes reg
 
+	// [0] rx descriptor fetch tph enable
+	// [1] rx descriptor write back tph enable
+	// [2] rx header data tph enable
+	// [3] rx payload data tph enable
 	// [5] rx/tx descriptor dca enable
 	// [6] rx packet head dca enable
 	// [7] rx packet tail dca enable
