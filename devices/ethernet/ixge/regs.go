@@ -4,95 +4,44 @@ package ixge
 import (
 	"github.com/platinasystems/elib/hw"
 
+	"fmt"
+	"time"
 	"unsafe"
 )
 
 type reg hw.Reg32
 
-func (r *reg) offset() uint         { return uint(uintptr(unsafe.Pointer(r)) - hw.RegsBaseAddress) }
-func (r *reg) addr(d *dev) *uint32  { return (*uint32)(unsafe.Pointer(&d.mmaped_regs[r.offset()])) }
-func (r *reg) get(d *dev) reg       { return reg(hw.LoadUint32(r.addr(d))) }
-func (r *reg) set(d *dev, v reg)    { hw.StoreUint32(r.addr(d), uint32(v)) }
-func (r *reg) or(d *dev, v reg)     { r.set(d, r.get(d)|v) }
-func (r *reg) andnot(d *dev, v reg) { r.set(d, r.get(d)&^v) }
-
-type dma_regs struct {
-	// [31:7] 128 byte aligned.
-	descriptor_address [2]reg
-
-	n_descriptor_bytes reg
-
-	// [5] rx/tx descriptor dca enable
-	// [6] rx packet head dca enable
-	// [7] rx packet tail dca enable
-	// [9] rx/tx descriptor relaxed order
-	// [11] rx/tx descriptor write back relaxed order
-	// [13] rx/tx data write/read relaxed order
-	// [15] rx head data write relaxed order
-	// [31:24] apic id for cpu's cache.
-	dca_control reg
-
-	head_index reg
-
-	// [4:0] tail buffer size (in 1k byte units)
-	// [13:8] head buffer size (in 64 byte units)
-	// [24:22] lo free descriptors threshold (units of 64 descriptors)
-	// [27:25] descriptor type 0 = legacy, 1 = advanced one buffer (e.g. tail),
-	//   2 = advanced header splitting (head + tail), 5 = advanced header splitting (head only).
-	// [28] drop if no descriptors available.
-	rx_split_control reg
-
-	tail_index reg
-
-	_ [0x28 - 0x1c]byte
-
-	// [7:0] rx/tx prefetch threshold
-	// [15:8] rx/tx host threshold
-	// [24:16] rx/tx write back threshold
-	// [25] rx/tx enable
-	// [26] tx descriptor writeback flush
-	// [30] rx strip vlan enable
-	control reg
-
-	rx_coallesce_control reg
+func (r *reg) offset() uint        { return uint(uintptr(unsafe.Pointer(r)) - hw.RegsBaseAddress) }
+func (r *reg) addr(d *dev) *uint32 { return (*uint32)(unsafe.Pointer(&d.mmaped_regs[r.offset()])) }
+func (r *reg) get(d *dev) reg      { return reg(hw.LoadUint32(r.addr(d))) }
+func (r *reg) set(d *dev, v reg)   { hw.StoreUint32(r.addr(d), uint32(v)) }
+func (r *reg) or(d *dev, v reg) (x reg) {
+	x = r.get(d) | v
+	r.set(d, x)
+	return
+}
+func (r *reg) andnot(d *dev, v reg) (x reg) {
+	x = r.get(d) &^ v
+	r.set(d, x)
+	return
 }
 
-type rx_dma_regs struct {
-	dma_regs
-
-	stats [3]reg
-
-	_ reg
+func (r *reg) get_semaphore(d *dev, tag string, bit reg) (x reg) {
+	start := time.Now()
+	for {
+		if x = r.get(d); x&bit == 0 {
+			break
+		}
+		if time.Since(start) > 100*time.Millisecond {
+			panic(fmt.Errorf("ixge: get %s semaphore timeout", tag))
+		}
+		time.Sleep(100 * time.Microsecond)
+	}
+	return
 }
-
-type tx_dma_regs struct {
-	dma_regs
-
-	_ [2]reg
-
-	// [0] enables head write back.
-	head_index_write_back_address [2]reg
-}
-
-// Only advanced descriptors are supported.
-type rx_to_hw_descriptor struct {
-	tail_buffer_address uint64
-	head_buffer_address uint64
-}
-
-// Rx writeback descriptor format.
-type rx_from_hw_descriptor struct {
-	status [3]uint32
-
-	n_bytes_this_descriptor uint16
-	vlan_tag                uint16
-}
-
-type tx_descriptor struct {
-	buffer_address      uint64
-	n_bytes_this_buffer uint16
-	status0             uint16
-	status1             uint32
+func (r *reg) put_semaphore(d *dev, bit reg) (x reg) {
+	x = r.andnot(d, bit)
+	return
 }
 
 type regs struct {
@@ -108,7 +57,9 @@ type regs struct {
 	   [18] io active
 	   [19] pcie master enable status */
 	status_read_only reg
-	_                [0x18 - 0xc]byte
+	_                [0x10 - 0xc]byte
+	vf_link_status   reg
+	_                [0x18 - 0x14]byte
 
 	/* [14] pf reset done
 	   [17] relaxed ordering disable
@@ -133,19 +84,54 @@ type regs struct {
 	_           [0x4c - 0x2c]byte
 	tcp_timer   reg
 
-	_ [0x200 - 0x50]byte
+	_ [0x100 - 0x50]byte
 
-	led_control reg
+	vf struct {
+		interrupt_status_write_1_to_clear  reg
+		interrupt_status_write_1_to_set    reg
+		interrupt_enable_write_1_to_set    reg
+		interrupt_enable_write_1_to_clear  reg
+		_                                  reg
+		interrupt_status_auto_clear_enable reg
+		_                                  [0x120 - 0x118]byte
+		interrupt_vector_allocation        [4]reg
+		_                                  [0x140 - 0x130]byte
+		interrupt_vector_allocation_misc   reg
+		_                                  reg
+		msi_x_pba_clear                    reg
+		_                                  [0x180 - 0x14c]byte
+		rsc_enable                         [4]reg
+		_                                  [0x200 - 0x190]byte
 
-	_          [0x600 - 0x204]byte
+		mailbox_mem [16]reg
+		_           [0x2fc - 0x240]byte
+
+		// [0] request for pf ready write-only
+		// [1] ack: pf message received write-only
+		// [2] vfu buffer is taken by vf
+		// [3] pfu buffer is taken by pf
+		// [4] pf wrote message in mailbox
+		// [5] pf ack'ed previous vf message
+		// [6] pf reset shared resources read-only
+		// [7] pf reset in progress clear on read
+		mailbox_status reg
+
+		replication_packet_split_receive_type reg
+	}
+
+	_          [0x600 - 0x304]byte
 	core_spare reg
 	_          [0x700 - 0x604]byte
 
 	pf_0 struct {
-		vflr_events_clear        [4]reg
-		mailbox_interrupt_status [4]reg
-		mailbox_interrupt_enable [4]reg
-		_                        [0x800 - 0x730]byte
+		vflr_events_clear_write_1_to_clear [2]reg
+		_                                  [2]reg
+
+		// [31:16] ack
+		// [15:0] request
+		mailbox_interrupt_status_write_1_to_clear [4]reg
+		mailbox_interrupt_disable                 [2]reg
+		_                                         [0x800 - 0x728]byte
 	}
 
 	interrupt struct {
@@ -241,7 +227,15 @@ type regs struct {
 	pf_queue_drop_enable           reg
 	_                              [0x2f20 - 0x2f08]byte
 	rx_dma_descriptor_cache_config reg
-	_                              [0x3000 - 0x2f24]byte
+
+	_                               [0x2fa4 - 0x2f24]byte
+	pf_rx_last_malicious_vm         reg
+	pf_rx_last_vm_misbehavior_cause reg
+	_                               [0x2fb0 - 0x2fac]byte
+
+	pf_rx_wrong_queue_behavior [4]reg
+
+	_ [0x3000 - 0x2fc0]byte
 
 	/* 1 bit. */
 	rx_enable reg
@@ -254,17 +248,21 @@ type regs struct {
 	rx_priority_to_traffic_class     reg
 	_                                [0x3028 - 0x3024]byte
 	rx_coallesce_data_buffer_control reg
-	_                                [0x3190 - 0x302c]byte
-	rx_packet_buffer_flush_detect    reg
-	_                                [0x3200 - 0x3194]byte
-	flow_control_tx_timers           [4] /* 2 timer values */ reg
-	_                                [0x3220 - 0x3210]byte
-	flow_control_rx_threshold_lo     [8]reg
-	_                                [0x3260 - 0x3240]byte
-	flow_control_rx_threshold_hi     [8]reg
-	_                                [0x32a0 - 0x3280]byte
-	flow_control_refresh_threshold   reg
-	_                                [0x3c00 - 0x32a4]byte
+	_                                [0x3100 - 0x302c]byte
+
+	vf_rss_random_key             [10]reg
+	_                             [0x3190 - 0x3128]byte
+	rx_packet_buffer_flush_detect reg
+	_                             [0x3200 - 0x3194]byte
+	// vf redirection table also at 0x3200
+	flow_control_tx_timers         [4]reg
+	_                              [0x3220 - 0x3210]byte
+	flow_control_rx_threshold_lo   [8]reg
+	_                              [0x3260 - 0x3240]byte
+	flow_control_rx_threshold_hi   [8]reg
+	_                              [0x32a0 - 0x3280]byte
+	flow_control_refresh_threshold reg
+	_                              [0x3c00 - 0x32a4]byte
 	/* For each of 8 traffic classes (units of bytes). */
 	rx_packet_buffer_size [8]reg
 	_                     [0x3d00 - 0x3c20]byte
@@ -442,8 +440,15 @@ type regs struct {
 	_                        [0x4a88 - 0x4a84]byte
 	tx_dma_tcp_flags_control [2]reg
 	_                        [0x4b00 - 0x4a90]byte
-	pf_mailbox               [64]reg
-	_                        [0x5000 - 0x4c00]byte
+
+	// [0] status/command from pf ready.  write only causes interrupt to vf.
+	// [1] ack vf message received. write only.
+	// [2] vfu buffer is taken by vf
+	// [3] pfu buffer is taken by pf
+	// [4] reset vfu
+	pf_mailbox [64]reg
+
+	_ [0x5000 - 0x4c00]byte
 
 	/* RX */
 	checksum_control         reg
@@ -468,10 +473,15 @@ type regs struct {
 	   [30] vlan filter enable. */
 	vlan_control reg
 	_            [0x5090 - 0x508c]byte
+
 	/* [1:0] hi bit of ethernet address for 12 bit index into multicast table
 	   0 => 47, 1 => 46, 2 => 45, 3 => 43. */
-	multicast_control  reg
-	_                  [0x5100 - 0x5094]byte
+	multicast_control reg
+	_                 [0x50b0 - 0x5094]byte
+
+	pf_filter_packets [2]reg
+	_                 [0x5100 - 0x50b8]byte
+
 	fcoe_rx_control    reg
 	_                  [0x5108 - 0x5104]byte
 	fc_flt_context     reg
@@ -502,15 +512,22 @@ type regs struct {
 	rx_timestamp_hi                  reg
 	rx_timestamp_attributes_hi       reg
 	_                                [0x51b0 - 0x51ac]byte
-	pf_virtual_control               reg
-	_                                [0x51d8 - 0x51b4]byte
-	fc_offset_parameter              reg
-	_                                [0x51e0 - 0x51dc]byte
-	vf_rx_enable                     [2]reg
-	rx_timestamp_lo                  reg
-	_                                [0x5200 - 0x51ec]byte
-	/* 12 bits determined by multicast_control
-	   lookup bits in this vector. */
+
+	// [0] virtualization mode enable
+	// [12:7] default pool
+	// [17:16] pooling mode 0 => by mac address, 1 => by etag
+	// [29] 0 => packet which does not match any pool is assigned to default pool, 1 => drop packet.
+	// [30] replication enable
+	pf_virtual_control reg
+
+	_                   [0x51d8 - 0x51b4]byte
+	fc_offset_parameter reg
+	_                   [0x51e0 - 0x51dc]byte
+	pf_vf_rx_enable     [2]reg
+	rx_timestamp_lo     reg
+	_                   [0x5200 - 0x51ec]byte
+
+	/* 12 bit index from high bits of ethernet address as determined by multicast_control register. */
 	multicast_enable [128]reg
 
 	/* [0] ethernet address [31:0]
@@ -554,24 +571,34 @@ type regs struct {
 
 	tx_dma [128]tx_dma_regs
 
-	pf_vm_vlan_insert                  [64]reg
+	// 0x8000
+	// [15:0] vlan tag to insert if vlan action == 1
+	// [28:27] tag action: 0 => no op, 1 => insert e-tag
+	// [31:30] vlan action: 0 => use descriptor command, 1 => always insert default vlan, 2 => never insert vlan
+	pf_vm_vlan_insert [64]reg
+
 	tx_dma_tcp_max_alloc_size_requests reg
-	_                                  [0x8110 - 0x8104]byte
-	vf_tx_enable                       [2]reg
-	_                                  [0x8120 - 0x8118]byte
+	pf_tx_last_malicious_vm            reg
+
+	_            [0x8110 - 0x8108]byte
+	vf_tx_enable [2]reg
+	_            [0x8120 - 0x8118]byte
 	/* [0] dcb mode enable
 	   [1] virtualization mode enable
 	   [3:2] number of tcs/qs per pool. */
-	multiple_tx_queues_command   reg
-	_                            [0x8200 - 0x8124]byte
-	pf_vf_anti_spoof             [8]reg
-	pf_dma_tx_switch_control     reg
-	_                            [0x82e0 - 0x8224]byte
-	tx_strict_low_latency_queues [4]reg
-	_                            [0x8600 - 0x82f0]byte
-	tx_queue_stats_mapping_82599 [32]reg
-	tx_queue_packet_counts       [32]reg
-	tx_queue_byte_counts         [32][2]reg
+	multiple_tx_queues_command      reg
+	pf_tx_last_vm_misbehavior_cause reg
+	_                               [0x8130 - 0x8128]byte
+	pf_tx_wrong_queue_behavior      [4]reg
+	_                               [0x8200 - 0x8140]byte
+	pf_vf_anti_spoof                [8]reg
+	pf_dma_tx_switch_control        reg
+	_                               [0x82e0 - 0x8224]byte
+	tx_strict_low_latency_queues    [4]reg
+	_                               [0x8600 - 0x82f0]byte
+	tx_queue_stats_mapping_82599    [32]reg
+	tx_queue_packet_counts          [32]reg
+	tx_queue_byte_counts            [32][2]reg
 
 	tx_security struct {
 		control            reg
@@ -657,11 +684,12 @@ type regs struct {
 	   Index 0 is read from eeprom after reset. */
 	rx_ethernet_address1 [128][2]reg
 
-	/* select one of 64 pools for each rx address. */
+	/* Bitmap selecting 64 pools for each rx address. */
 	rx_ethernet_address_pool_select [128][2]reg
-	_                               [0xc800 - 0xaa00]byte
-	tx_priority_to_traffic_class    reg
-	_                               [0xcc00 - 0xc804]byte
+
+	_                            [0xc800 - 0xaa00]byte
+	tx_priority_to_traffic_class reg
+	_                            [0xcc00 - 0xc804]byte
 
 	/* In bytes units of 1k.  Total packet buffer is 160k. */
 	tx_packet_buffer_size [8]reg
@@ -791,14 +819,32 @@ type regs struct {
 	}
 
 	pf_1 struct {
-		l2_control              [64]reg
-		vlan_pool_filter        [64]reg
-		vlan_pool_filter_bitmap [128]reg
-		dst_ethernet_address    [128]reg
-		mirror_rule             [4]reg
-		mirror_rule_vlan        [8]reg
-		mirror_rule_pool        [8]reg
-		_                       [0x10010 - 0xf650]byte
+		// [22] unicast promiscuous enable
+		// [23] vlan promiscuous enable
+		// [24] accept untagged packets
+		// [25] accept packets that match multicast mta table
+		// [26] accpet packets that match pfuta table
+		// [27] broadcast accept
+		// [28] multicast promiscuous
+		l2_control [64]reg
+
+		// [31] enable
+		// [11:0] vlan id
+		vlan_pool_filter [64]reg
+
+		// Bitmap of 64 enabled pools for each matching vlan in vlan_pool_filter table.
+		vlan_pool_filter_bitmap [64][2]reg
+
+		// [0] low 32 bits of mac address
+		// [1] [15:0] high 16 bits of mac address
+		//     [30] 0 => mac address, 1 => e-tag
+		//     [31] valid
+		dst_ethernet_address [64][2]reg
+
+		mirror_rule      [4]reg
+		mirror_rule_vlan [8]reg
+		mirror_rule_pool [8]reg
+		_                [0x10010 - 0xf650]byte
 	}
 
 	eeprom_flash_control reg
@@ -816,28 +862,33 @@ type regs struct {
 	_               [0x1013c - 0x10120]byte
 	flash_opcode    reg
 
-	// [0] sw driver semaphore
-	// [1] fw firmware semaphore
-	// [2] wake mng clock
-	// [31] register semaphore
+	//   [0] sw driver semaphore
+	// 82599:
+	//   [1] fw firmware semaphore
+	//   [2] wake mng clock
+	//   [31] register semaphore
 	software_semaphore reg
 	_                  [0x10148 - 0x10144]byte
 
-	// [0] eeprom
-	// [1] phy index 0
-	// [2] phy index 1
-	// [3] mac csr
-	// [4] flash
-	// [10] sw mng
-	// [11] i2c 0
-	// [12] i2c 1
 	firmware_semaphore reg
 	_                  [0x10160 - 0x1014c]byte
 
+	// [0] sw eeprom
+	// [1] sw phy index 0
+	// [2] sw phy index 1
+	// [3] sw mac csr
+	// [4] sw flash
+	// 5-9 as above but for firmware not software
+	// [10] sw manageability
+	// [11] sw i2c 0
+	// [12] sw i2c 1
+	// 13-14 as 11-12 but for firmware not software.
+	// [31] register semaphore.
 	software_firmware_sync reg
-	_                      [0x10200 - 0x10164]byte
-	general_rx_control     reg
-	_                      [0x11000 - 0x10204]byte
+
+	_                  [0x10200 - 0x10164]byte
+	general_rx_control reg
+	_                  [0x11000 - 0x10204]byte
 
 	pcie struct {
 		control reg
@@ -911,4 +962,9 @@ type regs struct {
 		command reg
 		params  reg
 	}
+
+	_ [0x17000 - 0x15f60]byte
+
+	// If pf_vm_vlan_insert tag action == 1, specifies e-tag here.
+	pf_vm_tag_insert [64]reg
 }
