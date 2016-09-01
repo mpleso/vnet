@@ -121,6 +121,7 @@ type Vnet struct {
 	loop loop.Loop
 	hw.BufferMain
 	cliMain
+	eventMain
 	interfaceMain
 	packageMain
 }
@@ -164,6 +165,7 @@ func (v *Vnet) Run(in *parse.Input) (err error) {
 		v.interfaceMain.init()
 		v.CliInit()
 		v.BufferMain.Init()
+		v.eventInit()
 		for i := range initHooks.hooks {
 			initHooks.Get(i)(v)
 		}
