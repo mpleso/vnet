@@ -1,12 +1,11 @@
 package ixge
 
 import (
-	"fmt"
 	"github.com/platinasystems/elib/hw"
 	"github.com/platinasystems/elib/hw/pci"
 	"github.com/platinasystems/vnet"
 	vnetpci "github.com/platinasystems/vnet/devices/bus/pci"
-	"github.com/platinasystems/vnet/ethernet"
+
 	"time"
 )
 
@@ -34,6 +33,7 @@ type dev struct {
 
 	phys [2]phy
 
+	vnet_dev
 	dma_dev
 }
 
@@ -115,16 +115,16 @@ func (d *dev) Init() {
 	// Fetch ethernet address from eeprom.
 	{
 		var v [2]reg
-		var e ethernet.Address
 		for i := range v {
 			v[i] = r.rx_ethernet_address0[0][i].get(d)
 		}
-		for i := range e {
-			e[i] = byte(v[i/4] >> ((uint(i) % 4) * 8))
+		cf := &d.vnet_dev.ethIfConfig
+		for i := range cf.Address {
+			cf.Address[i] = byte(v[i/4] >> ((uint(i) % 4) * 8))
 		}
-		fmt.Printf("%s\n", d.get_dev_id())
-		fmt.Printf("%s\n", &e)
 	}
+
+	d.vnetInit()
 
 	d.d.phy_init()
 

@@ -80,19 +80,16 @@ func (i interrupt) String() (s string) {
 	return
 }
 
-func (d *dev) interrupt_dispatch(i interrupt) {
+func (d *dev) interrupt_dispatch(i uint) {
+	irq := interrupt(i)
 	switch {
-	case i < irq_n_queue:
-		d.foreach_queue_for_interrupt(vnet.Rx, i, func(q uint) {
-			d.rx_queue_interrupt(q)
-		})
-		d.foreach_queue_for_interrupt(vnet.Tx, i, func(q uint) {
-			d.tx_queue_interrupt(q)
-		})
-	case i == irq_link_state_change:
+	case irq < irq_n_queue:
+		d.foreach_queue_for_interrupt(vnet.Rx, irq, d.rx_queue_interrupt)
+		d.foreach_queue_for_interrupt(vnet.Tx, irq, d.tx_queue_interrupt)
+	case irq == irq_link_state_change:
 		d.link_state_change()
 	default:
-		panic(fmt.Errorf("ixge unexpected interrupt: %s", i))
+		panic(fmt.Errorf("ixge unexpected interrupt: %s", irq))
 	}
 }
 
@@ -102,7 +99,5 @@ func (d *dev) Interrupt() {
 	if s != 0 {
 		d.regs.interrupt.status_write_1_to_clear.set(d, s)
 	}
-	elib.Word(s).ForeachSetBit(func(i uint) {
-		d.interrupt_dispatch(interrupt(i))
-	})
+	elib.Word(s).ForeachSetBit(d.interrupt_dispatch)
 }

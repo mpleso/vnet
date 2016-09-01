@@ -206,6 +206,22 @@ func (q *dma_queue) start(d *dev, dr *dma_regs) {
 	dr.tail_index.set(d, q.tail_index)
 }
 
+func (d *dev) init_rx_pool() {
+	p := &d.rx_pool
+	t := &p.BufferTemplate
+
+	p.Name = fmt.Sprintf("ixge %s rx", d.pciDev)
+
+	*t = *hw.DefaultBufferTemplate
+	t.Size = d.rx_buffer_bytes
+
+	// Set interface for rx buffers.
+	ref := (*vnet.Ref)(unsafe.Pointer(&t.Ref))
+	ref.Si = d.HwIf.Si()
+
+	d.m.Vnet.AddBufferPool(p)
+}
+
 func (d *dev) rx_dma_init(queue uint) {
 	q := d.rx_queues.Validate(queue)
 	q.d = d
@@ -217,10 +233,7 @@ func (d *dev) rx_dma_init(queue uint) {
 			d.rx_buffer_bytes = 1024
 		}
 		d.rx_buffer_bytes = uint(elib.Word(d.rx_buffer_bytes).RoundPow2(1024))
-		d.rx_pool.BufferTemplate = *hw.DefaultBufferTemplate
-		d.rx_pool.BufferTemplate.Size = d.rx_buffer_bytes
-		d.rx_pool.Name = fmt.Sprintf("ixge %s rx", d.pciDev)
-		d.m.Vnet.AddBufferPool(&d.rx_pool)
+		d.init_rx_pool()
 	}
 
 	if d.rx_ring_len == 0 {
