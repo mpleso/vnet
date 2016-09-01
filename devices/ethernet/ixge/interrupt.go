@@ -80,6 +80,14 @@ func (i interrupt) String() (s string) {
 	return
 }
 
+// Signal link state change to vnet event handler.
+func (d *dev) link_state_change() {
+	d.m.Vnet.SignalEvent(&vnet.LinkStateEvent{
+		Hi:   d.HwIf.Hi(),
+		IsUp: d.regs.xge_mac.link_status&(1<<30) != 0,
+	})
+}
+
 func (d *dev) interrupt_dispatch(i uint) {
 	irq := interrupt(i)
 	switch {
