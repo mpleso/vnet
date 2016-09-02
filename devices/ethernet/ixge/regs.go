@@ -936,7 +936,7 @@ type regs struct {
 		_                     [0x11144 - 0x110e0]byte
 	}
 
-	phy_indirect struct {
+	indirect_phy struct {
 		// [15:0] address
 		// [19:18] status (0 => success, 1 => unsuccessful, 2 => reserved, 3 => powered down)
 		// [27:20] error status (when status == 1 unsuccessful)
