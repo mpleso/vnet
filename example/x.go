@@ -10,6 +10,7 @@ import (
 	"github.com/platinasystems/vnet/ethernet"
 	"github.com/platinasystems/vnet/ip"
 	"github.com/platinasystems/vnet/ip4"
+	"github.com/platinasystems/vnet/ip6"
 	"github.com/platinasystems/vnet/unix"
 
 	"fmt"
@@ -41,6 +42,9 @@ const (
 const (
 	next_error = iota
 	next_punt
+	next_ethernet_input
+	next_ip4_input_valid_checksum
+	next_ip6_input
 	n_next
 )
 
@@ -52,8 +56,11 @@ func init() {
 			tx_packets_dropped: "tx packets dropped",
 		}
 		MyNode.Next = []string{
-			next_error: "error",
-			next_punt:  "punt",
+			next_error:                    "error",
+			next_punt:                     "punt",
+			next_ethernet_input:           "ethernet-input",
+			next_ip4_input_valid_checksum: "ip4-input-valid-checksum",
+			next_ip6_input:                "ip6-input",
 		}
 
 		v.RegisterInterfaceNode(MyNode, MyNode.Hi(), "my-node")
@@ -70,10 +77,16 @@ func init() {
 						if n.nPackets == 0 { // no limit
 							n.nPackets = ^uint(0)
 						}
-					} else if in.Parse("punt") {
+					} else if in.Parse("next punt") {
 						n.next = next_punt
-					} else if in.Parse("error") {
+					} else if in.Parse("next error") {
 						n.next = next_error
+					} else if in.Parse("next ethernet-input") {
+						n.next = next_ethernet_input
+					} else if in.Parse("next ip4-input") {
+						n.next = next_ip4_input_valid_checksum
+					} else if in.Parse("next ip6-input") {
+						n.next = next_ip6_input
 					} else {
 						return cli.ParseError
 					}
@@ -230,6 +243,7 @@ func main() {
 	unix.Init(v)
 	ethernet.Init(v)
 	ip4.Init(v)
+	ip6.Init(v)
 	ixge.Init(v)
 	myNodePackage = v.AddPackage("my-node", MyNode)
 

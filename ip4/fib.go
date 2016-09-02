@@ -263,25 +263,18 @@ func (m *Main) setInterfaceAdjacency(a *ip.Adjacency, si vnet.Si, ia ip.IfAddr) 
 	h := m.Vnet.HwIfer(hw.Hi())
 
 	next := ip.LookupNextRewrite
-	noder := rewriteNode
+	noder := &m.rewriteNode
 	packetType := vnet.IP4
 
 	if _, ok := h.(vnet.Arper); ok {
 		next = ip.LookupNextGlean
-		noder = arpNode
+		noder = &m.arpNode
 		packetType = vnet.ARP
 		a.IfAddr = ia
 	}
 
 	a.LookupNextIndex = next
 	m.Vnet.SetRewrite(&a.Rewrite, si, noder, packetType, nil /* dstAdr meaning broadcast */)
-}
-
-type Main struct {
-	vnet.Package
-	ip.Main
-	fibMain
-	ifAddrAddDelHooks IfAddrAddDelHookVec
 }
 
 type fibMain struct {

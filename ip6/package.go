@@ -1,7 +1,6 @@
-package ip4
+package ip6
 
 import (
-	"github.com/platinasystems/elib/cli"
 	"github.com/platinasystems/vnet"
 	"github.com/platinasystems/vnet/ip"
 )
@@ -10,7 +9,7 @@ var packageIndex uint
 
 func Init(v *vnet.Vnet) {
 	m := &Main{}
-	packageIndex = v.AddPackage("ip4", m)
+	packageIndex = v.AddPackage("ip6", m)
 }
 
 func GetMain(v *vnet.Vnet) *Main { return v.GetPackage(packageIndex).(*Main) }
@@ -20,35 +19,19 @@ func ipAddressStringer(a *ip.Address) string { return IpAddress(a).String() }
 type Main struct {
 	vnet.Package
 	ip.Main
-	fibMain
-	ifAddrAddDelHooks IfAddrAddDelHookVec
 	nodeMain
 }
 
 func (m *Main) Init() (err error) {
 	v := m.Vnet
-	v.RegisterSwIfAdminUpDownHook(m.swIfAdminUpDown)
 	cf := ip.FamilyConfig{
-		Family:          ip.Ip4,
+		Family:          ip.Ip6,
 		AddressStringer: ipAddressStringer,
 		RewriteNode:     &m.rewriteNode,
-		PacketType:      vnet.IP4,
-		GetRoute:        m.getRoute,
-		AddDelRoute:     m.addDelRoute,
+		PacketType:      vnet.IP6,
 	}
 	m.Main.Init(v, cf)
 	m.nodeInit(v)
-
-	cmds := [...]cli.Command{
-		cli.Command{
-			Name:      "show ip fib",
-			ShortHelp: "show ip4 forwarding table",
-			Action:    m.showIpFib,
-		},
-	}
-	for i := range cmds {
-		v.CliAdd(&cmds[i])
-	}
 
 	return
 }

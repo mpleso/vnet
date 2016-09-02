@@ -1,11 +1,13 @@
 package ip6
 
 import (
+	"github.com/platinasystems/vnet"
+	"github.com/platinasystems/vnet/ip"
+
 	"bytes"
 	"encoding/binary"
 	"net"
-
-	"github.com/platinasystems/vnet"
+	"unsafe"
 )
 
 const (
@@ -47,6 +49,8 @@ func (a *Address) FromUint32(i int, x uint32) {
 	a[4*i+2] = byte(x >> 8)
 	a[4*i+3] = byte(x)
 }
+
+func IpAddress(a *ip.Address) *Address { return (*Address)(unsafe.Pointer(&a[0])) }
 
 func (h *Header) Len() int              { return HeaderBytes }
 func (h *Header) Write(b *bytes.Buffer) { binary.Write(b, binary.BigEndian, h) }
