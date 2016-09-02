@@ -31,7 +31,6 @@ func (d *dev) vnetInit() {
 }
 
 func (d *dev) GetHwInterfaceCounters(n *vnet.InterfaceCounterNames, th *vnet.InterfaceThread) {
-	panic("not yet")
 }
 
 func (d *dev) ValidateSpeed(speed vnet.Bandwidth) (err error) {
