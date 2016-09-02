@@ -62,17 +62,21 @@ func (en *errorNode) NodeOutput(ri *RefIn) {
 	cache := ts.cache
 	cacheCount := uint64(0)
 	i, n := uint(0), ri.Len()
-	for i+2 <= n {
-		cacheCount += 2
-		i += 2
-		if e0, e1 := ri.Refs[i-2].Err, ri.Refs[i-1].Err; e0 != cache || e1 != cache {
-			cacheCount -= 2
-			ts.counts[e0] += 1
-			ts.counts[e1] += 1
-			if e0 == e1 {
-				ts.counts[cache] += cacheCount
-				cache, cacheCount = e0, 0
-			}
+	for i+4 <= n {
+		e0, e1, e2, e3 := ri.Refs[i+0].Err, ri.Refs[i+1].Err, ri.Refs[i+2].Err, ri.Refs[i+3].Err
+		cacheCount += 4
+		i += 4
+		if e0 == cache && e1 == cache && e2 == cache && e3 == cache {
+			continue
+		}
+		cacheCount -= 4
+		ts.counts[e0] += 1
+		ts.counts[e1] += 1
+		ts.counts[e2] += 1
+		ts.counts[e3] += 1
+		if e0 == e1 && e2 == e3 && e0 == e2 {
+			ts.counts[cache] += cacheCount
+			cache, cacheCount = e0, 0
 		}
 	}
 
