@@ -139,8 +139,8 @@ func (d *dev) Init() {
 
 	// Enable frames up to size in mac frame size register.
 	// Set max frame size so we never drop frames.
-	d.regs.xge_mac.control |= 1 << 2
-	d.regs.xge_mac.rx_max_frame_size = 0xffff << 16
+	d.regs.xge_mac.control.or(d, 1<<2)
+	d.regs.xge_mac.rx_max_frame_size.set(d, 0xffff<<16)
 
 	// Enable all interrupts.
 	d.InterruptEnable(true)
