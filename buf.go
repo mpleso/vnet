@@ -11,12 +11,15 @@ import (
 	"unsafe"
 )
 
-type Ref struct {
-	hw.RefHeader
-
+type refOpaque struct {
 	Err ErrorRef
 
 	Si Si
+}
+
+type Ref struct {
+	hw.RefHeader
+	refOpaque
 }
 
 func (r *Ref) Flags() BufferFlag         { return BufferFlag(r.RefHeader.Flags()) }

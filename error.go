@@ -99,7 +99,8 @@ func (n *Node) NewError(s string) (r ErrorRef) {
 	return
 }
 
-func (n *Node) SetError(r *Ref, i uint) { r.Err = n.errorRefs[i] }
+func (r *refOpaque) SetError(n *Node, i uint) { r.Err = n.errorRefs[i] }
+func (n *Node) SetError(r *Ref, i uint)       { r.SetError(n, i) }
 func (n *Node) CountError(i, count uint) {
 	ts := ErrorNode.getThread(0)
 	atomic.AddUint64(&ts.counts[n.errorRefs[i]], uint64(count))
