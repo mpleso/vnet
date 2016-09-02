@@ -48,7 +48,7 @@ func (d *dev_x540) kr_phy_init() {
 	// Advertise both 10G and 1G speeds.
 	v |= kr_phy_link_control_1_an_cap_kr | kr_phy_link_control_1_an_cap_kx
 
-	// Restart auto negotiation.
+	// Restart auto negotiation.  Self-clearing bit.
 	v |= kr_phy_link_control_1_an_restart
 
 	d.write_iphy_reg(kr_phy_dev_type, addr, v)

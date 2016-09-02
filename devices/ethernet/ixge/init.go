@@ -168,9 +168,10 @@ func (d *dev) software_firmware_sync(sw_mask_0_4, sw_mask_11_12 reg) {
 			r.software_firmware_sync.set(d, m|sw_mask)
 		}
 		d.d.put_semaphore()
-		if !done {
-			time.Sleep(10 * time.Millisecond)
+		if done {
+			break
 		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }
 
