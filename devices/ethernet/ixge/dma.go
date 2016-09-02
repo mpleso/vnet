@@ -98,52 +98,6 @@ func (q *tx_dma_queue) get_regs() *tx_dma_regs {
 	return &q.d.regs.tx_dma[q.index]
 }
 
-// Only advanced descriptors are supported.
-type rx_to_hw_descriptor struct {
-	tail_buffer_address uint64
-	head_buffer_address uint64
-}
-
-func (d *rx_from_hw_descriptor) to_hw() *rx_to_hw_descriptor {
-	return (*rx_to_hw_descriptor)(unsafe.Pointer(d))
-}
-
-const (
-	status2_is_owned_by_software = 1 << iota
-	status2_is_end_of_packet
-	status2_is_flow_director_filter_match
-	status2_is_vlan
-	status2_is_udp_checksummed
-	status2_is_tcp_checksummed
-	status2_is_ip4_checksummed
-	status2_not_unicast
-	_
-	status2_is_double_vlan
-	status2_udp_checksum_error
-	// Extended errors
-	status2_ethernet_error     = 1 << (20 + 9)
-	status2_tcp_checksum_error = 1 << (20 + 10)
-	status2_ip4_checksum_error = 1 << (20 + 11)
-)
-
-// Rx writeback descriptor format.
-type rx_from_hw_descriptor struct {
-	status [3]uint32
-
-	n_bytes_this_descriptor uint16
-	vlan_tag                uint16
-}
-
-type tx_descriptor struct {
-	buffer_address      uint64
-	n_bytes_this_buffer uint16
-	status0             uint16
-	status1             uint32
-}
-
-//go:generate gentemplate -d Package=ixge -id tx_descriptor -d Type=tx_descriptor -d VecType=tx_descriptor_vec github.com/platinasystems/elib/hw/dma_mem.tmpl
-//go:generate gentemplate -d Package=ixge -id rx_from_hw_descriptor -d Type=rx_from_hw_descriptor -d VecType=rx_from_hw_descriptor_vec github.com/platinasystems/elib/hw/dma_mem.tmpl
-
 type dma_queue struct {
 	d *dev
 
@@ -151,16 +105,16 @@ type dma_queue struct {
 	index uint
 
 	// Software head/tail pointers into descriptor ring.
-	head_index, tail_index reg
+	len, head_index, tail_index reg
 }
 
 type rx_dma_queue struct {
-	rxDmaRing vnet.RxDmaRing
+	vnet.RxDmaRing
 
 	dma_queue
 
-	rx_from_hw_descriptors rx_from_hw_descriptor_vec
-	desc_id                elib.Index
+	rx_desc rx_from_hw_descriptor_vec
+	desc_id elib.Index
 }
 
 type tx_dma_queue struct {
@@ -173,12 +127,15 @@ type tx_dma_queue struct {
 //go:generate gentemplate -d Package=ixge -id rx_dma_queue -d VecType=rx_dma_queue_vec -d Type=rx_dma_queue github.com/platinasystems/elib/vec.tmpl
 //go:generate gentemplate -d Package=ixge -id tx_dma_queue -d VecType=tx_dma_queue_vec -d Type=tx_dma_queue github.com/platinasystems/elib/vec.tmpl
 
+const n_ethernet_type_filter = 8
+
 type dma_dev struct {
 	dma_config
-	rx_queues            rx_dma_queue_vec
-	rx_pool              hw.BufferPool
-	tx_queues            tx_dma_queue_vec
-	queues_for_interrupt [vnet.NRxTx]elib.BitmapVec
+	rx_queues              rx_dma_queue_vec
+	rx_pool                hw.BufferPool
+	rx_next_by_layer2_type [n_ethernet_type_filter]rx_next
+	tx_queues              tx_dma_queue_vec
+	queues_for_interrupt   [vnet.NRxTx]elib.BitmapVec
 }
 
 type dma_config struct {
@@ -239,27 +196,27 @@ func (d *dev) rx_dma_init(queue uint) {
 	if d.rx_ring_len == 0 {
 		d.rx_ring_len = 2 * vnet.MaxVectorLen
 	}
-	q.rx_from_hw_descriptors, q.desc_id = rx_from_hw_descriptorAlloc(int(d.rx_ring_len))
+	q.rx_desc, q.desc_id = rx_from_hw_descriptorAlloc(int(d.rx_ring_len))
 
-	q.rxDmaRing.Init(&d.rx_pool, d.rx_ring_len)
+	flags := vnet.RxDmaDescriptorFlags(rx_desc_is_ip4 | rx_desc_is_ip4_checksummed)
+	q.RxDmaRingInit(d.m.Vnet, q, flags, &d.rx_pool, d.rx_ring_len)
 
 	// Put even buffers on ring; odd buffers will be used for refill.
 	{
 		i := uint(0)
-		ri := q.rxDmaRing.Index(i)
+		ri := q.RingIndex(i)
 		for i < d.rx_ring_len {
-			r, _ := q.rxDmaRing.Get(ri)
-			d := q.rx_from_hw_descriptors[i].to_hw()
-			d.tail_buffer_address = uint64(r.DataPhys())
+			r := q.RxDmaRing.RxRef(ri)
+			q.rx_desc[i].refill(r)
 			i++
-			ri = ri.Next()
+			ri = ri.NextRingIndex(1)
 		}
 	}
 
 	dr := q.get_regs()
-	dr.descriptor_address.set(d, uint64(q.rx_from_hw_descriptors[0].PhysAddress()))
-	n_desc := reg(len(q.rx_from_hw_descriptors))
-	dr.n_descriptor_bytes.set(d, n_desc*reg(unsafe.Sizeof(q.rx_from_hw_descriptors[0])))
+	dr.descriptor_address.set(d, uint64(q.rx_desc[0].PhysAddress()))
+	n_desc := reg(len(q.rx_desc))
+	dr.n_descriptor_bytes.set(d, n_desc*reg(unsafe.Sizeof(q.rx_desc[0])))
 
 	{
 		v := reg(d.rx_buffer_bytes/24) << 0

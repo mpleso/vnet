@@ -143,7 +143,7 @@ func (d *dev) Init() {
 	d.regs.xge_mac.rx_max_frame_size = 0xffff << 16
 
 	// Enable all interrupts.
-	d.regs.interrupt.enable_write_1_to_set.set(d, ^reg(0))
+	d.InterruptEnable(true)
 }
 
 const (

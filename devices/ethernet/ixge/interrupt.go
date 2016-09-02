@@ -101,7 +101,7 @@ func (d *dev) interrupt_dispatch(i uint) {
 	}
 }
 
-func (d *dev) Interrupt() {
+func (d *dev) InterfaceInput(out *vnet.RefOut) {
 	// Get status and ack interrupt.
 	s := d.regs.interrupt.status_write_1_to_set.get(d)
 	if s != 0 {
@@ -109,3 +109,14 @@ func (d *dev) Interrupt() {
 	}
 	elib.Word(s).ForeachSetBit(d.interrupt_dispatch)
 }
+
+func (d *dev) InterruptEnable(enable bool) {
+	all := ^reg(0)
+	if enable {
+		d.regs.interrupt.enable_write_1_to_set.set(d, all)
+	} else {
+		d.regs.interrupt.enable_write_1_to_clear.set(d, all)
+	}
+}
+
+func (d *dev) Interrupt() { d.Activate(true) }
