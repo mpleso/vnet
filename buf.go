@@ -68,8 +68,14 @@ func (c *RefChain) Done() (h Ref) {
 
 type refInCommon struct {
 	loop.In
+	refInDupCopy
+}
+
+type refInDupCopy struct {
 	BufferPool *hw.BufferPool
 }
+
+func (i *RefIn) dup(x *RefIn) { i.refInDupCopy = x.refInDupCopy }
 
 type RefIn struct {
 	refInCommon
@@ -111,6 +117,11 @@ func (i *RefIn) AddLen(v *Vnet) (l uint) {
 func (i *RefIn) SetPoolAndLen(v *Vnet, p *hw.BufferPool, l uint) {
 	i.BufferPool = p
 	i.SetLen(v, l)
+}
+
+func (n *Node) SetOutLen(out *RefIn, in *RefIn, l uint) {
+	out.dup(in)
+	out.SetLen(n.Vnet, l)
 }
 
 func (r *RefVecIn) FreePoolRefs(p *hw.BufferPool, freeNext bool) {
