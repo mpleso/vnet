@@ -162,11 +162,19 @@ func (q *tx_dma_queue) output() {
 			elog.GenEventf("ixge tx %d halt %d head %d tail %d", n_tx, di, head, tail)
 		}
 
-		hw.MemoryBarrier()
-
 		// Re-start dma engine when tail advances.
 		if di != q.tail_index {
 			q.tail_index = di
+
+			// Report status when done.
+			i := di - 1
+			if di == 0 {
+				i = q.len - 1
+			}
+			ds[i].status0 |= tx_desc_status0_report_status
+
+			hw.MemoryBarrier()
+
 			dr := q.get_regs()
 			dr.tail_index.set(d, di)
 		}
@@ -195,7 +203,7 @@ func (d *dev) tx_queue_interrupt(queue uint) {
 	defer q.mu.Unlock()
 
 	dr := q.get_regs()
-	di := dr.tail_index.get(d)
+	di := dr.head_index.get(d)
 	n_advance := di - q.head_index
 	if di < q.head_index {
 		n_advance += q.len
