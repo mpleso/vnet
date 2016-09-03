@@ -159,7 +159,7 @@ func (q *tx_dma_queue) output() {
 		}
 
 		if elog.Enabled() && n_tx > 0 {
-			elog.GenEventf("bcm-tx %d halt %d head %d tail %d", n_tx, di, head, tail)
+			elog.GenEventf("ixge tx %d halt %d head %d tail %d", n_tx, di, head, tail)
 		}
 
 		hw.MemoryBarrier()

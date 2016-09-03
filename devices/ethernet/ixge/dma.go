@@ -202,6 +202,7 @@ func (d *dev) rx_dma_init(queue uint) {
 		d.rx_ring_len = 2 * vnet.MaxVectorLen
 	}
 	q.rx_desc, q.desc_id = rx_from_hw_descriptorAlloc(int(d.rx_ring_len))
+	q.len = reg(d.rx_ring_len)
 
 	flags := vnet.RxDmaDescriptorFlags(rx_desc_is_ip4 | rx_desc_is_ip4_checksummed)
 	q.RxDmaRingInit(d.m.Vnet, q, flags, &d.rx_pool, d.rx_ring_len)
@@ -258,6 +259,7 @@ func (d *dev) tx_dma_init(queue uint) {
 	q.d = d
 	q.index = queue
 	q.tx_descriptors, q.desc_id = tx_descriptorAlloc(int(d.tx_ring_len))
+	q.len = reg(d.tx_ring_len)
 
 	dr := q.get_regs()
 	dr.descriptor_address.set(d, uint64(q.tx_descriptors[0].PhysAddress()))
