@@ -11,6 +11,7 @@ import (
 
 type main struct {
 	vnet.Package
+	vnet.InterfaceCounterNames
 	devs []dever
 }
 

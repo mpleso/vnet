@@ -30,9 +30,6 @@ func (d *dev) vnetInit() {
 	ethernet.RegisterInterface(v, d, &d.ethIfConfig, "ixge%s", d.pciDev.Addr.String())
 }
 
-func (d *dev) GetHwInterfaceCounters(n *vnet.InterfaceCounterNames, th *vnet.InterfaceThread) {
-}
-
 func (d *dev) ValidateSpeed(speed vnet.Bandwidth) (err error) {
 	return
 }

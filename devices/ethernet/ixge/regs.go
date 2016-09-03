@@ -11,8 +11,11 @@ import (
 
 type reg hw.Reg32
 
+func (d *dev) addr_for_offset(offset uint) *uint32 {
+	return (*uint32)(unsafe.Pointer(&d.mmaped_regs[offset]))
+}
 func (r *reg) offset() uint        { return uint(uintptr(unsafe.Pointer(r)) - hw.RegsBaseAddress) }
-func (r *reg) addr(d *dev) *uint32 { return (*uint32)(unsafe.Pointer(&d.mmaped_regs[r.offset()])) }
+func (r *reg) addr(d *dev) *uint32 { return d.addr_for_offset(r.offset()) }
 func (r *reg) get(d *dev) reg      { return reg(hw.LoadUint32(r.addr(d))) }
 func (r *reg) set(d *dev, v reg)   { hw.StoreUint32(r.addr(d), uint32(v)) }
 func (r *reg) or(d *dev, v reg) (x reg) {
@@ -211,8 +214,9 @@ type regs struct {
 	dcb_rx_packet_plane_t4_status [8]reg
 	_                             [0x2300 - 0x2180]byte
 
-	/*  i defines mapping for 4 rx queues starting at 4*i + 0. */
+	/* i defines 4-bit stats mapping for 4 rx queues starting at 4*i + 0. */
 	rx_queue_stats_mapping [32]reg
+	// [5:0] queue select 1<<5 => all queues,
 	rx_queue_stats_control reg
 
 	_                        [0x2410 - 0x2384]byte

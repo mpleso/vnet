@@ -67,7 +67,7 @@ type dma_regs struct {
 type rx_dma_regs struct {
 	dma_regs
 
-	// Offset 0x30
+	// Offset 0x30.  Only defined for queues 0-15.
 	// [0] rx packet count
 	// [1]/[2] rx byte count lo/hi
 	// For VF, stats[1] is rx multicast packets.
