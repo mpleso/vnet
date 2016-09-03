@@ -47,11 +47,14 @@ func (m *Main) msgGeneratesEvent(msg netlink.Message) (ok bool) {
 func (m *Main) listener(l *loop.Loop) {
 	nm := &m.netlinkMain
 	for msg := range nm.c {
-		switch {
-		case m.msgGeneratesEvent(msg):
+		if m.msgGeneratesEvent(msg) {
 			l.AddEvent(&netlinkEvent{m: m, msg: msg}, nm)
-		case m.verboseNetlink:
-			m.v.Logf("netlink ignore %s\n", msg)
+		} else {
+			if m.verboseNetlink {
+				m.v.Logf("netlink ignore %s\n", msg)
+			}
+			// Done with message.
+			msg.Close()
 		}
 	}
 }
@@ -126,6 +129,8 @@ func (e *netlinkEvent) EventAction() {
 	if err != nil {
 		e.m.v.Logf("netlink %s: %s\n", err, e.msg.String())
 	}
+	// Return message to pools.
+	e.msg.Close()
 }
 
 func ip4Prefix(t netlink.Attr, l uint8) (p ip4.Prefix) {
