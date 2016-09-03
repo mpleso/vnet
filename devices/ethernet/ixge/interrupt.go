@@ -117,6 +117,7 @@ func (d *dev) InterruptEnable(enable bool) {
 	} else {
 		d.regs.interrupt.enable_write_1_to_clear.set(d, all)
 	}
+	d.interruptsEnabled = enable
 }
 
 func (d *dev) Interrupt() { d.Activate(true) }

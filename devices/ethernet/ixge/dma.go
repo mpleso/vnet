@@ -6,6 +6,7 @@ import (
 	"github.com/platinasystems/vnet"
 
 	"fmt"
+	"sync"
 	"unsafe"
 )
 
@@ -101,6 +102,8 @@ func (q *tx_dma_queue) get_regs() *tx_dma_regs {
 type dma_queue struct {
 	d *dev
 
+	mu sync.Mutex
+
 	// Queue index.
 	index uint
 
@@ -122,6 +125,10 @@ type tx_dma_queue struct {
 	tx_descriptors        tx_descriptor_vec
 	desc_id               elib.Index
 	head_index_write_back *uint32
+	tx_fifo               chan tx_in
+	tx_irq_fifo           chan tx_in
+	current_tx_in         tx_in
+	n_current_tx_in       reg
 }
 
 //go:generate gentemplate -d Package=ixge -id rx_dma_queue -d VecType=rx_dma_queue_vec -d Type=rx_dma_queue github.com/platinasystems/elib/vec.tmpl
@@ -131,11 +138,9 @@ const n_ethernet_type_filter = 8
 
 type dma_dev struct {
 	dma_config
-	rx_queues              rx_dma_queue_vec
-	rx_pool                hw.BufferPool
-	rx_next_by_layer2_type [n_ethernet_type_filter]rx_next
-	tx_queues              tx_dma_queue_vec
-	queues_for_interrupt   [vnet.NRxTx]elib.BitmapVec
+	rx_dev
+	tx_dev
+	queues_for_interrupt [vnet.NRxTx]elib.BitmapVec
 }
 
 type dma_config struct {

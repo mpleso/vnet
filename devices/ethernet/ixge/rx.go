@@ -8,6 +8,12 @@ import (
 	"unsafe"
 )
 
+type rx_dev struct {
+	rx_queues              rx_dma_queue_vec
+	rx_pool                hw.BufferPool
+	rx_next_by_layer2_type [n_ethernet_type_filter]rx_next
+}
+
 // Only advanced descriptors are supported.
 type rx_to_hw_descriptor struct {
 	tail_buffer_address uint64

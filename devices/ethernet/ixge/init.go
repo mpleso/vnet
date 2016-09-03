@@ -29,6 +29,8 @@ type dev struct {
 	mmaped_regs []byte
 	pciDev      *pci.Device
 
+	interruptsEnabled bool
+
 	/* Phy index (0 or 1) and address on MDI bus. */
 	phy_index uint
 
