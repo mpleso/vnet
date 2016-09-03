@@ -421,7 +421,9 @@ type regs struct {
 		sgmii_control          reg
 		_                      [0x4324 - 0x4318]byte
 		link_status2           reg
-		_                      [0x4900 - 0x4328]byte
+		_                      [2]reg
+		mac_control            reg
+		_                      [0x4900 - 0x4334]byte
 	}
 
 	tx_dcb_control                       reg
