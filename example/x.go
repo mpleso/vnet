@@ -23,7 +23,7 @@ type myNode struct {
 	vnet.Package
 	pool     hw.BufferPool
 	nPackets uint
-	next     int
+	next     uint
 	isUnix   bool
 }
 
@@ -73,6 +73,7 @@ func init() {
 				n.nPackets = 1
 				n.next = next_error
 				for !in.End() {
+					var next_name string
 					if in.Parse("%d", &n.nPackets) {
 						if n.nPackets == 0 { // no limit
 							n.nPackets = ^uint(0)
@@ -87,6 +88,8 @@ func init() {
 						n.next = next_ip4_input_valid_checksum
 					} else if in.Parse("next ip6-input") {
 						n.next = next_ip6_input
+					} else if in.Parse("next %s", &next_name) {
+						n.next = v.AddNamedNext(n, next_name)
 					} else {
 						return cli.ParseError
 					}
