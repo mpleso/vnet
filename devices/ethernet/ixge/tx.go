@@ -33,7 +33,7 @@ const (
 )
 
 func (d *dev) tx_init() {
-	const base = 0
+	const base = tx_desc_status0_insert_crc
 	d.tx_desc_status0_by_next_valid_flag[0] = base | tx_desc_status0_is_end_of_packet
 	d.tx_desc_status0_by_next_valid_flag[vnet.NextValid] = base
 }
