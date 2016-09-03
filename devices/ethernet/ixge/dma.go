@@ -236,7 +236,7 @@ func (d *dev) rx_dma_init(queue uint) {
 	}
 
 	// Give hardware all but last cache line of descriptors.
-	q.tail_index = n_desc - 4
+	q.tail_index = n_desc - 1
 
 	// enable [9] rx/tx descriptor relaxed order
 	// enable [11] rx/tx descriptor write back relaxed order
@@ -245,10 +245,10 @@ func (d *dev) rx_dma_init(queue uint) {
 
 	hw.MemoryBarrier()
 
-	// Make sure rx is enabled.
-	d.regs.rx_enable.or(d, 1<<0)
-
 	q.start(d, &dr.dma_regs)
+
+	// Make sure rx is enabled.
+	d.regs.rx_enable.set(d, 1<<0)
 }
 
 func (d *dev) tx_dma_init(queue uint) {
@@ -272,4 +272,6 @@ func (d *dev) tx_dma_init(queue uint) {
 	d.regs.tx_dma_control.or(d, 1<<0)
 
 	q.start(d, &dr.dma_regs)
+
+	d.tx_init()
 }
