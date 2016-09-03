@@ -17,7 +17,7 @@ func (d *dev) set_queue_interrupt_mapping(rt vnet.RxTx, queue uint, irq interrup
 	m := reg(0xff) << shift
 	const valid = 1 << 7
 	x := (valid | (reg(irq) & 0x1f)) << shift
-	v = (v & m) | x
+	v = (v &^ m) | x
 	d.regs.interrupt.queue_mapping[i0].set(d, v)
 	d.queues_for_interrupt[rt].Validate(uint(irq))
 	b := d.queues_for_interrupt[rt][irq]
@@ -27,30 +27,31 @@ func (d *dev) set_queue_interrupt_mapping(rt vnet.RxTx, queue uint, irq interrup
 
 func (d *dev) foreach_queue_for_interrupt(rt vnet.RxTx, i interrupt, f func(queue uint)) {
 	g := func(queue uint) (err error) { f(queue); return }
-	d.queues_for_interrupt[rt][i].ForeachSetBit(g)
+	if i < interrupt(len(d.queues_for_interrupt[rt])) {
+		d.queues_for_interrupt[rt][i].ForeachSetBit(g)
+	}
 }
 
 type interrupt uint
 
 const (
-	irq_n_queue                 = 16
-	irq_queue_0       interrupt = iota
-	irq_flow_director           = iota + 16
-	irq_rx_missed_packet
-	irq_pcie_exception
-	irq_mailbox
-	irq_link_state_change
-	irq_link_security
-	irq_manageability
-	_
-	irq_time_sync
-	irq_gpio_0
-	irq_gpio_1
-	irq_gpio_2
-	irq_ecc_error
-	irq_phy
-	irq_tcp_timer_expired
-	irq_other
+	irq_n_queue           = 16
+	irq_queue_0           = iota
+	irq_flow_director     = 16
+	irq_rx_missed_packet  = 17
+	irq_pcie_exception    = 18
+	irq_mailbox           = 19
+	irq_link_state_change = 20
+	irq_link_security     = 21
+	irq_manageability     = 22
+	irq_time_sync         = 24
+	irq_gpio_0            = 25
+	irq_gpio_1            = 26
+	irq_gpio_2            = 27
+	irq_ecc_error         = 28
+	irq_phy               = 29
+	irq_tcp_timer_expired = 30
+	irq_other             = 31
 )
 
 var irqStrings = [...]string{
@@ -97,17 +98,21 @@ func (d *dev) interrupt_dispatch(i uint) {
 	case irq == irq_link_state_change:
 		d.link_state_change()
 	default:
-		panic(fmt.Errorf("ixge unexpected interrupt: %s", irq))
+		fmt.Printf("ixge unexpected interrupt: %s\n", irq)
 	}
 }
 
 func (d *dev) InterfaceInput(out *vnet.RefOut) {
 	// Get status and ack interrupt.
 	s := d.regs.interrupt.status_write_1_to_set.get(d)
+	if s == 0 {
+		return
+	}
 	if s != 0 {
 		d.regs.interrupt.status_write_1_to_clear.set(d, s)
 	}
 	elib.Word(s).ForeachSetBit(d.interrupt_dispatch)
+	d.Activate(false)
 }
 
 func (d *dev) InterruptEnable(enable bool) {
