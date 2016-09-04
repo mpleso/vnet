@@ -14,18 +14,6 @@ type counter struct {
 const (
 	rx_packets = iota
 	rx_bytes
-	rx_good_packets_before_filtering
-	rx_good_bytes_before_filtering
-	rx_dma_good_packets
-	rx_dma_good_bytes
-	rx_dma_duplicated_good_packets
-	rx_dma_duplicated_good_bytes
-	rx_dma_good_loopback_packets
-	rx_dma_good_loopback_bytes
-	rx_dma_good_duplicated_loopback_packets
-	rx_dma_good_duplicated_loopback_bytes
-	rx_good_packets
-	rx_good_bytes
 	rx_multicast_packets
 	rx_broadcast_packets
 	rx_64_byte_packets
@@ -50,6 +38,18 @@ const (
 	rx_management_packets
 	rx_management_drops
 	rx_missed_packets_pool_0
+	rx_pre_filter_good_packets
+	rx_pre_filter_good_bytes
+	rx_post_filter_good_packets
+	rx_post_filter_good_bytes
+	rx_dma_good_packets
+	rx_dma_good_bytes
+	rx_dma_duplicated_good_packets
+	rx_dma_duplicated_good_bytes
+	rx_dma_good_loopback_packets
+	rx_dma_good_loopback_bytes
+	rx_dma_good_duplicated_loopback_packets
+	rx_dma_good_duplicated_loopback_bytes
 	tx_packets
 	tx_good_packets
 	tx_good_bytes
@@ -68,20 +68,8 @@ const (
 )
 
 var counters = [n_counters]counter{
-	rx_packets: counter{offset: 0x40d0, name: "rx packets"},
-	rx_bytes:   counter{offset: 0x40c0, name: "rx bytes", is_64bit: true},
-	rx_good_packets_before_filtering:        counter{offset: 0x41b0, name: "rx good packets before filtering"},
-	rx_good_bytes_before_filtering:          counter{offset: 0x41b4, name: "rx good bytes before filtering", is_64bit: true},
-	rx_dma_good_packets:                     counter{offset: 0x2f50, name: "rx dma good packets"},
-	rx_dma_good_bytes:                       counter{offset: 0x2f54, name: "rx dma good bytes", is_64bit: true},
-	rx_dma_duplicated_good_packets:          counter{offset: 0x2f5c, name: "rx dma duplicated good packets"},
-	rx_dma_duplicated_good_bytes:            counter{offset: 0x2f60, name: "rx dma duplicated good bytes", is_64bit: true},
-	rx_dma_good_loopback_packets:            counter{offset: 0x2f68, name: "rx dma good loopback packets"},
-	rx_dma_good_loopback_bytes:              counter{offset: 0x2f6c, name: "rx dma good loopback bytes", is_64bit: true},
-	rx_dma_good_duplicated_loopback_packets: counter{offset: 0x2f74, name: "rx dma good duplicated loopback packets"},
-	rx_dma_good_duplicated_loopback_bytes:   counter{offset: 0x2f78, name: "rx dma good duplicated loopback bytes", is_64bit: true},
-	rx_good_packets:                         counter{offset: 0x4074, name: "rx good packets"},
-	rx_good_bytes:                           counter{offset: 0x4088, name: "rx good bytes", is_64bit: true},
+	rx_packets:                              counter{offset: 0x40d0, name: "rx packets"},
+	rx_bytes:                                counter{offset: 0x40c0, name: "rx bytes", is_64bit: true},
 	rx_multicast_packets:                    counter{offset: 0x407c, name: "rx multicast packets"},
 	rx_broadcast_packets:                    counter{offset: 0x4078, name: "rx broadcast packets"},
 	rx_64_byte_packets:                      counter{offset: 0x405c, name: "rx 64 byte packets"},
@@ -106,6 +94,18 @@ var counters = [n_counters]counter{
 	rx_management_packets:                   counter{offset: 0x40b4, name: "rx management packets"},
 	rx_management_drops:                     counter{offset: 0x40b8, name: "rx management drops"},
 	rx_missed_packets_pool_0:                counter{offset: 0x3fa0, name: "rx missed packets pool 0"},
+	rx_pre_filter_good_packets:              counter{offset: 0x41b0, name: "rx pre-filter good packets"},
+	rx_pre_filter_good_bytes:                counter{offset: 0x41b4, name: "rx pre-filter good bytes", is_64bit: true},
+	rx_post_filter_good_packets:             counter{offset: 0x4074, name: "rx post-filter packets"},
+	rx_post_filter_good_bytes:               counter{offset: 0x4088, name: "rx post-filter bytes", is_64bit: true},
+	rx_dma_good_packets:                     counter{offset: 0x2f50, name: "rx dma good packets"},
+	rx_dma_good_bytes:                       counter{offset: 0x2f54, name: "rx dma good bytes", is_64bit: true},
+	rx_dma_duplicated_good_packets:          counter{offset: 0x2f5c, name: "rx dma duplicated good packets"},
+	rx_dma_duplicated_good_bytes:            counter{offset: 0x2f60, name: "rx dma duplicated good bytes", is_64bit: true},
+	rx_dma_good_loopback_packets:            counter{offset: 0x2f68, name: "rx dma good loopback packets"},
+	rx_dma_good_loopback_bytes:              counter{offset: 0x2f6c, name: "rx dma good loopback bytes", is_64bit: true},
+	rx_dma_good_duplicated_loopback_packets: counter{offset: 0x2f74, name: "rx dma good duplicated loopback packets"},
+	rx_dma_good_duplicated_loopback_bytes:   counter{offset: 0x2f78, name: "rx dma good duplicated loopback bytes", is_64bit: true},
 	tx_packets:                              counter{offset: 0x40d4, name: "tx packets"},
 	tx_good_packets:                         counter{offset: 0x4080, name: "tx good packets"},
 	tx_good_bytes:                           counter{offset: 0x4090, name: "tx good bytes", is_64bit: true},
