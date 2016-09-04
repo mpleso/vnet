@@ -106,11 +106,9 @@ type tx_dev struct {
 func (q *tx_dma_queue) output() {
 	d := q.d
 	for {
-		elog.GenEventf("ixge output wait")
 		x := <-q.tx_fifo
 
 		nr := reg(x.Len())
-		elog.GenEventf("ixge output wait got %d", nr)
 
 		head, tail := q.head_index, q.tail_index
 		// Free slots are after tail and before head.
