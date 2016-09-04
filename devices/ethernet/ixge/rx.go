@@ -244,12 +244,12 @@ func (q *rx_dma_queue) rx_no_wrap(n_descriptors reg) (done bool) {
 		d0 := &q.rx_desc[i+0]
 		f0 := d0.rx_dma_flags()
 
-		fmt.Printf("%d: %s\n", i, d0)
-
 		if f0&rx_desc_is_owned_by_software == 0 {
 			done = true
 			break
 		}
+
+		fmt.Printf("%d: %s\n", i, d0)
 
 		b0 := uint(d0.n_bytes_this_descriptor)
 
