@@ -210,10 +210,17 @@ func (q *rx_dma_queue) GetRefState(f vnet.RxDmaDescriptorFlags) (s vnet.RxDmaRef
 	return
 }
 
-func (q *rx_dma_queue) rx_no_wrap(n_descriptors reg) (done bool) {
+func (q *rx_dma_queue) rx_no_wrap(n_doneʹ reg, n_descriptors reg) (done bool, n_done reg) {
 	d := q.d
 	n_left := n_descriptors
 	i := q.head_index
+	n_done = n_doneʹ
+
+	if n_left+n_done >= vnet.MaxVectorLen {
+		n_left = vnet.MaxVectorLen - n_done
+		done = true
+	}
+	n_done += n_left
 
 	ri := q.RingIndex(uint(i))
 	for n_left >= 4 {
@@ -267,6 +274,7 @@ func (q *rx_dma_queue) rx_no_wrap(n_descriptors reg) (done bool) {
 		i = 0
 	}
 
+	n_done -= n_left
 	q.head_index = i
 	return
 }
@@ -283,10 +291,11 @@ func (d *dev) rx_queue_interrupt(queue uint) {
 		return
 	}
 
-	done := q.rx_no_wrap(reg(d.rx_ring_len) - sw_head_index)
+	n_done := reg(0)
+	done, n_done := q.rx_no_wrap(n_done, reg(d.rx_ring_len)-sw_head_index)
 	if !done && sw_head_index > 0 {
 		q.RxDmaRing.WrapRefill()
-		q.rx_no_wrap(hw_head_index - sw_head_index)
+		_, n_done = q.rx_no_wrap(n_done, hw_head_index-sw_head_index)
 	}
 
 	// Give tail back to hardware.
