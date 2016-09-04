@@ -82,6 +82,77 @@ type rx_from_hw_descriptor struct {
 
 //go:generate gentemplate -d Package=ixge -id rx_from_hw_descriptor -d Type=rx_from_hw_descriptor -d VecType=rx_from_hw_descriptor_vec github.com/platinasystems/elib/hw/dma_mem.tmpl
 
+func (d *rx_from_hw_descriptor) String() (s string) {
+	s = fmt.Sprintf("%d bytes", d.n_bytes_this_descriptor)
+
+	f := d.rx_dma_flags()
+	if f&rx_desc_is_vlan != 0 {
+		s += fmt.Sprintf(", vlan %d", d.vlan_tag)
+	}
+	if f&rx_desc_is_double_vlan != 0 {
+		s += ", double-vlan"
+	}
+
+	if f&rx_desc_is_owned_by_software != 0 {
+		s += ", sw"
+	} else {
+		s += ", hw"
+	}
+
+	if f&rx_desc_is_end_of_packet != 0 {
+		s += ", eop"
+	}
+
+	if f&rx_desc_is_flow_director_filter_match != 0 {
+		s += ", flow-director match"
+	}
+	if f&rx_desc_not_unicast != 0 {
+		s += ", not unicast"
+	}
+
+	if f&rx_desc_is_layer2 != 0 {
+		s += fmt.Sprintf(", layer-2 %d", f&rx_desc_layer2_type)
+	} else {
+		if f&rx_desc_is_ip4 != 0 {
+			s += fmt.Sprintf(", ip4")
+			if f&rx_desc_is_ip4_checksummed != 0 {
+				s += " (checksummed)"
+			}
+			if f&rx_desc_is_ip4_invalid_checksum != 0 {
+				s += " (invalid-checksum)"
+			}
+		}
+		if f&rx_desc_is_ip4_ext != 0 {
+			s += fmt.Sprintf(", ip4-ext")
+		}
+		if f&rx_desc_is_ip6 != 0 {
+			s += fmt.Sprintf(", ip6")
+		}
+		if f&rx_desc_is_ip6_ext != 0 {
+			s += fmt.Sprintf(", ip6-ext")
+		}
+		if f&rx_desc_is_tcp != 0 {
+			s += fmt.Sprintf(", tcp")
+			if f&rx_desc_is_tcp_checksummed != 0 {
+				s += " (checksummed)"
+			}
+			if f&rx_desc_is_tcp_invalid_checksum != 0 {
+				s += " (invalid-checksum)"
+			}
+		}
+		if f&rx_desc_is_udp != 0 {
+			s += fmt.Sprintf(", udp")
+			if f&rx_desc_is_udp_checksummed != 0 {
+				s += " (checksummed)"
+			}
+			if f&rx_desc_is_udp_invalid_checksum != 0 {
+				s += " (invalid-checksum)"
+			}
+		}
+	}
+	return
+}
+
 type rx_next uint8
 
 const (
@@ -172,10 +243,8 @@ func (q *rx_dma_queue) rx_no_wrap(n_descriptors reg) (done bool) {
 		d0 := &q.rx_desc[i+0]
 		f0 := d0.rx_dma_flags()
 
-		{
-			tmp := *d0
-			fmt.Printf("%+v\n", &tmp)
-		}
+		fmt.Printf("%s\n", d0)
+
 		if f0&rx_desc_is_owned_by_software == 0 {
 			done = true
 			break
