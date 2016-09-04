@@ -42,9 +42,6 @@ const (
 const (
 	next_error = iota
 	next_punt
-	next_ethernet_input
-	next_ip4_input_valid_checksum
-	next_ip6_input
 	n_next
 )
 
@@ -56,11 +53,8 @@ func init() {
 			tx_packets_dropped: "tx packets dropped",
 		}
 		MyNode.Next = []string{
-			next_error:                    "error",
-			next_punt:                     "punt",
-			next_ethernet_input:           "ethernet-input",
-			next_ip4_input_valid_checksum: "ip4-input-valid-checksum",
-			next_ip6_input:                "ip6-input",
+			next_error: "error",
+			next_punt:  "punt",
 		}
 
 		v.RegisterInterfaceNode(MyNode, MyNode.Hi(), "my-node")
@@ -82,12 +76,6 @@ func init() {
 						n.next = next_punt
 					} else if in.Parse("next error") {
 						n.next = next_error
-					} else if in.Parse("next ethernet-input") {
-						n.next = next_ethernet_input
-					} else if in.Parse("next ip4-input") {
-						n.next = next_ip4_input_valid_checksum
-					} else if in.Parse("next ip6-input") {
-						n.next = next_ip6_input
 					} else if in.Parse("next %s", &next_name) {
 						n.next = v.AddNamedNext(n, next_name)
 					} else {
