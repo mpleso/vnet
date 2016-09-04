@@ -5,6 +5,7 @@ import (
 	"github.com/platinasystems/elib/hw/pci"
 	"github.com/platinasystems/vnet"
 	vnetpci "github.com/platinasystems/vnet/devices/bus/pci"
+	"github.com/platinasystems/vnet/ethernet"
 
 	"time"
 )
@@ -117,14 +118,12 @@ func (d *dev) Init() {
 
 	// Fetch ethernet address from eeprom.
 	{
-		var v [2]reg
-		for i := range v {
-			v[i] = r.rx_ethernet_address0[0][i].get(d)
-		}
-		cf := &d.vnet_dev.ethIfConfig
-		for i := range cf.Address {
-			cf.Address[i] = byte(v[i/4] >> ((uint(i) % 4) * 8))
-		}
+		var q [2]reg
+		a := ethernet.Address{0xea, 0xeb, 0xec, 0xed, 0xee, 0xef}
+		q[0] = reg(a[0]) | reg(a[1])<<8 | reg(a[2])<<16 | reg(a[3])<<24
+		q[1] = 1<<31 | reg(a[4]) | reg(a[5])<<8
+		r.rx_ethernet_address1[0][0].set(d, q[0])
+		r.rx_ethernet_address1[0][1].set(d, q[1])
 	}
 
 	d.vnetInit()
@@ -138,15 +137,19 @@ func (d *dev) Init() {
 
 	// Accept all broadcast packets.
 	// Multicasts must be explicitly added to dst_ethernet_address register array.
-	d.regs.filter_control.set(d, 1<<10)
+	d.regs.filter_control.set(d, 1<<10|0<<9)
 
 	// Enable frames up to size in mac frame size register.
 	// Set max frame size so we never drop frames.
 	d.regs.xge_mac.control.or(d, 1<<2)
 	d.regs.xge_mac.rx_max_frame_size.set(d, 0xffff<<16)
 
-	// Put mac in loopback.
-	d.regs.xge_mac.control.or(d, 1<<15)
+	if true {
+		// Put mac in loopback.
+		d.regs.xge_mac.control.or(d, 1<<15)
+		// Force link up.
+		d.regs.xge_mac.mac_control.or(d, 1<<0)
+	}
 
 	// Enable all interrupts.
 	d.InterruptEnable(true)
