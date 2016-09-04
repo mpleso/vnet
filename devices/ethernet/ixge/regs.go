@@ -317,16 +317,16 @@ type regs struct {
 		rx_max_frame_size reg
 		_                 [0x4288 - 0x426c]byte
 
-		/* [0]
-		         [2] pcs receive link up? (latch lo)
-			 [7] local fault
-		       [1]
-		         [0] pcs 10g base r capable
-		         [1] pcs 10g base x capable
-		         [2] pcs 10g base w capable
-			 [10] rx local fault
-			 [11] tx local fault
-			 [15:14] 2 => device present at this address (else not present) */
+		// [0]
+		//   [2] pcs receive link up? (latch lo)
+		//   [7] local fault
+		// [1]
+		//   [0] pcs 10g base r capable
+		//   [1] pcs 10g base x capable
+		//   [2] pcs 10g base w capable
+		//   [10] rx local fault
+		//   [11] tx local fault
+		//   [15:14] 2 => device present at this address (else not present)
 		xgxs_status [2]reg
 
 		base_x_pcs_status reg
@@ -347,60 +347,59 @@ type regs struct {
 
 		fifo_control reg
 
-		/* [0] force link up
-		       [1] autoneg ack2 bit to transmit
-		       [6:2] autoneg selector field to transmit
-		       [8:7] 10g pma/pmd type 0 => xaui, 1 kx4, 2 cx4
-		       [9] 1g pma/pmd type 0 => sfi, 1 => kx/bx
-		       [10] disable 10g on without main power
-		       [11] restart autoneg on transition to dx power state
-		       [12] restart autoneg
-		       [15:13] link mode:
-		         0 => 1g no autoneg
-			 1 => 10g kx4 parallel link no autoneg
-			 2 => 1g bx autoneg
-			 3 => 10g sfi serdes
-			 4 => kx4/kx/kr
-			 5 => xgmii 1g/100m
-			 6 => kx4/kx/kr 1g an
-			 7 kx4/kx/kr sgmii.
-		       [16] kr support
-		       [17] fec requested
-		       [18] fec ability
-		       etc. */
+		// [0] force link up
+		// [1] autoneg ack2 bit to transmit
+		// [6:2] autoneg selector field to transmit
+		// [8:7] 10g pma/pmd type 0 => xaui, 1 kx4, 2 cx4
+		// [9] 1g pma/pmd type 0 => sfi, 1 => kx/bx
+		// [10] disable 10g on without main power
+		// [11] restart autoneg on transition to dx power state
+		// [12] restart autoneg
+		// [15:13] link mode:
+		//   0 => 1g no autoneg
+		//   1 => 10g kx4 parallel link no autoneg
+		//   2 => 1g bx autoneg
+		//   3 => 10g sfi serdes
+		//   4 => kx4/kx/kr
+		//   5 => xgmii 1g/100m
+		//   6 => kx4/kx/kr 1g an
+		//   7 kx4/kx/kr sgmii.
+		// [16] kr support
+		// [17] fec requested
+		// [18] fec ability
 		auto_negotiation_control reg
 
-		/* [0] signal detect 1g/100m
-		       [1] fec signal detect
-		       [2] 10g serial pcs fec block lock
-		       [3] 10g serial high error rate
-		       [4] 10g serial pcs block lock
-		       [5] kx/kx4/kr autoneg next page received
-		       [6] kx/kx4/kr backplane autoneg next page received
-		       [7] link status clear to read
-		       [11:8] 10g signal detect (4 lanes) (for serial just lane 0)
-		       [12] 10g serial signal detect
-		       [16:13] 10g parallel lane sync status
-		       [17] 10g parallel align status
-		       [18] 1g sync status
-		       [19] kx/kx4/kr backplane autoneg is idle
-		       [20] 1g autoneg enabled
-		       [21] 1g pcs enabled for sgmii
-		       [22] 10g xgxs enabled
-		       [23] 10g serial fec enabled (forward error detection)
-		       [24] 10g kr pcs enabled
-		       [25] sgmii enabled
-		       [27:26] mac link mode
-		         0 => 1g
-			 1 => 10g parallel
-			 2 => 10g serial
-			 3 => autoneg
-		       [29:28] link speed
-		         1 => 100m
-		         2 => 1g
-		         3 => 10g
-		       [30] link is up
-		       [31] kx/kx4/kr backplane autoneg completed successfully. */
+		// [0] signal detect 1g/100m
+		// [1] fec signal detect
+		// [2] 10g serial pcs fec block lock
+		// [3] 10g serial high error rate
+		// [4] 10g serial pcs block lock
+		// [5] kx/kx4/kr autoneg next page received
+		// [6] kx/kx4/kr backplane autoneg next page received
+		// [7] link status clear to read
+		// [11:8] 10g signal detect (4 lanes) (for serial just lane 0)
+		// [12] 10g serial signal detect
+		// [16:13] 10g parallel lane sync status
+		// [17] 10g parallel align status
+		// [18] 1g sync status
+		// [19] kx/kx4/kr backplane autoneg is idle
+		// [20] 1g autoneg enabled
+		// [21] 1g pcs enabled for sgmii
+		// [22] 10g xgxs enabled
+		// [23] 10g serial fec enabled (forward error detection)
+		// [24] 10g kr pcs enabled
+		// [25] sgmii enabled
+		// [27:26] mac link mode
+		//   0 => 1g
+		//   1 => 10g parallel
+		//   2 => 10g serial
+		//   3 => autoneg
+		// [29:28] link speed
+		//   1 => 100m
+		//   2 => 1g
+		//   3 => 10g
+		// [30] link is up
+		// [31] kx/kx4/kr backplane autoneg completed successfully.
 		link_status reg
 
 		/* [17:16] pma/pmd for 10g serial
@@ -422,8 +421,12 @@ type regs struct {
 		_                      [0x4324 - 0x4318]byte
 		link_status2           reg
 		_                      [2]reg
-		mac_control            reg
-		_                      [0x4900 - 0x4334]byte
+
+		// [0] force link up
+		// [1] enable mac rx to tx loopback
+		// etc.
+		mac_control reg
+		_           [0x4900 - 0x4334]byte
 	}
 
 	tx_dcb_control                       reg
@@ -468,21 +471,24 @@ type regs struct {
 	/* little endian. */
 	extended_vlan_ether_type reg
 	_                        [0x5080 - 0x507c]byte
-	/* [1] store/dma bad packets
-	   [8] accept all multicast
-	   [9] accept all unicast
-	   [10] accept all broadcast. */
+
+	// [1] store/dma bad packets
+	// [7] tag promiscuous enable
+	// [8] accept all multicast
+	// [9] accept all unicast
+	// [10] accept all broadcast.
 	filter_control reg
 	_              [0x5088 - 0x5084]byte
-	/* [15:0] vlan ethernet type (0x8100) little endian
-	   [28] cfi bit expected
-	   [29] drop packets with unexpected cfi bit
-	   [30] vlan filter enable. */
+
+	// [15:0] vlan ethernet type (0x8100) little endian
+	// [28] cfi bit expected
+	// [29] drop packets with unexpected cfi bit
+	// [30] vlan filter enable.
 	vlan_control reg
 	_            [0x5090 - 0x508c]byte
 
-	/* [1:0] hi bit of ethernet address for 12 bit index into multicast table
-	   0 => 47, 1 => 46, 2 => 45, 3 => 43. */
+	// [1:0] hi bit of ethernet address for 12 bit index into multicast table
+	// 0 => 47, 1 => 46, 2 => 45, 3 => 43.
 	multicast_control reg
 	_                 [0x50b0 - 0x5094]byte
 
@@ -537,10 +543,11 @@ type regs struct {
 	/* 12 bit index from high bits of ethernet address as determined by multicast_control register. */
 	multicast_enable [128]reg
 
-	/* [0] ethernet address [31:0]
-	   [1] [15:0] ethernet address [47:32]
-	       [31] valid bit.
-	   Index 0 is read from eeprom after reset. */
+	// [0] ethernet address [31:0]
+	// [1] [15:0] ethernet address [47:32]
+	// [31] valid bit.
+	// Index 0 is read from eeprom after reset.
+	// Alias for first 16 entries of rx_ethernet_address1
 	rx_ethernet_address0 [16][2]reg
 
 	_                               [0x5800 - 0x5480]byte
@@ -685,10 +692,11 @@ type regs struct {
 	/* 4096 bits. */
 	vlan_filter [128]reg
 
-	/* [0] ethernet address [31:0]
-	   [1] [15:0] ethernet address [47:32]
-	   [31] valid bit.
-	   Index 0 is read from eeprom after reset. */
+	// [0] ethernet address [31:0] (least significant byte is first on wire: i.e. bigendian)
+	// [1] [15:0] ethernet address [47:32] (most significant byte is last on wire: i.e. bigendian)
+	// [30] 0 => mac address, 1 => e-tag
+	// [31] valid bit.
+	// Index 0 is read from eeprom after reset.
 	rx_ethernet_address1 [128][2]reg
 
 	/* Bitmap selecting 64 pools for each rx address. */
