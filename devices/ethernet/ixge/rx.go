@@ -249,7 +249,9 @@ func (q *rx_dma_queue) rx_no_wrap(n_descriptors reg) (done bool) {
 			break
 		}
 
-		fmt.Printf("%d: %s\n", i, d0)
+		if false {
+			fmt.Printf("%d: %s\n", i, d0)
+		}
 
 		b0 := uint(d0.n_bytes_this_descriptor)
 
