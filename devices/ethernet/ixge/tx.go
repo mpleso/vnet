@@ -106,14 +106,16 @@ type tx_dev struct {
 func (q *tx_dma_queue) output() {
 	d := q.d
 	for {
+		elog.GenEventf("ixge output wait")
 		x := <-q.tx_fifo
 
 		nr := reg(x.Len())
+		elog.GenEventf("ixge output wait got %d", nr)
 
 		head, tail := q.head_index, q.tail_index
 		// Free slots are after tail and before head.
 		n_free := head - tail
-		if int(n_free) <= 0 {
+		if int32(n_free) <= 0 {
 			n_free += q.len
 		}
 
@@ -158,8 +160,8 @@ func (q *tx_dma_queue) output() {
 			di = 0
 		}
 
-		if elog.Enabled() && n_tx > 0 {
-			elog.GenEventf("ixge tx %d halt %d head %d tail %d", n_tx, di, head, tail)
+		if elog.Enabled() {
+			elog.GenEventf("ixge tx %d new tail %d head %d tail %d", n_tx, di, head, tail)
 		}
 
 		// Re-start dma engine when tail advances.
@@ -192,6 +194,10 @@ func (d *dev) InterfaceOutput(in *vnet.RefVecIn, free chan *vnet.RefVecIn) {
 		go q.output()
 	}
 
+	if elog.Enabled() {
+		elog.GenEventf("ixge tx output %d", in.Len())
+	}
+
 	q.tx_fifo <- tx_in{in: in, free: free}
 }
 
@@ -209,6 +215,11 @@ func (d *dev) tx_queue_interrupt(queue uint) {
 		n_advance += q.len
 	}
 	q.head_index = di
+	if elog.Enabled() {
+		tail := dr.tail_index.get(d)
+		elog.GenEventf("ixge irq adv %d head %d tail %d", n_advance, di, tail)
+	}
+
 	for n_advance > 0 {
 		if q.n_current_tx_in == 0 {
 			q.current_tx_in = <-q.tx_irq_fifo
