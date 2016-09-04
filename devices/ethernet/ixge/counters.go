@@ -23,7 +23,7 @@ const (
 	rx_512_1023_byte_packets
 	rx_gt_1023_byte_packets
 	rx_crc_errors
-	rx_ip4_checksum_errors
+	rx_ip4_tcp_udp_checksum_errors
 	rx_illegal_symbol_errors
 	rx_error_symbol_errors
 	rx_mac_local_faults
@@ -79,7 +79,7 @@ var counters = [n_counters]counter{
 	rx_512_1023_byte_packets:                counter{offset: 0x406c, name: "rx 512 to 1023 byte packets"},
 	rx_gt_1023_byte_packets:                 counter{offset: 0x4070, name: "rx 1024 or greater byte packets"},
 	rx_crc_errors:                           counter{offset: 0x4000, name: "rx crc errors"},
-	rx_ip4_checksum_errors:                  counter{offset: 0x4120, name: "rx ip4 checksum errors"},
+	rx_ip4_tcp_udp_checksum_errors:          counter{offset: 0x4120, name: "rx ip4/tcp/udp checksum errors"},
 	rx_illegal_symbol_errors:                counter{offset: 0x4004, name: "rx illegal symbol errors"},
 	rx_error_symbol_errors:                  counter{offset: 0x4008, name: "rx error symbol errors"},
 	rx_mac_local_faults:                     counter{offset: 0x4034, name: "rx mac local faults"},
