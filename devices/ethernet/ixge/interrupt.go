@@ -111,6 +111,7 @@ func (d *dev) InterfaceInput(out *vnet.RefOut) {
 	if s != 0 {
 		d.regs.interrupt.status_write_1_to_clear.set(d, s)
 	}
+	d.out = out
 	elib.Word(s).ForeachSetBit(d.interrupt_dispatch)
 	d.Activate(false)
 }

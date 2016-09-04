@@ -21,13 +21,14 @@ type RxDmaRinger interface {
 
 func (r *RxDmaRing) getRing() *RxDmaRing { return r }
 
-func (g *RxDmaRing) RxDmaRingInit(v *Vnet, r RxDmaRinger, flags RxDmaDescriptorFlags, pool *hw.BufferPool, ring_len uint) {
+func (g *RxDmaRing) RxDmaRingInit(v *Vnet, r RxDmaRinger, flags RxDmaDescriptorFlags, desc_flag_end_of_packet_shift uint, pool *hw.BufferPool, ring_len uint) {
 	g.r = r
 	g.v = v
 	g.is_sop = 1 // initialize at start of packet.
 	g.pool = pool
 	g.ring_len = ring_len
 	g.desc_flags = flags
+	g.desc_flag_end_of_packet_shift = desc_flag_end_of_packet_shift
 	g.RxDmaRefState = r.GetRefState(flags)
 	g.refs.Validate(2*ring_len - 1)
 	g.pool.AllocRefs(&g.refs[0].RefHeader, g.refs.Len())
@@ -70,7 +71,7 @@ type rxDmaRingState struct {
 
 	desc_flag_end_of_packet_shift uint
 
-	out *RefOut
+	Out *RefOut
 
 	n_next    uint
 	n_packets uint64
@@ -102,7 +103,7 @@ func (g *RxDmaRing) Rx1Descriptor(riʹ rxDmaRingIndex, b0 uint, f0 RxDmaDescript
 	r0.SetDataLen(b0)
 	r0.Advance(g.Advance)
 	r0.refOpaque = g.refOpaque
-	g.out.Outs[g.Next].Refs[g.n_next] = *r0
+	g.Out.Outs[g.Next].Refs[g.n_next] = *r0
 	g.n_next += 1
 
 	ri = riʹ.NextRingIndex(1)
@@ -137,10 +138,10 @@ func (g *RxDmaRing) Rx4Descriptors(riʹ rxDmaRingIndex, b0, b1, b2, b3 uint, f0,
 	r2.refOpaque = g.refOpaque
 	r3.refOpaque = g.refOpaque
 
-	g.out.Outs[g.Next].Refs[g.n_next+0] = *r0
-	g.out.Outs[g.Next].Refs[g.n_next+1] = *r1
-	g.out.Outs[g.Next].Refs[g.n_next+2] = *r2
-	g.out.Outs[g.Next].Refs[g.n_next+3] = *r3
+	g.Out.Outs[g.Next].Refs[g.n_next+0] = *r0
+	g.Out.Outs[g.Next].Refs[g.n_next+1] = *r1
+	g.Out.Outs[g.Next].Refs[g.n_next+2] = *r2
+	g.Out.Outs[g.Next].Refs[g.n_next+3] = *r3
 	g.n_next += 4
 
 	ri = riʹ.NextRingIndex(4)
@@ -199,7 +200,7 @@ func (g *RxDmaRing) slow_path(r0 *Ref, f0 RxDmaDescriptorFlags) {
 
 	// Enqueue packet.
 	ref := s.chain.Done()
-	in := &g.out.Outs[next0]
+	in := &g.Out.Outs[next0]
 
 	// Cache empty?
 	if n_next == 0 {
@@ -223,7 +224,7 @@ func (g *RxDmaRing) slow_path(r0 *Ref, f0 RxDmaDescriptorFlags) {
 		s.n_last_miss_next++
 		if s.n_last_miss_next >= 4 {
 			if n_next > 0 {
-				g.out.Outs[next].SetPoolAndLen(g.v, g.pool, n_next)
+				g.Out.Outs[next].SetPoolAndLen(g.v, g.pool, n_next)
 			}
 			next = next0
 			n_next = n_next0
@@ -250,7 +251,7 @@ func (g *RxDmaRing) flush_interface_counters() {
 
 func (g *RxDmaRing) Flush() {
 	if g.n_next > 0 {
-		g.out.Outs[g.Next].SetPoolAndLen(g.v, g.pool, g.n_next)
+		g.Out.Outs[g.Next].SetPoolAndLen(g.v, g.pool, g.n_next)
 		g.n_next = 0
 	}
 	g.flush_interface_counters()

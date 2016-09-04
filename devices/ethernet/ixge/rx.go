@@ -5,10 +5,12 @@ import (
 	"github.com/platinasystems/vnet"
 	"github.com/platinasystems/vnet/ethernet"
 
+	"fmt"
 	"unsafe"
 )
 
 type rx_dev struct {
+	out                    *vnet.RefOut
 	rx_queues              rx_dma_queue_vec
 	rx_pool                hw.BufferPool
 	rx_next_by_layer2_type [n_ethernet_type_filter]rx_next
@@ -45,11 +47,12 @@ const (
 	rx_desc_is_ip6_ext = 1 << (4 + 3)
 	rx_desc_is_tcp     = 1 << (4 + 4)
 	rx_desc_is_udp     = 1 << (4 + 5)
+)
 
-	log2_rx_desc_is_owned_by_software, rx_desc_is_owned_by_software = iota + 32, 1 << (iota + 32)
-	log2_rx_desc_is_end_of_packet, rx_desc_is_end_of_packet
-
-	rx_desc_is_flow_director_filter_match = 1 << (iota + 32 + 2)
+const (
+	rx_desc_is_owned_by_software = 1 << (32 + iota)
+	rx_desc_is_end_of_packet
+	rx_desc_is_flow_director_filter_match
 	rx_desc_is_vlan
 	rx_desc_is_udp_checksummed
 	rx_desc_is_tcp_checksummed
@@ -58,7 +61,12 @@ const (
 	_
 	rx_desc_is_double_vlan
 	rx_desc_is_udp_invalid_checksum
-	// Extended errors
+)
+
+const log2_rx_desc_is_end_of_packet = 32 + 1
+
+// Extended errors
+const (
 	rx_desc_is_ethernet_error       = 1 << (32 + 20 + 9)
 	rx_desc_is_tcp_invalid_checksum = 1 << (32 + 20 + 10)
 	rx_desc_is_ip4_invalid_checksum = 1 << (32 + 20 + 11)
@@ -164,6 +172,10 @@ func (q *rx_dma_queue) rx_no_wrap(n_descriptors reg) (done bool) {
 		d0 := &q.rx_desc[i+0]
 		f0 := d0.rx_dma_flags()
 
+		{
+			tmp := *d0
+			fmt.Printf("%+v\n", &tmp)
+		}
 		if f0&rx_desc_is_owned_by_software == 0 {
 			done = true
 			break
@@ -189,6 +201,7 @@ func (q *rx_dma_queue) rx_no_wrap(n_descriptors reg) (done bool) {
 
 func (d *dev) rx_queue_interrupt(queue uint) {
 	q := &d.rx_queues[queue]
+	q.Out = d.out
 	dr := q.get_regs()
 
 	// Fetch head from hardware and compare to where we think we are.

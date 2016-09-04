@@ -205,7 +205,7 @@ func (d *dev) rx_dma_init(queue uint) {
 	q.len = reg(d.rx_ring_len)
 
 	flags := vnet.RxDmaDescriptorFlags(rx_desc_is_ip4 | rx_desc_is_ip4_checksummed)
-	q.RxDmaRingInit(d.m.Vnet, q, flags, &d.rx_pool, d.rx_ring_len)
+	q.RxDmaRingInit(d.m.Vnet, q, flags, log2_rx_desc_is_end_of_packet, &d.rx_pool, d.rx_ring_len)
 
 	// Put even buffers on ring; odd buffers will be used for refill.
 	{
