@@ -198,17 +198,18 @@ func (d *dev) rx_queue_interrupt(queue uint) {
 		return
 	}
 
-	done := false
-	if hw_head_index < sw_head_index {
-		done = q.rx_no_wrap(reg(d.rx_ring_len) - sw_head_index)
-	}
-	if !done && hw_head_index >= sw_head_index {
+	done := q.rx_no_wrap(reg(d.rx_ring_len) - sw_head_index)
+	if !done && sw_head_index > 0 {
 		q.RxDmaRing.WrapRefill()
 		q.rx_no_wrap(hw_head_index - sw_head_index)
 	}
 
 	// Give tail back to hardware.
 	hw.MemoryBarrier()
+	q.tail_index = q.head_index - 1
+	if q.head_index == 0 {
+		q.tail_index = q.len - 1
+	}
 	dr.tail_index.set(d, q.tail_index)
 
 	// Flush enqueue and counters.
