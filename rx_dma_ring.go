@@ -211,27 +211,26 @@ func (g *RxDmaRing) slow_path(r0 *Ref, f0 RxDmaDescriptorFlags) {
 	if next0 == next {
 		in.Refs[n_next] = ref
 		n_next++
-		return
-	}
-
-	n_next0 := in.Len()
-	in.SetPoolAndLen(g.v, g.pool, n_next0+1)
-	in.Refs[n_next0] = ref
-	n_next0++
-
-	// Switch cached next after enough repeats of cache miss with same next.
-	if next0 == s.last_miss_next {
-		s.n_last_miss_next++
-		if s.n_last_miss_next >= 4 {
-			if n_next > 0 {
-				g.Out.Outs[next].SetPoolAndLen(g.v, g.pool, n_next)
-			}
-			next = next0
-			n_next = n_next0
-		}
 	} else {
-		s.last_miss_next = next0
-		s.n_last_miss_next = 1
+		n_next0 := in.Len()
+		in.SetPoolAndLen(g.v, g.pool, n_next0+1)
+		in.Refs[n_next0] = ref
+		n_next0++
+
+		// Switch cached next after enough repeats of cache miss with same next.
+		if next0 == s.last_miss_next {
+			s.n_last_miss_next++
+			if s.n_last_miss_next >= 4 {
+				if n_next > 0 {
+					g.Out.Outs[next].SetPoolAndLen(g.v, g.pool, n_next)
+				}
+				next = next0
+				n_next = n_next0
+			}
+		} else {
+			s.last_miss_next = next0
+			s.n_last_miss_next = 1
+		}
 	}
 
 	g.Next = next
