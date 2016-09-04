@@ -29,6 +29,7 @@ func (d *rx_from_hw_descriptor) to_hw() *rx_to_hw_descriptor {
 func (d *rx_from_hw_descriptor) refill(r *vnet.Ref) {
 	t := d.to_hw()
 	t.tail_buffer_address = uint64(r.DataPhys())
+	t.head_buffer_address = 0
 }
 
 func (d *rx_from_hw_descriptor) rx_dma_flags() vnet.RxDmaDescriptorFlags {
@@ -243,7 +244,7 @@ func (q *rx_dma_queue) rx_no_wrap(n_descriptors reg) (done bool) {
 		d0 := &q.rx_desc[i+0]
 		f0 := d0.rx_dma_flags()
 
-		fmt.Printf("%s\n", d0)
+		fmt.Printf("%d: %s\n", i, d0)
 
 		if f0&rx_desc_is_owned_by_software == 0 {
 			done = true
