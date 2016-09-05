@@ -93,8 +93,8 @@ func (g *RxDmaRing) is_end_of_packet(f RxDmaDescriptorFlags) uint8 {
 	return uint8(1 & (f >> g.desc_flag_end_of_packet_shift))
 }
 
-func (g *RxDmaRing) Rx1Descriptor(riʹ rxDmaRingIndex, b0 uint, f0 RxDmaDescriptorFlags) (ri rxDmaRingIndex) {
-	r0 := &g.refs[(riʹ+0)^0]
+func (g *RxDmaRing) Rx1Descriptor(ri rxDmaRingIndex, b0 uint, f0 RxDmaDescriptorFlags) {
+	r0 := &g.refs[(ri+0)^0]
 
 	was_sop := g.is_sop != 0
 	g.n_packets += uint64(g.is_sop)
@@ -106,7 +106,6 @@ func (g *RxDmaRing) Rx1Descriptor(riʹ rxDmaRingIndex, b0 uint, f0 RxDmaDescript
 	g.Out.Outs[g.Next].Refs[g.n_next] = *r0
 	g.n_next += 1
 
-	ri = riʹ.NextRingIndex(1)
 	g.is_sop = g.is_end_of_packet(f0)
 
 	// Speculative enqueue fails; use slow path to fix it up.
@@ -120,8 +119,8 @@ func (g *RxDmaRing) Rx1Descriptor(riʹ rxDmaRingIndex, b0 uint, f0 RxDmaDescript
 	return
 }
 
-func (g *RxDmaRing) Rx4Descriptors(riʹ rxDmaRingIndex, b0, b1, b2, b3 uint, f0, f1, f2, f3 RxDmaDescriptorFlags) (ri rxDmaRingIndex) {
-	r0, r1, r2, r3 := &g.refs[(riʹ+0)^0], &g.refs[(riʹ+1)^0], &g.refs[(riʹ+2)^0], &g.refs[(riʹ+3)^0]
+func (g *RxDmaRing) Rx4Descriptors(ri rxDmaRingIndex, b0, b1, b2, b3 uint, f0, f1, f2, f3 RxDmaDescriptorFlags) {
+	r0, r1, r2, r3 := &g.refs[(ri+0)^0], &g.refs[(ri+1)^0], &g.refs[(ri+2)^0], &g.refs[(ri+3)^0]
 
 	r0.SetDataLen(b0)
 	r1.SetDataLen(b1)
@@ -144,7 +143,6 @@ func (g *RxDmaRing) Rx4Descriptors(riʹ rxDmaRingIndex, b0, b1, b2, b3 uint, f0,
 	g.Out.Outs[g.Next].Refs[g.n_next+3] = *r3
 	g.n_next += 4
 
-	ri = riʹ.NextRingIndex(4)
 	is_sop1, is_sop2, is_sop3 := g.is_end_of_packet(f0), g.is_end_of_packet(f1), g.is_end_of_packet(f2)
 
 	g.n_bytes += uint64(b0 + b1 + b2 + b3)
@@ -181,6 +179,7 @@ func (g *RxDmaRing) slow_path(r0 *Ref, f0 RxDmaDescriptorFlags) {
 	}
 
 	rs0 := g.r.GetRefState(f0)
+	g.desc_flags = f0
 	next0 := rs0.Next
 
 	// Correct data advance.
@@ -209,6 +208,7 @@ func (g *RxDmaRing) slow_path(r0 *Ref, f0 RxDmaDescriptorFlags) {
 
 	// Cache hit?
 	if next0 == next {
+		s.n_last_miss_next = 0
 		in.Refs[n_next] = ref
 		n_next++
 	} else {

@@ -133,8 +133,19 @@ func (d *rx_from_hw_descriptor) refill(r *vnet.Ref) {
 	t.head_buffer_address = 0 // needed to clear software owned bit
 }
 
-func (d *rx_from_hw_descriptor) rx_dma_flags() vnet.RxDmaDescriptorFlags {
-	return vnet.RxDmaDescriptorFlags(d.status[0]) | vnet.RxDmaDescriptorFlags(d.status[2])<<32
+func rx_dma_flags_x1(d0 rx_from_hw_descriptor) (f0 vnet.RxDmaDescriptorFlags, sw_owned bool) {
+	f0 = vnet.RxDmaDescriptorFlags(d0.status[0]) | vnet.RxDmaDescriptorFlags(d0.status[2])<<32
+	sw_owned = f0&rx_desc_is_owned_by_software != 0
+	return
+}
+
+func rx_dma_flags_x4(d0, d1, d2, d3 rx_from_hw_descriptor) (f0, f1, f2, f3 vnet.RxDmaDescriptorFlags, sw_owned bool) {
+	f0 = vnet.RxDmaDescriptorFlags(d0.status[0]) | vnet.RxDmaDescriptorFlags(d0.status[2])<<32
+	f1 = vnet.RxDmaDescriptorFlags(d1.status[0]) | vnet.RxDmaDescriptorFlags(d1.status[2])<<32
+	f2 = vnet.RxDmaDescriptorFlags(d2.status[0]) | vnet.RxDmaDescriptorFlags(d2.status[2])<<32
+	f3 = vnet.RxDmaDescriptorFlags(d3.status[0]) | vnet.RxDmaDescriptorFlags(d3.status[2])<<32
+	sw_owned = (f0 & f1 & f2 & f3 & rx_desc_is_owned_by_software) != 0
+	return
 }
 
 const (
@@ -186,18 +197,20 @@ const n_desc_per_cache_line = 4
 
 //go:generate gentemplate -d Package=ixge -id rx_from_hw_descriptor -d Type=rx_from_hw_descriptor -d VecType=rx_from_hw_descriptor_vec github.com/platinasystems/elib/hw/dma_mem.tmpl
 
-func (d *rx_from_hw_descriptor) String() (s string) {
-	f := d.rx_dma_flags()
-
-	if f&rx_desc_is_owned_by_software != 0 {
-		s = "sw: "
-	} else {
+func (e *rx_from_hw_descriptor) String() (s string) {
+	var (
+		f        vnet.RxDmaDescriptorFlags
+		sw_owned bool
+	)
+	// copy to avoid problems with potentially dma memory.
+	d := *e
+	if f, sw_owned = rx_dma_flags_x1(d); !sw_owned {
 		t := d.to_hw()
 		s = fmt.Sprintf("hw: head %x tail %x", t.head_buffer_address, t.tail_buffer_address)
 		return
 	}
 
-	s += fmt.Sprintf("%d bytes", d.n_bytes_this_descriptor)
+	s += fmt.Sprintf("sw: %d bytes", d.n_bytes_this_descriptor)
 
 	if f&rx_desc_is_vlan != 0 {
 		s += fmt.Sprintf(", vlan %d", d.vlan_tag)
@@ -346,46 +359,57 @@ func (q *rx_dma_queue) rx_no_wrap(n_doneʹ reg, n_descriptors reg) (done rx_done
 
 	ri := q.RingIndex(uint(i))
 	for false && n_left >= 4 {
-		d0, d1, d2, d3 := &q.rx_desc[i+0], &q.rx_desc[i+1], &q.rx_desc[i+2], &q.rx_desc[i+3]
-
-		f0, f1, f2, f3 := d0.rx_dma_flags(), d1.rx_dma_flags(), d2.rx_dma_flags(), d3.rx_dma_flags()
+		x0, x1, x2, x3 := q.rx_desc[i+0], q.rx_desc[i+1], q.rx_desc[i+2], q.rx_desc[i+3]
 
 		// Skip to single loop for any hardware owned descriptors found.
-		if f0&f1&f2&f3&rx_desc_is_owned_by_software == 0 {
+		var (
+			f0, f1, f2, f3 vnet.RxDmaDescriptorFlags
+			ok             bool
+		)
+		if f0, f1, f2, f3, ok = rx_dma_flags_x4(x0, x1, x2, x3); !ok {
 			break
 		}
 
-		b0, b1 := uint(d0.n_bytes_this_descriptor), uint(d1.n_bytes_this_descriptor)
-		b2, b3 := uint(d2.n_bytes_this_descriptor), uint(d3.n_bytes_this_descriptor)
+		b0, b1 := uint(x0.n_bytes_this_descriptor), uint(x1.n_bytes_this_descriptor)
+		b2, b3 := uint(x3.n_bytes_this_descriptor), uint(x2.n_bytes_this_descriptor)
 
-		d0.refill(q.RefillRef(ri.NextRingIndex(0)))
-		d1.refill(q.RefillRef(ri.NextRingIndex(1)))
-		d2.refill(q.RefillRef(ri.NextRingIndex(2)))
-		d3.refill(q.RefillRef(ri.NextRingIndex(3)))
+		x0.refill(q.RefillRef(ri.NextRingIndex(0)))
+		x1.refill(q.RefillRef(ri.NextRingIndex(1)))
+		x2.refill(q.RefillRef(ri.NextRingIndex(2)))
+		x3.refill(q.RefillRef(ri.NextRingIndex(3)))
 
-		ri = q.Rx4Descriptors(ri, b0, b1, b2, b3, f0, f1, f2, f3)
+		q.rx_desc[i+0], q.rx_desc[i+1], q.rx_desc[i+2], q.rx_desc[i+3] = x0, x1, x2, x3
+
+		q.Rx4Descriptors(ri, b0, b1, b2, b3, f0, f1, f2, f3)
 
 		n_left -= 4
 		i += 4
+		ri = ri.NextRingIndex(4)
 	}
 
 	for n_left > 0 {
-		d0 := &q.rx_desc[i+0]
-		f0 := d0.rx_dma_flags()
+		x0 := q.rx_desc[i+0]
 
-		if f0&rx_desc_is_owned_by_software == 0 {
+		var (
+			f0 vnet.RxDmaDescriptorFlags
+			ok bool
+		)
+		if f0, ok = rx_dma_flags_x1(x0); !ok {
 			done = rx_done_found_hw_owned_descriptor
 			break
 		}
 
-		b0 := uint(d0.n_bytes_this_descriptor)
+		b0 := uint(x0.n_bytes_this_descriptor)
 
-		d0.refill(q.RefillRef(ri))
+		x0.refill(q.RefillRef(ri))
 
-		ri = q.Rx1Descriptor(ri, b0, f0)
+		q.rx_desc[i+0] = x0
+
+		q.Rx1Descriptor(ri, b0, f0)
 
 		n_left -= 1
 		i += 1
+		ri = ri.NextRingIndex(1)
 	}
 
 	if i >= reg(d.rx_ring_len) {
