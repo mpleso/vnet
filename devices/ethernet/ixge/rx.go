@@ -19,6 +19,9 @@ type rx_dma_queue struct {
 
 	rx_desc rx_from_hw_descriptor_vec
 	desc_id elib.Index
+
+	rx_irq_sequence             uint32
+	rx_descriptors_need_polling bool
 }
 
 func (d *dev) init_rx_pool() {
@@ -108,6 +111,7 @@ func (d *dev) rx_dma_init(queue uint) {
 
 type rx_dev struct {
 	out                    *vnet.RefOut
+	irq_sequence           uint32
 	rx_queues              rx_dma_queue_vec
 	rx_pool                hw.BufferPool
 	rx_next_by_layer2_type [n_ethernet_type_filter]rx_next
@@ -425,7 +429,9 @@ func (d *dev) rx_queue_interrupt(queue uint) {
 	q.RxDmaRing.Flush()
 
 	// Arrange to be called again if we've not processed all potential rx descriptors.
-	if done != rx_done_found_hw_owned_descriptor {
+	q.rx_irq_sequence = d.irq_sequence
+	q.rx_descriptors_need_polling = done != rx_done_found_hw_owned_descriptor
+	if q.rx_descriptors_need_polling {
 		atomic.AddInt32(&d.active_count, 1)
 	}
 
