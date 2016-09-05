@@ -17,14 +17,40 @@ import (
 	"os"
 )
 
+type stream struct {
+	random          bool
+	random_size     bool
+	random_seed     int64
+	cur_size        uint
+	min_size        uint
+	max_size        uint
+	n_packets_limit uint
+	n_packets_sent  uint
+	next            uint
+}
+
+const max_buffer_size = 16 << 10
+
+func (s *stream) validate_size() {
+	if s.min_size > max_buffer_size {
+		s.min_size = max_buffer_size
+	}
+	if s.max_size < s.min_size {
+		s.max_size = s.min_size
+	}
+	if s.max_size > max_buffer_size {
+		s.max_size = max_buffer_size
+	}
+	s.cur_size = s.min_size
+}
+
 type myNode struct {
 	vnet.InterfaceNode
 	ethernet.Interface
 	vnet.Package
-	pool     hw.BufferPool
-	nPackets uint
-	next     uint
-	isUnix   bool
+	pool   hw.BufferPool
+	isUnix bool
+	stream
 }
 
 var (
@@ -58,30 +84,30 @@ func init() {
 		}
 
 		v.RegisterInterfaceNode(MyNode, MyNode.Hi(), "my-node")
+		MyNode.stream = stream{n_packets_limit: 1, min_size: 64, max_size: 64, next: next_error}
 
 		v.CliAdd(&cli.Command{
 			Name:      "a",
 			ShortHelp: "a short help",
 			Action: func(c cli.Commander, w cli.Writer, in *cli.Input) error {
 				n := MyNode
-				n.nPackets = 1
-				n.next = next_error
+				n.n_packets_sent = 0 // reset
 				for !in.End() {
 					var next_name string
-					if in.Parse("%d", &n.nPackets) {
-						if n.nPackets == 0 { // no limit
-							n.nPackets = ^uint(0)
-						}
-					} else if in.Parse("next punt") {
-						n.next = next_punt
-					} else if in.Parse("next error") {
-						n.next = next_error
-					} else if in.Parse("next %s", &next_name) {
+					switch {
+					case in.Parse("c%*count %d", &n.n_packets_limit):
+					case in.Parse("s%*ize %d %d", &n.min_size, &n.max_size):
+					case in.Parse("s%*ize %d", &n.min_size):
+						n.max_size = n.min_size
+					case in.Parse("n%*ext %s", &next_name):
 						n.next = v.AddNamedNext(n, next_name)
-					} else {
+					case in.Parse("r%*andom"):
+						n.random = true
+					default:
 						return cli.ParseError
 					}
 				}
+				n.validate_size()
 				n.Activate(true)
 				return nil
 			},
@@ -175,7 +201,7 @@ func (n *myNode) Init() (err error) {
 
 	t := &n.pool.BufferTemplate
 	*t = *hw.DefaultBufferTemplate
-	t.Size = 64
+	t.Size = max_buffer_size
 	if true {
 		ip4Template(t)
 	} else {
@@ -200,26 +226,41 @@ func (n *myNode) InterfaceInput(o *vnet.RefOut) {
 	out := &o.Outs[n.next]
 	out.BufferPool = &n.pool
 	t := n.GetIfThread()
-	nPackets := n.nPackets
-	if l := out.Cap(); nPackets > l {
-		nPackets = l
+
+	cap := out.Cap()
+	np := cap
+	if n.n_packets_limit != 0 {
+		np = 0
+		if n.n_packets_sent < n.n_packets_limit {
+			np = n.n_packets_limit - n.n_packets_sent
+			if np > cap {
+				np = cap
+			}
+		}
 	}
-	out.AllocPoolRefs(&n.pool, nPackets)
+
+	out.AllocPoolRefs(&n.pool, np)
 	rs := out.Refs[:]
 	nBytes := uint(0)
-	for i := uint(0); i < nPackets; i++ {
+	for i := uint(0); i < np; i++ {
 		r := &rs[i]
 		n.SetError(r, uint(i%n_error))
-		nBytes += r.DataLen()
+
+		r.SetDataLen(n.cur_size)
+		n.cur_size++
+		if n.cur_size > n.max_size {
+			n.cur_size = n.min_size
+		}
+		nBytes += n.cur_size
 	}
-	vnet.IfRxCounter.Add(t, n.Si(), nPackets, nBytes)
-	c1_counter.Add(t, n.Hi(), nPackets, nBytes)
-	s1_counter.Add(t, n.Hi(), nPackets)
-	out.SetLen(n.Vnet, nPackets)
-	if n.nPackets != ^uint(0) {
-		n.nPackets -= nPackets
+	vnet.IfRxCounter.Add(t, n.Si(), np, nBytes)
+	c1_counter.Add(t, n.Hi(), np, nBytes)
+	s1_counter.Add(t, n.Hi(), np)
+	out.SetLen(n.Vnet, np)
+	n.n_packets_sent += np
+	if n.n_packets_limit != 0 {
+		n.Activate(n.n_packets_sent < n.n_packets_limit)
 	}
-	n.Activate(n.nPackets > 0)
 }
 
 func (n *myNode) InterfaceOutput(i *vnet.RefVecIn, f chan *vnet.RefVecIn) {
