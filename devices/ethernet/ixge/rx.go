@@ -173,16 +173,15 @@ const (
 	rx_desc_not_unicast
 	_
 	rx_desc_is_double_vlan
-	rx_desc_is_udp_invalid_checksum
 )
 
 const log2_rx_desc_is_end_of_packet = 32 + 1
 
 // Extended errors
 const (
-	rx_desc_is_ethernet_error       = 1 << (32 + 20 + 9)
-	rx_desc_is_tcp_invalid_checksum = 1 << (32 + 20 + 10)
-	rx_desc_is_ip4_invalid_checksum = 1 << (32 + 20 + 11)
+	rx_desc_is_ethernet_error           = 1 << (32 + 20 + 9)
+	rx_desc_is_udp_tcp_invalid_checksum = 1 << (32 + 20 + 10)
+	rx_desc_is_ip4_invalid_checksum     = 1 << (32 + 20 + 11)
 )
 
 // Rx writeback descriptor format.
@@ -254,19 +253,19 @@ func (e *rx_from_hw_descriptor) String() (s string) {
 		if f&rx_desc_is_tcp != 0 {
 			s += fmt.Sprintf(", tcp")
 			if f&rx_desc_is_tcp_checksummed != 0 {
-				s += " (checksummed)"
+				s += " checksummed"
 			}
-			if f&rx_desc_is_tcp_invalid_checksum != 0 {
-				s += " (invalid-checksum)"
+			if f&rx_desc_is_udp_tcp_invalid_checksum != 0 {
+				s += " invalid-checksum"
 			}
 		}
 		if f&rx_desc_is_udp != 0 {
 			s += fmt.Sprintf(", udp")
 			if f&rx_desc_is_udp_checksummed != 0 {
-				s += " (checksummed)"
+				s += " checksummed"
 			}
-			if f&rx_desc_is_udp_invalid_checksum != 0 {
-				s += " (invalid-checksum)"
+			if f&rx_desc_is_udp_tcp_invalid_checksum != 0 {
+				s += " invalid-checksum"
 			}
 		}
 	}
