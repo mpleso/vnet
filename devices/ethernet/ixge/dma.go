@@ -89,7 +89,7 @@ type tx_dma_regs struct {
 	_ [2]reg
 
 	// [0] enables head write back.
-	head_index_write_back_address [2]reg
+	head_index_write_back_address addr
 }
 
 func (q *tx_dma_queue) get_regs() *tx_dma_regs {
@@ -124,14 +124,8 @@ type dma_config struct {
 }
 
 func (q *dma_queue) start(d *dev, dr *dma_regs) {
-	v := dr.control.get(d)
-	// prefetch threshold
-	v = (v &^ (0x3f << 0)) | (32 << 0)
-	// writeback theshold
-	v = (v &^ (0x3f << 16)) | (16 << 16)
 	// enable
-	v |= 1 << 25
-	dr.control.set(d, v)
+	dr.control.or(d, 1<<25)
 
 	// wait for hardware to initialize.
 	for dr.control.get(d)&(1<<25) == 0 {

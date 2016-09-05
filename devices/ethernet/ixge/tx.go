@@ -11,13 +11,16 @@ import (
 
 type tx_dma_queue struct {
 	dma_queue
-	tx_descriptors        tx_descriptor_vec
-	desc_id               elib.Index
-	head_index_write_back *uint32
-	tx_fifo               chan tx_in
-	tx_irq_fifo           chan tx_in
-	current_tx_in         tx_in
-	n_current_tx_in       reg
+	tx_descriptors tx_descriptor_vec
+	desc_id        elib.Index
+
+	head_index_write_back    *reg
+	head_index_write_back_id elib.Index
+
+	tx_fifo         chan tx_in
+	tx_irq_fifo     chan tx_in
+	current_tx_in   tx_in
+	n_current_tx_in reg
 }
 
 //go:generate gentemplate -d Package=ixge -id tx_dma_queue -d VecType=tx_dma_queue_vec -d Type=tx_dma_queue github.com/platinasystems/elib/vec.tmpl
@@ -63,10 +66,31 @@ func (d *dev) tx_dma_init(queue uint) {
 	n_desc := reg(len(q.tx_descriptors))
 	dr.n_descriptor_bytes.set(d, n_desc*reg(unsafe.Sizeof(q.tx_descriptors[0])))
 
+	// Allocate DMA memory for tx head index write back.
+	{
+		var b []byte
+		b, q.head_index_write_back_id, _, _ = hw.DmaAlloc(4)
+		p := unsafe.Pointer(&b[0])
+		q.head_index_write_back = (*reg)(p)
+		const valid = 1
+		dr.head_index_write_back_address.set(d, valid|uint64(hw.DmaPhysAddress(uintptr(p))))
+	}
+
 	hw.MemoryBarrier()
 
 	// Make sure tx is enabled.
 	d.regs.tx_dma_control.or(d, 1<<0)
+
+	{
+		v := dr.control.get(d)
+		// prefetch threshold
+		v = (v &^ (0xff << 0)) | (32 << 0)
+		// host threshold
+		v = (v &^ (0xff << 8)) | (0 << 8)
+		// writeback theshold
+		v = (v &^ (0xff << 16)) | (0 << 16)
+		dr.control.set(d, v)
+	}
 
 	q.start(d, &dr.dma_regs)
 
@@ -205,7 +229,8 @@ func (q *tx_dma_queue) output() {
 		if di != q.tail_index {
 			q.tail_index = di
 
-			// Report status when done.
+			// Report status when done with this vector.
+			// This triggers head index write back.
 			i := di - 1
 			if di == 0 {
 				i = q.len - 1
@@ -241,14 +266,15 @@ func (d *dev) tx_queue_interrupt(queue uint) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
-	dr := q.get_regs()
-	di := dr.head_index.get(d)
+	var di reg
+	di = *q.head_index_write_back
 	n_advance := di - q.head_index
 	if int32(n_advance) < 0 {
 		n_advance += q.len
 	}
 	q.head_index = di
 	if elog.Enabled() {
+		dr := q.get_regs()
 		tail := dr.tail_index.get(d)
 		elog.GenEventf("ixge tx irq adv %d head %d tail %d", n_advance, di, tail)
 	}

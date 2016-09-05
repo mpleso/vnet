@@ -101,6 +101,17 @@ func (d *dev) rx_dma_init(queue uint) {
 
 	hw.MemoryBarrier()
 
+	{
+		v := dr.control.get(d)
+		// prefetch threshold
+		v = (v &^ (0xff << 0)) | (8 << 0)
+		// host threshold
+		v = (v &^ (0xff << 8)) | (8 << 8)
+		// writeback theshold
+		v = (v &^ (0xff << 16)) | (0 << 16)
+		dr.control.set(d, v)
+	}
+
 	q.start(d, &dr.dma_regs)
 
 	// Make sure rx is enabled.
