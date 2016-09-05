@@ -26,8 +26,8 @@ func (d *dev) vnetInit() {
 		rx_error_ip4_invalid_checksum: "invalid ip4 checksum",
 	}
 
-	v.RegisterInterfaceNode(d, d.Hi(), "ixge%s", d.pciDev.Addr.String())
-	ethernet.RegisterInterface(v, d, &d.ethIfConfig, "ixge%s", d.pciDev.Addr.String())
+	v.RegisterInterfaceNode(d, d.Hi(), "i%d", d.pciDev.Addr.Fn)
+	ethernet.RegisterInterface(v, d, &d.ethIfConfig, "i%d", d.pciDev.Addr.Fn)
 }
 
 func (d *dev) ValidateSpeed(speed vnet.Bandwidth) (err error) {
