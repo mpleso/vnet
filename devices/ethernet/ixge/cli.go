@@ -6,6 +6,12 @@ import (
 	"fmt"
 )
 
+func (q *rx_dma_queue) dump_ring(w cli.Writer) {
+	for i := range q.rx_desc {
+		fmt.Fprintf(w, "%03d 0x%04x: %s\n", i, i, &q.rx_desc[i])
+	}
+}
+
 func (m *main) showDevs(c cli.Commander, w cli.Writer, in *cli.Input) (err error) {
 	for _, dr := range m.devs {
 		d := dr.get()
@@ -36,8 +42,9 @@ func (m *main) showDevs(c cli.Commander, w cli.Writer, in *cli.Input) (err error
 			v[2] = dr.n_descriptor_bytes.get(d)
 			v[3] = dr.control.get(d)
 			fmt.Fprintf(w, "%x\n", v)
-		}
 
+			q.dump_ring(w)
+		}
 	}
 	return
 }
