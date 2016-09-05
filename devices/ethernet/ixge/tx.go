@@ -244,7 +244,7 @@ func (d *dev) tx_queue_interrupt(queue uint) {
 	dr := q.get_regs()
 	di := dr.head_index.get(d)
 	n_advance := di - q.head_index
-	if di <= q.head_index {
+	if int32(n_advance) < 0 {
 		n_advance += q.len
 	}
 	q.head_index = di
