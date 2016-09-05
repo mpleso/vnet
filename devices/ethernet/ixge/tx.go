@@ -5,6 +5,8 @@ import (
 	"github.com/platinasystems/elib/elog"
 	"github.com/platinasystems/elib/hw"
 	"github.com/platinasystems/vnet"
+
+	"unsafe"
 )
 
 type tx_dma_queue struct {
@@ -46,10 +48,33 @@ const (
 	tx_desc_status0_advanced_data    = 3 << 4
 )
 
-func (d *dev) tx_init() {
-	const base = tx_desc_status0_insert_crc
-	d.tx_desc_status0_by_next_valid_flag[0] = base | tx_desc_status0_is_end_of_packet
-	d.tx_desc_status0_by_next_valid_flag[vnet.NextValid] = base
+func (d *dev) tx_dma_init(queue uint) {
+	if d.tx_ring_len == 0 {
+		d.tx_ring_len = 2 * vnet.MaxVectorLen
+	}
+	q := d.tx_queues.Validate(queue)
+	q.d = d
+	q.index = queue
+	q.tx_descriptors, q.desc_id = tx_descriptorAlloc(int(d.tx_ring_len))
+	q.len = reg(d.tx_ring_len)
+
+	dr := q.get_regs()
+	dr.descriptor_address.set(d, uint64(q.tx_descriptors[0].PhysAddress()))
+	n_desc := reg(len(q.tx_descriptors))
+	dr.n_descriptor_bytes.set(d, n_desc*reg(unsafe.Sizeof(q.tx_descriptors[0])))
+
+	hw.MemoryBarrier()
+
+	// Make sure tx is enabled.
+	d.regs.tx_dma_control.or(d, 1<<0)
+
+	q.start(d, &dr.dma_regs)
+
+	{
+		const base = tx_desc_status0_insert_crc
+		d.tx_desc_status0_by_next_valid_flag[0] = base | tx_desc_status0_is_end_of_packet
+		d.tx_desc_status0_by_next_valid_flag[vnet.NextValid] = base
+	}
 }
 
 func (d *dev) set_tx_descriptor(rs []vnet.Ref, ds []tx_descriptor, ri, di reg) {

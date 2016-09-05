@@ -23,6 +23,89 @@ type rx_dma_queue struct {
 	rx_descriptors_maybe_pending bool
 }
 
+func (d *dev) init_rx_pool() {
+	p := &d.rx_pool
+	t := &p.BufferTemplate
+
+	p.Name = fmt.Sprintf("ixge %s rx", d.pciDev)
+
+	*t = *hw.DefaultBufferTemplate
+	t.Size = d.rx_buffer_bytes
+
+	// Set interface for rx buffers.
+	ref := (*vnet.Ref)(unsafe.Pointer(&t.Ref))
+	ref.Si = d.HwIf.Si()
+
+	d.m.Vnet.AddBufferPool(p)
+}
+
+func (d *dev) rx_dma_init(queue uint) {
+	q := d.rx_queues.Validate(queue)
+	q.d = d
+	q.index = queue
+
+	// DMA buffer pool init.
+	if len(d.rx_pool.Name) == 0 {
+		if d.rx_buffer_bytes == 0 {
+			d.rx_buffer_bytes = 1024
+		}
+		d.rx_buffer_bytes = uint(elib.Word(d.rx_buffer_bytes).RoundPow2(1024))
+		d.init_rx_pool()
+	}
+
+	if d.rx_ring_len == 0 {
+		d.rx_ring_len = 2 * vnet.MaxVectorLen
+	}
+	q.rx_desc, q.desc_id = rx_from_hw_descriptorAlloc(int(d.rx_ring_len))
+	q.len = reg(d.rx_ring_len)
+
+	flags := vnet.RxDmaDescriptorFlags(rx_desc_is_ip4 | rx_desc_is_ip4_checksummed)
+	q.RxDmaRingInit(d.m.Vnet, q, flags, log2_rx_desc_is_end_of_packet, &d.rx_pool, d.rx_ring_len)
+
+	// Put even buffers on ring; odd buffers will be used for refill.
+	{
+		i := uint(0)
+		ri := q.RingIndex(i)
+		for i < d.rx_ring_len {
+			r := q.RxDmaRing.RxRef(ri)
+			q.rx_desc[i].refill(r)
+			i++
+			ri = ri.NextRingIndex(1)
+		}
+	}
+
+	dr := q.get_regs()
+	dr.descriptor_address.set(d, uint64(q.rx_desc[0].PhysAddress()))
+	n_desc := reg(len(q.rx_desc))
+	dr.n_descriptor_bytes.set(d, n_desc*reg(unsafe.Sizeof(q.rx_desc[0])))
+
+	{
+		v := reg(d.rx_buffer_bytes/24) << 0
+		// Set lo free descriptor interrupt threshold to 1 * 64 descriptors.
+		v |= 1 << 22
+		// Descriptor type: advanced one buffer descriptors.
+		v |= 1 << 25
+		// Drop if out of descriptors.
+		v |= 1 << 28
+		dr.rx_split_control.set(d, v)
+	}
+
+	// Give hardware all but last cache line of descriptors.
+	q.tail_index = n_desc - n_desc_per_cache_line
+
+	// enable [9] rx/tx descriptor relaxed order
+	// enable [11] rx/tx descriptor write back relaxed order
+	// enable [13] rx/tx data write/read relaxed order
+	dr.dca_control.or(d, 1<<9|1<<11|1<<13)
+
+	hw.MemoryBarrier()
+
+	q.start(d, &dr.dma_regs)
+
+	// Make sure rx is enabled.
+	d.regs.rx_enable.set(d, 1<<0)
+}
+
 //go:generate gentemplate -d Package=ixge -id rx_dma_queue -d VecType=rx_dma_queue_vec -d Type=rx_dma_queue github.com/platinasystems/elib/vec.tmpl
 
 type rx_dev struct {
@@ -96,6 +179,8 @@ type rx_from_hw_descriptor struct {
 	n_bytes_this_descriptor uint16
 	vlan_tag                uint16
 }
+
+const n_desc_per_cache_line = 4
 
 //go:generate gentemplate -d Package=ixge -id rx_from_hw_descriptor -d Type=rx_from_hw_descriptor -d VecType=rx_from_hw_descriptor_vec github.com/platinasystems/elib/hw/dma_mem.tmpl
 
@@ -248,7 +333,7 @@ func (q *rx_dma_queue) rx_no_wrap(n_doneʹ reg, n_descriptors reg) (done rx_done
 	i := q.head_index
 	n_done = n_doneʹ
 
-	if n_left+n_done >= vnet.MaxVectorLen {
+	if n_left+n_done > vnet.MaxVectorLen {
 		n_left = vnet.MaxVectorLen - n_done
 		done = rx_done_vec_len
 	}
@@ -331,10 +416,11 @@ func (d *dev) rx_queue_interrupt(queue uint) {
 
 	// Give tail back to hardware.
 	hw.MemoryBarrier()
-	q.tail_index = q.head_index - 1
-	if q.head_index == 0 {
-		q.tail_index = q.len - 1
+	ti := (q.head_index - 1) &^ (n_desc_per_cache_line - 1)
+	if int32(ti) < 0 {
+		ti += q.len
 	}
+	q.tail_index = ti
 	dr.tail_index.set(d, q.tail_index)
 
 	// Flush enqueue and counters.
