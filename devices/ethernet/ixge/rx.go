@@ -427,6 +427,8 @@ func (q *rx_dma_queue) rx_no_wrap(n_doneʹ reg, n_descriptors reg) (done rx_done
 
 func (d *dev) rx_queue_interrupt(queue uint) {
 	q := &d.rx_queues[queue]
+	q.mu.Lock()
+	defer q.mu.Unlock()
 	q.Out = d.out
 	dr := q.get_regs()
 
@@ -437,6 +439,10 @@ func (d *dev) rx_queue_interrupt(queue uint) {
 	if done == rx_done_not_done && sw_head_index > 0 {
 		q.RxDmaRing.WrapRefill()
 		done, n_done = q.rx_no_wrap(n_done, sw_head_index)
+	}
+
+	if n_done == 0 {
+		return
 	}
 
 	// Give tail back to hardware.
