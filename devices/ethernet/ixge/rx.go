@@ -234,6 +234,14 @@ const (
 	rx_done_found_hw_owned_descriptor
 )
 
+var rx_done_code_strings = [...]string{
+	rx_done_not_done:                  "not-done",
+	rx_done_vec_len:                   "vec-len",
+	rx_done_found_hw_owned_descriptor: "hw-owned",
+}
+
+func (c rx_done_code) String() string { return elib.Stringer(rx_done_code_strings[:], int(c)) }
+
 func (q *rx_dma_queue) rx_no_wrap(n_doneʹ reg, n_descriptors reg) (done rx_done_code, n_done reg) {
 	d := q.d
 	n_left := n_descriptors
@@ -303,7 +311,7 @@ func (q *rx_dma_queue) rx_no_wrap(n_doneʹ reg, n_descriptors reg) (done rx_done
 	q.head_index = i
 
 	if elog.Enabled() {
-		elog.GenEventf("ixge rx head %d -> %d done %d %d", old_head, i, n_done, done)
+		elog.GenEventf("ixge rx head %d -> %d done %d %s", old_head, i, n_done, done)
 	}
 	return
 }
