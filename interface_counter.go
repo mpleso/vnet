@@ -116,8 +116,10 @@ type foreachFn func(name string, value uint64)
 func (m *interfaceMain) doSwCombined(f foreachFn, nm *InterfaceCounterNames, zero bool, k, i uint) {
 	var v, w CombinedCounter
 	for _, t := range m.ifThreads {
-		t.sw.combined[k].Get(i, &w)
-		v.Add(&w)
+		if t != nil {
+			t.sw.combined[k].Get(i, &w)
+			v.Add(&w)
+		}
 	}
 	if v.Packets != 0 || zero {
 		f(nm.Combined[k]+" packets", v.Packets)
@@ -129,8 +131,10 @@ func (m *interfaceMain) doSwCombined(f foreachFn, nm *InterfaceCounterNames, zer
 func (m *interfaceMain) doSwSingle(f foreachFn, nm *InterfaceCounterNames, zero bool, k, i uint) {
 	var v, w uint64
 	for _, t := range m.ifThreads {
-		t.sw.single[k].Get(i, &w)
-		v += w
+		if t != nil {
+			t.sw.single[k].Get(i, &w)
+			v += w
+		}
 	}
 	if v != 0 || zero {
 		f(nm.Single[k], v)
@@ -164,8 +168,10 @@ func (m *interfaceMain) foreachSwIfCounter(zero bool, si Si, f func(name string,
 func (m *interfaceMain) doHwCombined(f foreachFn, nm *InterfaceCounterNames, zero bool, k, i uint) {
 	var v, w CombinedCounter
 	for _, t := range m.ifThreads {
-		t.hw.combined[k].Get(i, &w)
-		v.Add(&w)
+		if t != nil {
+			t.hw.combined[k].Get(i, &w)
+			v.Add(&w)
+		}
 	}
 	if v.Packets != 0 || (zero && k < uint(len(nm.Combined))) {
 		f(nm.Combined[k]+" packets", v.Packets)
@@ -177,8 +183,10 @@ func (m *interfaceMain) doHwCombined(f foreachFn, nm *InterfaceCounterNames, zer
 func (m *interfaceMain) doHwSingle(f foreachFn, nm *InterfaceCounterNames, zero bool, k, i uint) {
 	var v, w uint64
 	for _, t := range m.ifThreads {
-		t.hw.single[k].Get(i, &w)
-		v += w
+		if t != nil {
+			t.hw.single[k].Get(i, &w)
+			v += w
+		}
 	}
 	if v != 0 || (zero && k < uint(len(nm.Single))) {
 		f(nm.Single[k], v)
