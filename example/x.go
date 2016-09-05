@@ -93,10 +93,13 @@ func init() {
 				n := MyNode
 				n.n_packets_sent = 0 // reset
 				for !in.End() {
-					var next_name string
+					var (
+						next_name string
+						count     float64
+					)
 					switch {
-					case in.Parse("c%*ount %d", &n.n_packets_limit):
-					case in.Parse("%d", &n.n_packets_limit):
+					case (in.Parse("c%*ount %f", &count) || in.Parse("%f", &count)) && count >= 0:
+						n.n_packets_limit = uint(count)
 					case in.Parse("s%*ize %d %d", &n.min_size, &n.max_size):
 					case in.Parse("s%*ize %d", &n.min_size):
 						n.max_size = n.min_size
