@@ -2,9 +2,11 @@ package ixge
 
 import (
 	"github.com/platinasystems/elib"
+	"github.com/platinasystems/elib/elog"
 	"github.com/platinasystems/vnet"
 
 	"fmt"
+	"sync/atomic"
 )
 
 func (d *dev) set_queue_interrupt_mapping(rt vnet.RxTx, queue uint, irq interrupt) {
@@ -26,10 +28,10 @@ func (d *dev) set_queue_interrupt_mapping(rt vnet.RxTx, queue uint, irq interrup
 }
 
 func (d *dev) foreach_queue_for_interrupt(rt vnet.RxTx, i interrupt, f func(queue uint)) {
-	g := func(queue uint) (err error) { f(queue); return }
 	if i < interrupt(len(d.queues_for_interrupt[rt])) {
-		d.queues_for_interrupt[rt][i].ForeachSetBit(g)
+		d.queues_for_interrupt[rt][i].ForeachSetBit(f)
 	}
+	return
 }
 
 type interrupt uint
@@ -74,7 +76,7 @@ var irqStrings = [...]string{
 
 func (i interrupt) String() (s string) {
 	if i < irq_n_queue {
-		s = fmt.Sprintf("queue irq %d", i)
+		s = fmt.Sprintf("queue %d", i)
 	} else {
 		s = elib.StringerHex(irqStrings[:], int(i))
 	}
@@ -91,29 +93,28 @@ func (d *dev) link_state_change() {
 
 func (d *dev) interrupt_dispatch(i uint) {
 	irq := interrupt(i)
+	elog.GenEventf("ixge irq %s", irq)
 	switch {
 	case irq < irq_n_queue:
 		d.foreach_queue_for_interrupt(vnet.Rx, irq, d.rx_queue_interrupt)
 		d.foreach_queue_for_interrupt(vnet.Tx, irq, d.tx_queue_interrupt)
 	case irq == irq_link_state_change:
 		d.link_state_change()
-	default:
-		fmt.Printf("ixge unexpected interrupt: %s\n", irq)
 	}
 }
 
 func (d *dev) InterfaceInput(out *vnet.RefOut) {
 	// Get status and ack interrupt.
 	s := d.regs.interrupt.status_write_1_to_set.get(d)
-	if s == 0 {
-		return
-	}
 	if s != 0 {
 		d.regs.interrupt.status_write_1_to_clear.set(d, s)
+		d.out = out
+		elib.Word(s).ForeachSetBit(d.interrupt_dispatch)
 	}
-	d.out = out
-	elib.Word(s).ForeachSetBit(d.interrupt_dispatch)
-	d.Activate(false)
+	for i := range d.rx_queues {
+		d.rx_queue_interrupt(uint(i))
+	}
+	d.Activate(atomic.AddInt32(&d.active_count, -1) > 0)
 }
 
 func (d *dev) InterruptEnable(enable bool) {
@@ -126,4 +127,9 @@ func (d *dev) InterruptEnable(enable bool) {
 	d.interruptsEnabled = enable
 }
 
-func (d *dev) Interrupt() { d.Activate(true) }
+func (d *dev) Interrupt() {
+	if d.interruptsEnabled {
+		d.Activate(true)
+		atomic.AddInt32(&d.active_count, 1)
+	}
+}

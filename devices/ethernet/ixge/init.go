@@ -31,6 +31,7 @@ type dev struct {
 	pciDev      *pci.Device
 
 	interruptsEnabled bool
+	active_count      int32
 
 	/* Phy index (0 or 1) and address on MDI bus. */
 	phy_index uint

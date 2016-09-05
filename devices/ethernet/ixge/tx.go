@@ -192,10 +192,6 @@ func (d *dev) InterfaceOutput(in *vnet.RefVecIn, free chan *vnet.RefVecIn) {
 		go q.output()
 	}
 
-	if elog.Enabled() {
-		elog.GenEventf("ixge tx output %d", in.Len())
-	}
-
 	q.tx_fifo <- tx_in{in: in, free: free}
 }
 
@@ -209,13 +205,13 @@ func (d *dev) tx_queue_interrupt(queue uint) {
 	dr := q.get_regs()
 	di := dr.head_index.get(d)
 	n_advance := di - q.head_index
-	if di < q.head_index {
+	if di <= q.head_index {
 		n_advance += q.len
 	}
 	q.head_index = di
 	if elog.Enabled() {
 		tail := dr.tail_index.get(d)
-		elog.GenEventf("ixge irq adv %d head %d tail %d", n_advance, di, tail)
+		elog.GenEventf("ixge tx irq adv %d head %d tail %d", n_advance, di, tail)
 	}
 
 	for n_advance > 0 {

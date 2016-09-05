@@ -1,11 +1,13 @@
 package ixge
 
 import (
+	"github.com/platinasystems/elib/elog"
 	"github.com/platinasystems/elib/hw"
 	"github.com/platinasystems/vnet"
 	"github.com/platinasystems/vnet/ethernet"
 
 	"fmt"
+	"sync/atomic"
 	"unsafe"
 )
 
@@ -210,7 +212,15 @@ func (q *rx_dma_queue) GetRefState(f vnet.RxDmaDescriptorFlags) (s vnet.RxDmaRef
 	return
 }
 
-func (q *rx_dma_queue) rx_no_wrap(n_doneʹ reg, n_descriptors reg) (done bool, n_done reg) {
+type rx_done_code int
+
+const (
+	rx_done_not_done = iota
+	rx_done_vec_len
+	rx_done_found_hw_owned_descriptor
+)
+
+func (q *rx_dma_queue) rx_no_wrap(n_doneʹ reg, n_descriptors reg) (done rx_done_code, n_done reg) {
 	d := q.d
 	n_left := n_descriptors
 	i := q.head_index
@@ -218,7 +228,7 @@ func (q *rx_dma_queue) rx_no_wrap(n_doneʹ reg, n_descriptors reg) (done bool, n
 
 	if n_left+n_done >= vnet.MaxVectorLen {
 		n_left = vnet.MaxVectorLen - n_done
-		done = true
+		done = rx_done_vec_len
 	}
 	n_done += n_left
 
@@ -252,7 +262,7 @@ func (q *rx_dma_queue) rx_no_wrap(n_doneʹ reg, n_descriptors reg) (done bool, n
 		f0 := d0.rx_dma_flags()
 
 		if f0&rx_desc_is_owned_by_software == 0 {
-			done = true
+			done = rx_done_found_hw_owned_descriptor
 			break
 		}
 
@@ -275,7 +285,12 @@ func (q *rx_dma_queue) rx_no_wrap(n_doneʹ reg, n_descriptors reg) (done bool, n
 	}
 
 	n_done -= n_left
+	old_head := q.head_index
 	q.head_index = i
+
+	if elog.Enabled() {
+		elog.GenEventf("ixge rx head %d -> %d done %d %d", old_head, i, n_done, done)
+	}
 	return
 }
 
@@ -284,18 +299,12 @@ func (d *dev) rx_queue_interrupt(queue uint) {
 	q.Out = d.out
 	dr := q.get_regs()
 
-	// Fetch head from hardware and compare to where we think we are.
-	hw_head_index := dr.head_index.get(d)
-	sw_head_index := q.head_index
-	if hw_head_index == sw_head_index {
-		return
-	}
-
+	hi := q.head_index
 	n_done := reg(0)
-	done, n_done := q.rx_no_wrap(n_done, reg(d.rx_ring_len)-sw_head_index)
-	if !done && sw_head_index > 0 {
+	done, n_done := q.rx_no_wrap(n_done, reg(d.rx_ring_len)-hi)
+	if done == rx_done_not_done && hi > 0 {
 		q.RxDmaRing.WrapRefill()
-		_, n_done = q.rx_no_wrap(n_done, hw_head_index-sw_head_index)
+		done, n_done = q.rx_no_wrap(n_done, hi)
 	}
 
 	// Give tail back to hardware.
@@ -308,4 +317,8 @@ func (d *dev) rx_queue_interrupt(queue uint) {
 
 	// Flush enqueue and counters.
 	q.RxDmaRing.Flush()
+
+	if done != rx_done_found_hw_owned_descriptor {
+		atomic.AddInt32(&d.active_count, 1)
+	}
 }
