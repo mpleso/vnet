@@ -128,7 +128,7 @@ func (d *rx_from_hw_descriptor) to_hw() *rx_to_hw_descriptor {
 func (d *rx_from_hw_descriptor) refill(r *vnet.Ref) {
 	t := d.to_hw()
 	t.tail_buffer_address = uint64(r.DataPhys())
-	t.head_buffer_address = 0
+	t.head_buffer_address = 0 // needed to clear software owned bit
 }
 
 func (d *rx_from_hw_descriptor) rx_dma_flags() vnet.RxDmaDescriptorFlags {
@@ -185,20 +185,23 @@ const n_desc_per_cache_line = 4
 //go:generate gentemplate -d Package=ixge -id rx_from_hw_descriptor -d Type=rx_from_hw_descriptor -d VecType=rx_from_hw_descriptor_vec github.com/platinasystems/elib/hw/dma_mem.tmpl
 
 func (d *rx_from_hw_descriptor) String() (s string) {
-	s = fmt.Sprintf("%d bytes", d.n_bytes_this_descriptor)
-
 	f := d.rx_dma_flags()
+
+	if f&rx_desc_is_owned_by_software != 0 {
+		s = "sw: "
+	} else {
+		t := d.to_hw()
+		s = fmt.Sprintf("hw: head %x tail %x", t.head_buffer_address, t.tail_buffer_address)
+		return
+	}
+
+	s += fmt.Sprintf("%d bytes", d.n_bytes_this_descriptor)
+
 	if f&rx_desc_is_vlan != 0 {
 		s += fmt.Sprintf(", vlan %d", d.vlan_tag)
 	}
 	if f&rx_desc_is_double_vlan != 0 {
 		s += ", double-vlan"
-	}
-
-	if f&rx_desc_is_owned_by_software != 0 {
-		s += ", sw"
-	} else {
-		s += ", hw"
 	}
 
 	if f&rx_desc_is_end_of_packet != 0 {
