@@ -406,12 +406,18 @@ func (d *dev) rx_queue_interrupt(queue uint) {
 	q.Out = d.out
 	dr := q.get_regs()
 
-	hi := q.head_index
+	hw_head_index := dr.head_index.get(d)
+	sw_head_index := q.head_index
+
 	n_done := reg(0)
-	done, n_done := q.rx_no_wrap(n_done, reg(d.rx_ring_len)-hi)
-	if done == rx_done_not_done && hi > 0 {
+	n_try := hw_head_index - sw_head_index
+	if int32(n_try) < 0 {
+		n_try += q.len
+	}
+	done, n_done := q.rx_no_wrap(n_done, n_try)
+	if done == rx_done_not_done && hw_head_index < sw_head_index {
 		q.RxDmaRing.WrapRefill()
-		done, n_done = q.rx_no_wrap(n_done, hi)
+		done, n_done = q.rx_no_wrap(n_done, hw_head_index)
 	}
 
 	// Give tail back to hardware.
