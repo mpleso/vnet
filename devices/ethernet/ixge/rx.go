@@ -19,8 +19,6 @@ type rx_dma_queue struct {
 
 	rx_desc rx_from_hw_descriptor_vec
 	desc_id elib.Index
-
-	rx_descriptors_maybe_pending bool
 }
 
 func (d *dev) init_rx_pool() {
@@ -54,7 +52,7 @@ func (d *dev) rx_dma_init(queue uint) {
 	}
 
 	if d.rx_ring_len == 0 {
-		d.rx_ring_len = 2 * vnet.MaxVectorLen
+		d.rx_ring_len = 4 * vnet.MaxVectorLen
 	}
 	q.rx_desc, q.desc_id = rx_from_hw_descriptorAlloc(int(d.rx_ring_len))
 	q.len = reg(d.rx_ring_len)
@@ -343,7 +341,7 @@ func (q *rx_dma_queue) rx_no_wrap(n_doneʹ reg, n_descriptors reg) (done rx_done
 	n_done += n_left
 
 	ri := q.RingIndex(uint(i))
-	for n_left >= 4 {
+	for false && n_left >= 4 {
 		d0, d1, d2, d3 := &q.rx_desc[i+0], &q.rx_desc[i+1], &q.rx_desc[i+2], &q.rx_desc[i+3]
 
 		f0, f1, f2, f3 := d0.rx_dma_flags(), d1.rx_dma_flags(), d2.rx_dma_flags(), d3.rx_dma_flags()
@@ -376,10 +374,6 @@ func (q *rx_dma_queue) rx_no_wrap(n_doneʹ reg, n_descriptors reg) (done rx_done
 			break
 		}
 
-		if false {
-			fmt.Printf("%d: %s\n", i, d0)
-		}
-
 		b0 := uint(d0.n_bytes_this_descriptor)
 
 		d0.refill(q.RefillRef(ri))
@@ -409,35 +403,33 @@ func (d *dev) rx_queue_interrupt(queue uint) {
 	q.Out = d.out
 	dr := q.get_regs()
 
-	hw_head_index := dr.head_index.get(d)
 	sw_head_index := q.head_index
 
 	n_done := reg(0)
-	n_try := hw_head_index - sw_head_index
-	if int32(n_try) < 0 {
-		n_try += q.len
-	}
-	done, n_done := q.rx_no_wrap(n_done, n_try)
-	if done == rx_done_not_done && hw_head_index < sw_head_index {
+	done, n_done := q.rx_no_wrap(n_done, q.len-sw_head_index)
+	if done == rx_done_not_done && sw_head_index > 0 {
 		q.RxDmaRing.WrapRefill()
-		done, n_done = q.rx_no_wrap(n_done, hw_head_index)
+		done, n_done = q.rx_no_wrap(n_done, sw_head_index)
 	}
 
 	// Give tail back to hardware.
 	hw.MemoryBarrier()
-	ti := (q.head_index - 1) &^ (n_desc_per_cache_line - 1)
-	if int32(ti) < 0 {
-		ti += q.len
+
+	q.tail_index += n_done
+	if q.tail_index > q.len {
+		q.tail_index -= q.len
 	}
-	q.tail_index = ti
 	dr.tail_index.set(d, q.tail_index)
 
 	// Flush enqueue and counters.
 	q.RxDmaRing.Flush()
 
 	// Arrange to be called again if we've not processed all potential rx descriptors.
-	q.rx_descriptors_maybe_pending = done != rx_done_found_hw_owned_descriptor
-	if q.rx_descriptors_maybe_pending {
+	if done != rx_done_found_hw_owned_descriptor {
 		atomic.AddInt32(&d.active_count, 1)
+	}
+
+	if elog.Enabled() {
+		elog.GenEventf("ixge rx tail to hw %d", q.tail_index)
 	}
 }

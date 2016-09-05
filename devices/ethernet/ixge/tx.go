@@ -50,7 +50,7 @@ const (
 
 func (d *dev) tx_dma_init(queue uint) {
 	if d.tx_ring_len == 0 {
-		d.tx_ring_len = 2 * vnet.MaxVectorLen
+		d.tx_ring_len = 3 * vnet.MaxVectorLen
 	}
 	q := d.tx_queues.Validate(queue)
 	q.d = d
