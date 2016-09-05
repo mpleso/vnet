@@ -131,6 +131,7 @@ func (d *dev) Init() {
 
 	d.d.phy_init()
 
+	d.clear_counters()
 	d.rx_dma_init(0)
 	d.tx_dma_init(0)
 	d.set_queue_interrupt_mapping(vnet.Rx, 0, 0)

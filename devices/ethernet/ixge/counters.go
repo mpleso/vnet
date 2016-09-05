@@ -122,6 +122,25 @@ var counters = [n_counters]counter{
 	tx_undersize_drops:                      counter{offset: 0x4010, name: "tx undersize drops"},
 }
 
+func (d *dev) foreach_counter(fn func(i uint, v uint64)) {
+	for i := range counters {
+		c := &counters[i]
+		o := uint(c.offset)
+		var v [2]uint32
+		v[0] = hw.LoadUint32(d.addr_for_offset(o))
+		if c.is_64bit {
+			v[1] = hw.LoadUint32(d.addr_for_offset(o + 4))
+		}
+		// All counters are clear on read; so always add to previous value.
+		change := uint64(v[0]) | uint64(v[1])<<32
+		if fn != nil {
+			fn(uint(i), change)
+		}
+	}
+}
+
+func (d *dev) clear_counters() { d.foreach_counter(nil) }
+
 func (d *dev) GetHwInterfaceCounters(n *vnet.InterfaceCounterNames, th *vnet.InterfaceThread) {
 	// Initialize counters names on first call.
 	cn := &d.m.InterfaceCounterNames
@@ -138,16 +157,7 @@ func (d *dev) GetHwInterfaceCounters(n *vnet.InterfaceCounterNames, th *vnet.Int
 	}
 
 	hi := d.Hi()
-	for i := range counters {
-		c := &counters[i]
-		o := uint(c.offset)
-		var v [2]uint32
-		v[0] = hw.LoadUint32(d.addr_for_offset(o))
-		if c.is_64bit {
-			v[1] = hw.LoadUint32(d.addr_for_offset(o + 4))
-		}
-		// All counters are clear on read; so always add to previous value.
-		change := uint64(v[0]) | uint64(v[1])<<32
-		vnet.HwIfCounterKind(i).Add64(th, hi, change)
-	}
+	d.foreach_counter(func(i uint, v uint64) {
+		vnet.HwIfCounterKind(i).Add64(th, hi, v)
+	})
 }
