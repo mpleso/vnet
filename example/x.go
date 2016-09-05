@@ -96,6 +96,7 @@ func init() {
 					var next_name string
 					switch {
 					case in.Parse("c%*ount %d", &n.n_packets_limit):
+					case in.Parse("%d", &n.n_packets_limit):
 					case in.Parse("s%*ize %d %d", &n.min_size, &n.max_size):
 					case in.Parse("s%*ize %d", &n.min_size):
 						n.max_size = n.min_size
