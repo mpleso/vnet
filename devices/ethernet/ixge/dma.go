@@ -111,29 +111,6 @@ type dma_queue struct {
 	len, head_index, tail_index reg
 }
 
-type rx_dma_queue struct {
-	vnet.RxDmaRing
-
-	dma_queue
-
-	rx_desc rx_from_hw_descriptor_vec
-	desc_id elib.Index
-}
-
-type tx_dma_queue struct {
-	dma_queue
-	tx_descriptors        tx_descriptor_vec
-	desc_id               elib.Index
-	head_index_write_back *uint32
-	tx_fifo               chan tx_in
-	tx_irq_fifo           chan tx_in
-	current_tx_in         tx_in
-	n_current_tx_in       reg
-}
-
-//go:generate gentemplate -d Package=ixge -id rx_dma_queue -d VecType=rx_dma_queue_vec -d Type=rx_dma_queue github.com/platinasystems/elib/vec.tmpl
-//go:generate gentemplate -d Package=ixge -id tx_dma_queue -d VecType=tx_dma_queue_vec -d Type=tx_dma_queue github.com/platinasystems/elib/vec.tmpl
-
 const n_ethernet_type_filter = 8
 
 type dma_dev struct {

@@ -1,6 +1,7 @@
 package ixge
 
 import (
+	"github.com/platinasystems/elib"
 	"github.com/platinasystems/elib/elog"
 	"github.com/platinasystems/elib/hw"
 	"github.com/platinasystems/vnet"
@@ -10,6 +11,19 @@ import (
 	"sync/atomic"
 	"unsafe"
 )
+
+type rx_dma_queue struct {
+	vnet.RxDmaRing
+
+	dma_queue
+
+	rx_desc rx_from_hw_descriptor_vec
+	desc_id elib.Index
+
+	rx_descriptors_maybe_pending bool
+}
+
+//go:generate gentemplate -d Package=ixge -id rx_dma_queue -d VecType=rx_dma_queue_vec -d Type=rx_dma_queue github.com/platinasystems/elib/vec.tmpl
 
 type rx_dev struct {
 	out                    *vnet.RefOut
@@ -318,7 +332,9 @@ func (d *dev) rx_queue_interrupt(queue uint) {
 	// Flush enqueue and counters.
 	q.RxDmaRing.Flush()
 
-	if done != rx_done_found_hw_owned_descriptor {
+	// Arrange to be called again if we've not processed all potential rx descriptors.
+	q.rx_descriptors_maybe_pending = done != rx_done_found_hw_owned_descriptor
+	if q.rx_descriptors_maybe_pending {
 		atomic.AddInt32(&d.active_count, 1)
 	}
 }

@@ -112,7 +112,9 @@ func (d *dev) InterfaceInput(out *vnet.RefOut) {
 		elib.Word(s).ForeachSetBit(d.interrupt_dispatch)
 	}
 	for i := range d.rx_queues {
-		d.rx_queue_interrupt(uint(i))
+		if d.rx_queues[i].rx_descriptors_maybe_pending {
+			d.rx_queue_interrupt(uint(i))
+		}
 	}
 	d.Activate(atomic.AddInt32(&d.active_count, -1) > 0)
 }

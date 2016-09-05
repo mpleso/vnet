@@ -1,10 +1,24 @@
 package ixge
 
 import (
+	"github.com/platinasystems/elib"
 	"github.com/platinasystems/elib/elog"
 	"github.com/platinasystems/elib/hw"
 	"github.com/platinasystems/vnet"
 )
+
+type tx_dma_queue struct {
+	dma_queue
+	tx_descriptors        tx_descriptor_vec
+	desc_id               elib.Index
+	head_index_write_back *uint32
+	tx_fifo               chan tx_in
+	tx_irq_fifo           chan tx_in
+	current_tx_in         tx_in
+	n_current_tx_in       reg
+}
+
+//go:generate gentemplate -d Package=ixge -id tx_dma_queue -d VecType=tx_dma_queue_vec -d Type=tx_dma_queue github.com/platinasystems/elib/vec.tmpl
 
 type tx_descriptor struct {
 	buffer_address      uint64
