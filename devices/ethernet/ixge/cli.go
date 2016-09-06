@@ -43,7 +43,9 @@ func (m *main) showDevs(c cli.Commander, w cli.Writer, in *cli.Input) (err error
 			v[3] = dr.control.get(d)
 			fmt.Fprintf(w, "%x\n", v)
 
-			q.dump_ring(w)
+			if false {
+				q.dump_ring(w)
+			}
 		}
 	}
 	return
