@@ -230,6 +230,9 @@ func (v *Vnet) clearIfCounters() {
 	m := &v.interfaceMain
 	m.timeLastClear = time.Now()
 	for _, t := range m.ifThreads {
+		if t == nil {
+			continue
+		}
 		t.sw.combined.ClearAll()
 		t.sw.single.ClearAll()
 		t.hw.combined.ClearAll()
