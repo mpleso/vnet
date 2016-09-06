@@ -72,6 +72,8 @@ func (d *dev) tx_dma_init(queue uint) {
 		b, q.head_index_write_back_id, _, _ = hw.DmaAlloc(4)
 		p := unsafe.Pointer(&b[0])
 		q.head_index_write_back = (*reg)(p)
+		// Must initialize so interrupt routine will not read stale data.
+		*q.head_index_write_back = 0
 		const valid = 1
 		dr.head_index_write_back_address.set(d, valid|uint64(hw.DmaPhysAddress(uintptr(p))))
 	}
@@ -239,11 +241,11 @@ func (q *tx_dma_queue) output() {
 
 			hw.MemoryBarrier()
 
+			q.tx_irq_fifo <- x
+
 			dr := q.get_regs()
 			dr.tail_index.set(d, di)
 		}
-
-		q.tx_irq_fifo <- x
 	}
 }
 
@@ -266,8 +268,7 @@ func (d *dev) tx_queue_interrupt(queue uint) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
-	var di reg
-	di = *q.head_index_write_back
+	di := *q.head_index_write_back
 	n_advance := di - q.head_index
 	if int32(n_advance) < 0 {
 		n_advance += q.len
