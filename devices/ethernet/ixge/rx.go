@@ -55,7 +55,7 @@ func (d *dev) rx_dma_init(queue uint) {
 	}
 
 	if d.rx_ring_len == 0 {
-		d.rx_ring_len = 4 * vnet.MaxVectorLen
+		d.rx_ring_len = 8 * vnet.MaxVectorLen
 	}
 	q.rx_desc, q.desc_id = rx_from_hw_descriptorAlloc(int(d.rx_ring_len))
 	q.len = reg(d.rx_ring_len)
@@ -104,13 +104,16 @@ func (d *dev) rx_dma_init(queue uint) {
 	{
 		v := dr.control.get(d)
 		// prefetch threshold
-		v = (v &^ (0xff << 0)) | (8 << 0)
+		v = (v &^ (0xff << 0)) | ((64 - 4) << 0)
 		// host threshold
-		v = (v &^ (0xff << 8)) | (8 << 8)
+		v = (v &^ (0xff << 8)) | (4 << 8)
 		// writeback theshold
-		v = (v &^ (0xff << 16)) | (0 << 16)
+		v = (v &^ (0xff << 16)) | (4 << 16)
 		dr.control.set(d, v)
 	}
+
+	// Descriptor write back relaxed order.
+	dr.dca_control.or(d, 1<<11)
 
 	q.start(d, &dr.dma_regs)
 
