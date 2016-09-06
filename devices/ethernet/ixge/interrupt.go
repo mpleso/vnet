@@ -126,8 +126,14 @@ func (d *dev) InterfaceInput(out *vnet.RefOut) {
 		// Poll any queues that need polling and have not been polled this interrupt.
 		for qi := range d.rx_queues {
 			q := &d.rx_queues[qi]
-			if q.rx_descriptors_need_polling && q.rx_irq_sequence != d.irq_sequence {
+			if q.needs_polling && q.irq_sequence != d.irq_sequence {
 				d.rx_queue_interrupt(uint(qi))
+			}
+		}
+		for qi := range d.tx_queues {
+			q := &d.tx_queues[qi]
+			if q.needs_polling && q.irq_sequence != d.irq_sequence {
+				d.tx_queue_interrupt(uint(qi))
 			}
 		}
 

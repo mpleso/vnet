@@ -19,9 +19,6 @@ type rx_dma_queue struct {
 
 	rx_desc rx_from_hw_descriptor_vec
 	desc_id elib.Index
-
-	rx_irq_sequence             uint32
-	rx_descriptors_need_polling bool
 }
 
 func (d *dev) init_rx_pool() {
@@ -472,9 +469,8 @@ func (d *dev) rx_queue_interrupt(queue uint) {
 	q.RxDmaRing.Flush()
 
 	// Arrange to be called again if we've not processed all potential rx descriptors.
-	q.rx_irq_sequence = d.irq_sequence
-	q.rx_descriptors_need_polling = done != rx_done_found_hw_owned_descriptor
-	if q.rx_descriptors_need_polling {
+	q.irq_sequence = d.irq_sequence
+	if q.needs_polling = done != rx_done_found_hw_owned_descriptor; q.needs_polling {
 		atomic.AddInt32(&d.active_count, 1)
 	}
 

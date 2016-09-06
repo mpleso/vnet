@@ -6,6 +6,7 @@ import (
 	"github.com/platinasystems/elib/hw"
 	"github.com/platinasystems/vnet"
 
+	"sync/atomic"
 	"unsafe"
 )
 
@@ -248,6 +249,9 @@ func (q *tx_dma_queue) output() {
 
 			dr := q.get_regs()
 			dr.tail_index.set(d, di)
+
+			q.needs_polling = true
+			atomic.AddInt32(&d.active_count, 1)
 		}
 	}
 }
@@ -282,6 +286,9 @@ func (d *dev) tx_queue_interrupt(queue uint) {
 		tail := dr.tail_index.get(d)
 		elog.GenEventf("ixge tx irq adv %d head %d tail %d", n_advance, di, tail)
 	}
+
+	q.irq_sequence = d.irq_sequence
+	q.needs_polling = n_advance > 0
 
 	for n_advance > 0 {
 		if q.n_current_tx_in == 0 {
