@@ -255,7 +255,7 @@ func (n *myNode) InterfaceInput(o *vnet.RefOut) {
 		if n.cur_size > n.max_size {
 			n.cur_size = n.min_size
 		}
-		nBytes += n.cur_size
+		nBytes += r.DataLen()
 	}
 	vnet.IfRxCounter.Add(t, n.Si(), np, nBytes)
 	c1_counter.Add(t, n.Hi(), np, nBytes)
