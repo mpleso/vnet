@@ -66,6 +66,12 @@ func (d *dev) tx_dma_init(queue uint) {
 	n_desc := reg(len(q.tx_descriptors))
 	dr.n_descriptor_bytes.set(d, n_desc*reg(unsafe.Sizeof(q.tx_descriptors[0])))
 
+	{
+		const base = tx_desc_status0_insert_crc
+		d.tx_desc_status0_by_next_valid_flag[0] = base | tx_desc_status0_is_end_of_packet
+		d.tx_desc_status0_by_next_valid_flag[vnet.NextValid] = base
+	}
+
 	// Allocate DMA memory for tx head index write back.
 	{
 		var b []byte
@@ -80,27 +86,24 @@ func (d *dev) tx_dma_init(queue uint) {
 
 	hw.MemoryBarrier()
 
-	// Make sure tx is enabled.
-	d.regs.tx_dma_control.or(d, 1<<0)
-
 	{
 		v := dr.control.get(d)
 		// prefetch threshold
-		v = (v &^ (0xff << 0)) | (32 << 0)
+		v = (v &^ (0xff << 0)) | ((64 - 4) << 0)
 		// host threshold
-		v = (v &^ (0xff << 8)) | (0 << 8)
+		v = (v &^ (0xff << 8)) | (4 << 8)
 		// writeback theshold
 		v = (v &^ (0xff << 16)) | (0 << 16)
 		dr.control.set(d, v)
 	}
 
-	q.start(d, &dr.dma_regs)
+	// Descriptor write back relaxed order.
+	dr.dca_control.or(d, 1<<11|1<<9|1<<13)
 
-	{
-		const base = tx_desc_status0_insert_crc
-		d.tx_desc_status0_by_next_valid_flag[0] = base | tx_desc_status0_is_end_of_packet
-		d.tx_desc_status0_by_next_valid_flag[vnet.NextValid] = base
-	}
+	// Make sure tx is enabled.
+	d.regs.tx_dma_control.or(d, 1<<0)
+
+	q.start(d, &dr.dma_regs)
 }
 
 func (d *dev) set_tx_descriptor(rs []vnet.Ref, ds []tx_descriptor, ri, di reg) {
