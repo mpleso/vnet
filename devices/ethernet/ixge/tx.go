@@ -6,14 +6,15 @@ import (
 	"github.com/platinasystems/elib/hw"
 	"github.com/platinasystems/vnet"
 
+	"fmt"
 	"sync/atomic"
 	"unsafe"
 )
 
 type tx_dma_queue struct {
 	dma_queue
-	tx_descriptors tx_descriptor_vec
-	desc_id        elib.Index
+	tx_desc tx_descriptor_vec
+	desc_id elib.Index
 
 	head_index_write_back    *reg
 	head_index_write_back_id elib.Index
@@ -52,6 +53,36 @@ const (
 	tx_desc_status0_advanced_data    = 3 << 4
 )
 
+func (e *tx_descriptor) String() (s string) {
+	d := *e
+	s0, s1 := d.status0, d.status1
+	if s1&tx_desc_status1_is_owned_by_software != 0 {
+		s += "sw: "
+	} else {
+		s += "hw: "
+	}
+	s += fmt.Sprintf("buffer %x, bytes %d", d.buffer_address, d.n_bytes_this_buffer)
+	if s0&tx_desc_status0_is_end_of_packet != 0 {
+		s += ", eop"
+	}
+	if s0&tx_desc_status0_report_status != 0 {
+		s += ", report-status"
+	}
+	if s0&tx_desc_status0_is_advanced != 0 {
+		s += ", advanced"
+	}
+	if s0&tx_desc_status0_vlan_enable != 0 {
+		s += ", vlan-enable"
+	}
+	if s1&tx_desc_status1_insert_tcp_udp_checksum != 0 {
+		s += ", insert tcp/udp checksum"
+	}
+	if s1&tx_desc_status1_insert_ip4_checksum != 0 {
+		s += ", insert ip4 checksum"
+	}
+	return
+}
+
 func (d *dev) tx_dma_init(queue uint) {
 	if d.tx_ring_len == 0 {
 		d.tx_ring_len = 3 * vnet.MaxVectorLen
@@ -59,13 +90,13 @@ func (d *dev) tx_dma_init(queue uint) {
 	q := d.tx_queues.Validate(queue)
 	q.d = d
 	q.index = queue
-	q.tx_descriptors, q.desc_id = tx_descriptorAlloc(int(d.tx_ring_len))
+	q.tx_desc, q.desc_id = tx_descriptorAlloc(int(d.tx_ring_len))
 	q.len = reg(d.tx_ring_len)
 
 	dr := q.get_regs()
-	dr.descriptor_address.set(d, uint64(q.tx_descriptors[0].PhysAddress()))
-	n_desc := reg(len(q.tx_descriptors))
-	dr.n_descriptor_bytes.set(d, n_desc*reg(unsafe.Sizeof(q.tx_descriptors[0])))
+	dr.descriptor_address.set(d, uint64(q.tx_desc[0].PhysAddress()))
+	n_desc := reg(len(q.tx_desc))
+	dr.n_descriptor_bytes.set(d, n_desc*reg(unsafe.Sizeof(q.tx_desc[0])))
 
 	{
 		const base = tx_desc_status0_insert_crc
@@ -193,7 +224,7 @@ func (q *tx_dma_queue) output() {
 			continue
 		}
 
-		ds, rs := q.tx_descriptors, x.in.Refs
+		ds, rs := q.tx_desc, x.in.Refs
 
 		ri, n_tx := reg(0), reg(0)
 
