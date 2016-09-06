@@ -136,7 +136,7 @@ func (d *dev) InterfaceInput(out *vnet.RefOut) {
 }
 
 func (d *dev) InterruptEnable(enable bool) {
-	all := ^reg(0)
+	all := ^reg(0) &^ (1 << 31) // all except "other"
 	if enable {
 		d.regs.interrupt.enable_write_1_to_set.set(d, all)
 	} else {
