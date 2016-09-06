@@ -126,18 +126,15 @@ func (d *dev) foreach_counter(fn func(i uint, v uint64)) {
 	for i := range counters {
 		c := &counters[i]
 		o := uint(c.offset)
-		var change uint64
+		// All counters are clear on read; so always add to previous value.
+		var v uint64
 		if c.is_64bit {
-			change = hw.LoadUint64(d.addr_for_offset64(o))
+			v = hw.LoadUint64(d.addr_for_offset64(o))
 		} else {
-			var v [2]uint32
-			v[0] = hw.LoadUint32(d.addr_for_offset32(o))
-			v[1] = hw.LoadUint32(d.addr_for_offset32(o + 4))
-			// All counters are clear on read; so always add to previous value.
-			change = uint64(v[0]) | uint64(v[1])<<32
+			v = uint64(hw.LoadUint32(d.addr_for_offset32(o)))
 		}
 		if fn != nil {
-			fn(uint(i), change)
+			fn(uint(i), v)
 		}
 	}
 }
