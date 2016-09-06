@@ -130,9 +130,9 @@ func (d *dev) InterfaceInput(out *vnet.RefOut) {
 				d.rx_queue_interrupt(uint(qi))
 			}
 		}
-	}
 
-	d.Activate(atomic.AddInt32(&d.active_count, -1) > 0)
+		d.Activate(atomic.AddInt32(&d.active_count, -1) > 0)
+	}
 }
 
 func (d *dev) InterruptEnable(enable bool) {
