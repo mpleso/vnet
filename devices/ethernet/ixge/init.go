@@ -138,7 +138,7 @@ func (d *dev) Init() {
 
 	// Accept all broadcast packets.
 	// Multicasts must be explicitly added to dst_ethernet_address register array.
-	d.regs.filter_control.set(d, 1<<10|0<<9)
+	d.regs.filter_control.set(d, 1<<10)
 
 	// Enable frames up to size in mac frame size register.
 	// Set max frame size so we never drop frames.
