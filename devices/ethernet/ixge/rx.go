@@ -368,7 +368,7 @@ func (q *rx_dma_queue) rx_no_wrap(n_doneʹ reg, n_descriptors reg) (done rx_done
 	n_done += n_left
 
 	ri := q.RingIndex(uint(i))
-	for false && n_left >= 4 {
+	for n_left >= 4 {
 		x0, x1, x2, x3 := q.rx_desc[i+0], q.rx_desc[i+1], q.rx_desc[i+2], q.rx_desc[i+3]
 
 		// Skip to single loop for any hardware owned descriptors found.
