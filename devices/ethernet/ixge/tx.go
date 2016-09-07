@@ -268,7 +268,7 @@ func (q *tx_dma_queue) output() {
 		}
 
 		if elog.Enabled() {
-			elog.GenEventf("ixge tx %d new tail %d head %d tail %d", n_tx, di, head, tail)
+			elog.GenEventf("%s tx %d new tail %d head %d tail %d", d.Name(), n_tx, di, head, tail)
 		}
 
 		// Re-start dma engine when tail advances.
@@ -324,7 +324,7 @@ func (d *dev) tx_queue_interrupt(queue uint) {
 	if elog.Enabled() && n_advance > 0 {
 		dr := q.get_regs()
 		tail := dr.tail_index.get(d)
-		elog.GenEventf("ixge tx irq adv %d head %d tail %d", n_advance, di, tail)
+		elog.GenEventf("%s tx irq adv %d head %d tail %d", d.Name(), n_advance, di, tail)
 	}
 
 	q.irq_sequence = d.irq_sequence
