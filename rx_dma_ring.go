@@ -45,12 +45,17 @@ func (r *RxDmaRing) WrapRefill() {
 
 type rxDmaRingIndex uint
 
+// For even ring sequence, rx refs are even; refills are odd; vice versa for odd sequences.
 func (r *RxDmaRing) RingIndex(i uint) rxDmaRingIndex                   { return rxDmaRingIndex(2*i + (r.sequence & 1)) }
 func (i rxDmaRingIndex) NextRingIndex(n rxDmaRingIndex) rxDmaRingIndex { return i + 2*n }
 
 // Even buffer is for packet receive; odd buffer is to refill ring.
 func (i rxDmaRingIndex) RxRef(g *RxDmaRing) *Ref     { return &g.refs[i^0] }
 func (i rxDmaRingIndex) RefillRef(g *RxDmaRing) *Ref { return &g.refs[i^1] }
+
+func (i rxDmaRingIndex) NextRxRef(g *RxDmaRing, d rxDmaRingIndex) *Ref {
+	return i.NextRingIndex(d).RxRef(g)
+}
 
 // Aliases.
 func (g *RxDmaRing) RxRef(i rxDmaRingIndex) *Ref     { return i.RxRef(g) }
@@ -94,7 +99,7 @@ func (g *RxDmaRing) is_end_of_packet(f RxDmaDescriptorFlags) uint8 {
 }
 
 func (g *RxDmaRing) Rx1Descriptor(ri rxDmaRingIndex, b0 uint, f0 RxDmaDescriptorFlags) {
-	r0 := &g.refs[(ri+0)^0]
+	r0 := ri.NextRxRef(g, 0)
 
 	was_sop := g.is_sop != 0
 	g.n_packets += uint64(g.is_sop)
@@ -120,7 +125,7 @@ func (g *RxDmaRing) Rx1Descriptor(ri rxDmaRingIndex, b0 uint, f0 RxDmaDescriptor
 }
 
 func (g *RxDmaRing) Rx4Descriptors(ri rxDmaRingIndex, b0, b1, b2, b3 uint, f0, f1, f2, f3 RxDmaDescriptorFlags) {
-	r0, r1, r2, r3 := &g.refs[(ri+0)^0], &g.refs[(ri+1)^0], &g.refs[(ri+2)^0], &g.refs[(ri+3)^0]
+	r0, r1, r2, r3 := ri.NextRxRef(g, 0), ri.NextRxRef(g, 1), ri.NextRxRef(g, 2), ri.NextRxRef(g, 3)
 
 	r0.SetDataLen(b0)
 	r1.SetDataLen(b1)
