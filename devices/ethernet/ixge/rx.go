@@ -111,11 +111,17 @@ func (d *dev) rx_dma_init(queue uint) {
 
 	// Descriptor write back relaxed order.
 	dr.dca_control.or(d, 1<<11)
+}
 
-	q.start(d, &dr.dma_regs)
-
-	// Make sure rx is enabled.
-	d.regs.rx_enable.set(d, 1<<0)
+func (d *dev) rx_dma_enable(queue uint, enable bool) {
+	q := &d.rx_queues[queue]
+	dr := q.get_regs()
+	if enable {
+		q.start(d, &dr.dma_regs)
+		d.regs.rx_enable.set(d, 1<<0)
+	} else {
+		panic("not yet")
+	}
 }
 
 //go:generate gentemplate -d Package=ixge -id rx_dma_queue -d VecType=rx_dma_queue_vec -d Type=rx_dma_queue github.com/platinasystems/elib/vec.tmpl

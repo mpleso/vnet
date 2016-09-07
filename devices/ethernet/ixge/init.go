@@ -117,7 +117,13 @@ func (d *dev) Init() {
 	// Indicate software loaded.
 	r.extended_control.or(d, 1<<28)
 
-	// Fetch ethernet address from eeprom.
+	// Invalidate all address filters.  Could be stale from previous run.
+	// Not cleared by above reset.
+	for i := range r.rx_ethernet_address1 {
+		r.rx_ethernet_address1[i][1].set(d, 0)
+	}
+
+	// FIXME: Fetch ethernet address from eeprom.
 	{
 		var q [2]reg
 		a := ethernet.Address{0xea, 0xeb, 0xec, 0xed, 0xee, 0xef}
@@ -131,8 +137,12 @@ func (d *dev) Init() {
 
 	d.d.phy_init()
 
-	d.rx_dma_init(0)
 	d.tx_dma_init(0)
+	d.rx_dma_init(0)
+
+	d.tx_dma_enable(0, true)
+	d.rx_dma_enable(0, true)
+
 	d.set_queue_interrupt_mapping(vnet.Rx, 0, 0)
 	d.set_queue_interrupt_mapping(vnet.Tx, 0, 1)
 
