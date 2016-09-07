@@ -85,12 +85,15 @@ func (e *tx_descriptor) String() (s string) {
 
 func (d *dev) tx_dma_init(queue uint) {
 	if d.tx_ring_len == 0 {
-		d.tx_ring_len = 3 * vnet.MaxVectorLen
+		d.tx_ring_len = 4 * vnet.MaxVectorLen
 	}
 	q := d.tx_queues.Validate(queue)
 	q.d = d
 	q.index = queue
 	q.tx_desc, q.desc_id = tx_descriptorAlloc(int(d.tx_ring_len))
+	for i := range q.tx_desc {
+		q.tx_desc[i] = tx_descriptor{}
+	}
 	q.len = reg(d.tx_ring_len)
 
 	dr := q.get_regs()
@@ -131,11 +134,17 @@ func (d *dev) tx_dma_init(queue uint) {
 
 	// Descriptor write back relaxed order.
 	dr.dca_control.or(d, 1<<11|1<<9|1<<13)
+}
 
-	// Make sure tx is enabled.
-	d.regs.tx_dma_control.or(d, 1<<0)
-
-	q.start(d, &dr.dma_regs)
+func (d *dev) tx_dma_enable(queue uint, enable bool) {
+	q := &d.tx_queues[queue]
+	dr := q.get_regs()
+	if enable {
+		d.regs.tx_dma_control.or(d, 1<<0)
+		q.start(d, &dr.dma_regs)
+	} else {
+		panic("not yet")
+	}
 }
 
 func (d *dev) set_tx_descriptor(rs []vnet.Ref, ds []tx_descriptor, ri, di reg) {
@@ -312,14 +321,17 @@ func (d *dev) tx_queue_interrupt(queue uint) {
 		n_advance += q.len
 	}
 	q.head_index = di
-	if elog.Enabled() {
+	if elog.Enabled() && n_advance > 0 {
 		dr := q.get_regs()
 		tail := dr.tail_index.get(d)
 		elog.GenEventf("ixge tx irq adv %d head %d tail %d", n_advance, di, tail)
 	}
 
 	q.irq_sequence = d.irq_sequence
-	q.needs_polling = n_advance > 0
+	q.needs_polling = n_advance > 0 || q.head_index != q.tail_index
+	if q.needs_polling {
+		atomic.AddInt32(&d.active_count, 1)
+	}
 
 	for n_advance > 0 {
 		if q.n_current_tx_in == 0 {
