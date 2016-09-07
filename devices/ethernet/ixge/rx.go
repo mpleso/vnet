@@ -453,9 +453,11 @@ func (d *dev) rx_queue_interrupt(queue uint) {
 
 	n_done := reg(0)
 	done, n_done := q.rx_no_wrap(n_done, q.len-sw_head_index)
-	if done == rx_done_not_done && sw_head_index > 0 {
+	if done == rx_done_not_done {
 		q.RxDmaRing.WrapRefill()
-		done, n_done = q.rx_no_wrap(n_done, sw_head_index)
+		if sw_head_index > 0 {
+			done, n_done = q.rx_no_wrap(n_done, sw_head_index)
+		}
 	}
 
 	if n_done == 0 {
