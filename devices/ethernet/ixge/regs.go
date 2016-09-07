@@ -866,6 +866,7 @@ type regs struct {
 	}
 
 	eeprom_flash_control reg
+
 	/* [0] start
 	   [1] done
 	   [15:2] address
@@ -889,7 +890,18 @@ type regs struct {
 	_                  [0x10148 - 0x10144]byte
 
 	firmware_semaphore reg
-	_                  [0x10160 - 0x1014c]byte
+	_                  [0x10150 - 0x1014c]byte
+
+	// [1:0] bus fn 0 power state
+	// [2] lan0 valid
+	// [3] fn 0 aux power enable
+	// [7:6] fn 1 power state
+	// [8] lan 1 valid
+	// [9] fn 1 aux power enable
+	// [30] swap fn 0 and 1
+	// [31] pm state changed
+	function_active reg
+	_               [0x10160 - 0x10154]byte
 
 	// [0] sw eeprom
 	// [1] sw phy index 0

@@ -26,7 +26,8 @@ func (d *dev) vnetInit() {
 		rx_error_ip4_invalid_checksum: "invalid ip4 checksum",
 	}
 
-	ethernet.RegisterInterface(v, d, &d.ethIfConfig, "ixge%d", d.pciDev.Addr.Fn)
+	a := d.pciDev.Addr
+	ethernet.RegisterInterface(v, d, &d.ethIfConfig, "ixge%d:%d.%d", a.Bus, a.Slot, a.Fn)
 	v.RegisterInterfaceNode(d, d.Hi(), d.Name())
 }
 
