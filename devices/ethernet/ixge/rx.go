@@ -54,7 +54,7 @@ func (d *dev) rx_dma_init(queue uint) {
 	if d.rx_ring_len == 0 {
 		d.rx_ring_len = 8 * vnet.MaxVectorLen
 	}
-	q.rx_desc, q.desc_id = rx_from_hw_descriptorAlloc(int(d.rx_ring_len))
+	q.rx_desc, q.desc_id = rx_from_hw_descriptorAllocAligned(d.rx_ring_len, log2DescriptorAlignmentBytes)
 	q.len = reg(d.rx_ring_len)
 
 	flags := vnet.RxDmaDescriptorFlags(rx_desc_is_ip4 | rx_desc_is_ip4_checksummed)

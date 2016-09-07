@@ -13,35 +13,38 @@ import (
 
 type tx_descriptor_vec []tx_descriptor
 
-func fromByteSlice_tx_descriptor(b []byte, l, c int) (x tx_descriptor_vec) {
-	s := int(unsafe.Sizeof(x[0]))
+func fromByteSlice_tx_descriptor(b []byte, l, c uint) (x tx_descriptor_vec) {
+	s := uint(unsafe.Sizeof(x[0]))
 	if l == 0 {
-		l = len(b) / s
-		c = cap(b)
+		l = uint(len(b)) / s
+		c = uint(cap(b))
 	}
 	return *(*tx_descriptor_vec)(unsafe.Pointer(&reflect.SliceHeader{
 		Data: uintptr(unsafe.Pointer(&b[0])),
-		Len:  l,
-		Cap:  c / s,
+		Len:  int(l),
+		Cap:  int(c / s),
 	}))
 }
 
 func (x tx_descriptor_vec) toByteSlice() []byte {
-	l := len(x)
-	s := unsafe.Sizeof(x[0])
-	l *= int(s)
+	l := uint(len(x))
+	l *= uint(unsafe.Sizeof(x[0]))
 	return *(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
 		Data: uintptr(unsafe.Pointer(&x[0])),
-		Len:  l,
-		Cap:  l}))
+		Len:  int(l),
+		Cap:  int(l)}))
 }
 
-func tx_descriptorAlloc(n int) (x tx_descriptor_vec, id elib.Index) {
+func tx_descriptorAllocAligned(n, a uint) (x tx_descriptor_vec, id elib.Index) {
 	var b []byte
 	var c uint
-	b, id, _, c = hw.DmaAlloc(uint(n) * uint(unsafe.Sizeof(x[0])))
-	x = fromByteSlice_tx_descriptor(b, n, int(c))
+	b, id, _, c = hw.DmaAllocAligned(n*uint(unsafe.Sizeof(x[0])), a)
+	x = fromByteSlice_tx_descriptor(b, n, c)
 	return
+}
+
+func tx_descriptorAlloc(n uint) (x tx_descriptor_vec, id elib.Index) {
+	return tx_descriptorAllocAligned(n, 0)
 }
 
 func tx_descriptorNew() (x tx_descriptor_vec, id elib.Index) { return tx_descriptorAlloc(1) }

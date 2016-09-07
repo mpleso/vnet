@@ -83,6 +83,9 @@ func (e *tx_descriptor) String() (s string) {
 	return
 }
 
+// Descriptors must be 128 bit aligned.
+const log2DescriptorAlignmentBytes = 7
+
 func (d *dev) tx_dma_init(queue uint) {
 	if d.tx_ring_len == 0 {
 		d.tx_ring_len = 4 * vnet.MaxVectorLen
@@ -90,7 +93,7 @@ func (d *dev) tx_dma_init(queue uint) {
 	q := d.tx_queues.Validate(queue)
 	q.d = d
 	q.index = queue
-	q.tx_desc, q.desc_id = tx_descriptorAlloc(int(d.tx_ring_len))
+	q.tx_desc, q.desc_id = tx_descriptorAllocAligned(d.tx_ring_len, log2DescriptorAlignmentBytes)
 	for i := range q.tx_desc {
 		q.tx_desc[i] = tx_descriptor{}
 	}
