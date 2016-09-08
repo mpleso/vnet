@@ -213,6 +213,11 @@ func (n *myNode) Init() (err error) {
 	}
 	n.pool.Name = n.Name()
 	v.AddBufferPool(&n.pool)
+
+	// Enable for event test
+	if false {
+		v.AddTimedEvent(&myEvent{}, 1)
+	}
 	return
 }
 
@@ -291,3 +296,15 @@ func main() {
 		os.Exit(1)
 	}
 }
+
+type myEvent struct {
+	vnet.Event
+	x int
+}
+
+func (e *myEvent) EventAction() {
+	e.x++
+	e.AddTimedEvent(e, 1)
+}
+
+func (e *myEvent) String() string { return fmt.Sprintf("my-event %d", e.x) }
