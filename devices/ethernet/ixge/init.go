@@ -165,7 +165,7 @@ func (d *dev) Init() {
 	// Enable all interrupts.
 	d.InterruptEnable(true)
 
-	d.clear_counters()
+	d.counter_init()
 }
 
 const (

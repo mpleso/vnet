@@ -3,6 +3,8 @@ package ixge
 import (
 	"github.com/platinasystems/elib/hw"
 	"github.com/platinasystems/vnet"
+
+	"fmt"
 )
 
 type counter struct {
@@ -122,10 +124,13 @@ var counters = [n_counters]counter{
 	tx_undersize_drops:                      counter{offset: 0x4010, name: "tx undersize drops"},
 }
 
-func (d *dev) foreach_counter(fn func(i uint, v uint64)) {
+func (d *dev) foreach_counter(only_64_bit bool, fn func(i uint, v uint64)) {
 	for i := range counters {
 		c := &counters[i]
 		o := uint(c.offset)
+		if only_64_bit && !c.is_64bit {
+			continue
+		}
 		// All counters are clear on read; so always add to previous value.
 		var v uint64
 		if c.is_64bit {
@@ -139,7 +144,14 @@ func (d *dev) foreach_counter(fn func(i uint, v uint64)) {
 	}
 }
 
-func (d *dev) clear_counters() { d.foreach_counter(nil) }
+func (d *dev) clear_counters() {
+	d.foreach_counter(false, nil)
+}
+
+func (d *dev) counter_init() {
+	d.clear_counters()
+	d.m.Vnet.AddTimedEvent(&counter_update_event{dev: d}, counter_update_interval)
+}
 
 func (d *dev) GetHwInterfaceCounters(n *vnet.InterfaceCounterNames, th *vnet.InterfaceThread) {
 	// Initialize counters names on first call.
@@ -157,7 +169,44 @@ func (d *dev) GetHwInterfaceCounters(n *vnet.InterfaceCounterNames, th *vnet.Int
 	}
 
 	hi := d.Hi()
-	d.foreach_counter(func(i uint, v uint64) {
+	d.foreach_counter(false, func(i uint, v uint64) {
 		vnet.HwIfCounterKind(i).Add64(th, hi, v)
 	})
+}
+
+type counter_update_event struct {
+	vnet.Event
+	dev      *dev
+	sequence uint
+}
+
+func (e *counter_update_event) String() (s string) {
+	s = fmt.Sprintf("ixge counter update sequence %d: ", e.sequence)
+	if e.only_64_bit() {
+		s += "64-bit"
+	} else {
+		s += "32-bit and 64-bit"
+	}
+	return
+}
+
+// We have 32 bit packets counters, 36 bit byte counters.
+// Worst case, byte counters may overflow in around a minute at 10G;
+// packet counters may overflow in around 5 minutes.
+const counter_update_interval = 1
+
+func (e *counter_update_event) only_64_bit() bool {
+	return e.sequence%5 == 4
+}
+
+func (e *counter_update_event) EventAction() {
+	d := e.dev
+	hi := d.Hi()
+	th := d.m.Vnet.GetIfThread(0)
+	only_64_bit := e.only_64_bit()
+	d.foreach_counter(only_64_bit, func(i uint, v uint64) {
+		vnet.HwIfCounterKind(i).Add64(th, hi, v)
+	})
+	e.AddTimedEvent(e, counter_update_interval)
+	e.sequence++
 }
