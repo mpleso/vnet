@@ -181,7 +181,7 @@ type counter_update_event struct {
 }
 
 func (e *counter_update_event) String() (s string) {
-	s = fmt.Sprintf("ixge counter update sequence %d: ", e.sequence)
+	s = fmt.Sprintf("%s counter update sequence %d: ", e.dev.Name(), e.sequence)
 	if e.only_64_bit() {
 		s += "64-bit"
 	} else {
@@ -193,10 +193,10 @@ func (e *counter_update_event) String() (s string) {
 // We have 32 bit packets counters, 36 bit byte counters.
 // Worst case, byte counters may overflow in around a minute at 10G;
 // packet counters may overflow in around 5 minutes.
-const counter_update_interval = 1
+const counter_update_interval = 45
 
 func (e *counter_update_event) only_64_bit() bool {
-	return e.sequence%5 == 4
+	return e.sequence%5 != 4 // 32 bit counters 5 times less often
 }
 
 func (e *counter_update_event) EventAction() {
