@@ -57,7 +57,7 @@ func (x *rx_from_hw_descriptor_vec) Free(id elib.Index) {
 }
 
 func (x *rx_from_hw_descriptor_vec) Get(id elib.Index) {
-	*x = fromByteSlice_rx_from_hw_descriptor(hw.DmaGet(id), 0, 0)
+	*x = fromByteSlice_rx_from_hw_descriptor(hw.DmaGetData(id), 0, 0)
 }
 
 func (x *rx_from_hw_descriptor) PhysAddress() uintptr {
