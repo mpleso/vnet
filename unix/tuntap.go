@@ -57,8 +57,6 @@ type Main struct {
 	netlinkMain
 	nodeMain
 	tuntapMain
-
-	v *vnet.Vnet
 }
 
 type tuntapMain struct {

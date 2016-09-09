@@ -127,6 +127,7 @@ func (n *Node) SetOutLen(out *RefIn, in *RefIn, l uint) {
 func (r *RefVecIn) FreePoolRefs(p *hw.BufferPool, freeNext bool) {
 	p.FreeRefs(&r.Refs[0].RefHeader, r.Refs.Len(), freeNext)
 }
+func (r *RefVecIn) Len() uint              { return r.Refs.Len() }
 func (r *RefVecIn) NPackets() uint         { return r.nPackets }
 func (r *RefVecIn) FreeRefs(freeNext bool) { r.FreePoolRefs(r.BufferPool, freeNext) }
 

@@ -19,10 +19,7 @@ type tx_dma_queue struct {
 	head_index_write_back    *reg
 	head_index_write_back_id elib.Index
 
-	tx_fifo         chan tx_in
-	tx_irq_fifo     chan tx_in
-	current_tx_in   tx_in
-	n_current_tx_in reg
+	txRing vnet.TxDmaRing
 }
 
 //go:generate gentemplate -d Package=ixge -id tx_dma_queue -d VecType=tx_dma_queue_vec -d Type=tx_dma_queue github.com/platinasystems/elib/vec.tmpl
@@ -93,6 +90,8 @@ func (d *dev) tx_dma_init(queue uint) {
 	q := d.tx_queues.Validate(queue)
 	q.d = d
 	q.index = queue
+	q.txRing.Init(d.m.Vnet)
+
 	q.tx_desc, q.desc_id = tx_descriptorAllocAligned(d.tx_ring_len, log2DescriptorAlignmentBytes)
 	for i := range q.tx_desc {
 		q.tx_desc[i] = tx_descriptor{}
@@ -203,112 +202,91 @@ func (d *dev) set_tx_descriptors(rs []vnet.Ref, ds []tx_descriptor, ri0, di0, rn
 	return
 }
 
-type tx_in struct {
-	in   *vnet.RefVecIn
-	free chan *vnet.RefVecIn
-}
-
-func (x *tx_in) Len() uint { return x.in.Refs.Len() }
-
 type tx_dev struct {
 	tx_queues                          tx_dma_queue_vec
 	tx_desc_status0_by_next_valid_flag [vnet.NextValid + 1]uint16
 }
 
-func (q *tx_dma_queue) output() {
+func (d *dev) InterfaceOutput(i *vnet.TxRefVecIn) { d.tx_queues[0].output(i) }
+
+func (q *tx_dma_queue) output(in *vnet.TxRefVecIn) {
 	d := q.d
-	for {
-		x := <-q.tx_fifo
+	nr := reg(in.Len())
 
-		nr := reg(x.Len())
-
-		head, tail := q.head_index, q.tail_index
-		// Free slots are after tail and before head.
-		n_free := head - tail
-		if int32(n_free) <= 0 {
-			n_free += q.len
-		}
-
-		// No room?
-		if n_free < nr {
-			panic("ga")
-			x.free <- x.in
-			continue
-		}
-
-		ds, rs := q.tx_desc, x.in.Refs
-
-		ri, n_tx := reg(0), reg(0)
-
-		// From tail (halt index) to end of ring.
-		di := tail
-		n_end := n_free
-		if tail+n_end > q.len {
-			n_end = q.len - tail
-		}
-		if n_end > 0 {
-			var nd reg
-			ri, di, nd = d.set_tx_descriptors(rs, ds, ri, di, nr, di+n_end)
-			n_free -= nd
-			n_tx += nd
-		}
-
-		// From start of ring to head.
-		n_start := n_free
-		if n_start > head {
-			n_start = head
-		}
-		if n_start > 0 && ri < nr {
-			var nd reg
-			ri, di, nd = d.set_tx_descriptors(rs, ds, ri, 0, nr, n_start)
-			n_free -= nd
-			n_tx += nd
-		}
-
-		// Ring wrap.
-		if di >= q.len {
-			di = 0
-		}
-
-		if elog.Enabled() {
-			elog.GenEventf("%s tx %d new tail %d head %d tail %d", d.Name(), n_tx, di, head, tail)
-		}
-
-		// Re-start dma engine when tail advances.
-		if di != q.tail_index {
-			q.tail_index = di
-
-			// Report status when done with this vector.
-			// This triggers head index write back.
-			i := di - 1
-			if di == 0 {
-				i = q.len - 1
-			}
-			ds[i].status0 |= tx_desc_status0_report_status
-
-			hw.MemoryBarrier()
-
-			q.tx_irq_fifo <- x
-
-			dr := q.get_regs()
-			dr.tail_index.set(d, di)
-
-			q.needs_polling = true
-			atomic.AddInt32(&d.active_count, 1)
-		}
-	}
-}
-
-func (d *dev) InterfaceOutput(in *vnet.RefVecIn, free chan *vnet.RefVecIn) {
-	q := &d.tx_queues[0]
-
-	if q.tx_fifo == nil {
-		q.tx_fifo = make(chan tx_in, 64)
-		q.tx_irq_fifo = make(chan tx_in, 64)
-		go q.output()
+	head, tail := q.head_index, q.tail_index
+	// Free slots are after tail and before head.
+	n_free := head - tail
+	if int32(n_free) <= 0 {
+		n_free += q.len
 	}
 
-	q.tx_fifo <- tx_in{in: in, free: free}
+	// No room?
+	if n_free < nr {
+		panic("ga")
+		d.m.Vnet.FreeTxRefIn(in)
+		return
+	}
+
+	ds, rs := q.tx_desc, in.Refs
+
+	ri, n_tx := reg(0), reg(0)
+
+	// From tail (halt index) to end of ring.
+	di := tail
+	n_end := n_free
+	if tail+n_end > q.len {
+		n_end = q.len - tail
+	}
+	if n_end > 0 {
+		var nd reg
+		ri, di, nd = d.set_tx_descriptors(rs, ds, ri, di, nr, di+n_end)
+		n_free -= nd
+		n_tx += nd
+	}
+
+	// From start of ring to head.
+	n_start := n_free
+	if n_start > head {
+		n_start = head
+	}
+	if n_start > 0 && ri < nr {
+		var nd reg
+		ri, di, nd = d.set_tx_descriptors(rs, ds, ri, 0, nr, n_start)
+		n_free -= nd
+		n_tx += nd
+	}
+
+	// Ring wrap.
+	if di >= q.len {
+		di = 0
+	}
+
+	if elog.Enabled() {
+		elog.GenEventf("%s tx %d new tail %d head %d tail %d", d.Name(), n_tx, di, head, tail)
+	}
+
+	// Re-start dma engine when tail advances.
+	if di != q.tail_index {
+		q.tail_index = di
+
+		// Report status when done with this vector.
+		// This triggers head index write back.
+		i := di - 1
+		if di == 0 {
+			i = q.len - 1
+		}
+		ds[i].status0 |= tx_desc_status0_report_status
+
+		hw.MemoryBarrier()
+
+		q.txRing.ToInterrupt <- in
+
+		dr := q.get_regs()
+		dr.tail_index.set(d, di)
+
+		q.needs_polling = true
+		atomic.AddInt32(&d.active_count, 1)
+	}
 }
 
 func (d *dev) tx_queue_interrupt(queue uint) {
@@ -336,17 +314,5 @@ func (d *dev) tx_queue_interrupt(queue uint) {
 		atomic.AddInt32(&d.active_count, 1)
 	}
 
-	for n_advance > 0 {
-		if q.n_current_tx_in == 0 {
-			q.current_tx_in = <-q.tx_irq_fifo
-			q.n_current_tx_in = reg(q.current_tx_in.Len())
-		}
-		if n_advance < q.n_current_tx_in {
-			q.n_current_tx_in -= n_advance
-			break
-		}
-		n_advance -= q.n_current_tx_in
-		q.n_current_tx_in = 0
-		q.current_tx_in.free <- q.current_tx_in.in
-	}
+	q.txRing.InterruptAdvance(uint(n_advance))
 }

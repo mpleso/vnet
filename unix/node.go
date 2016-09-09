@@ -217,14 +217,13 @@ func (intf *Interface) ReadReady() (err error) {
 }
 
 type txRefIn struct {
-	in   *vnet.RefVecIn
-	free chan *vnet.RefVecIn
-	i    uint
+	in *vnet.TxRefVecIn
+	i  uint
 }
 
-func (n *node) InterfaceOutput(i *vnet.RefVecIn, free chan *vnet.RefVecIn) {
+func (n *node) InterfaceOutput(i *vnet.TxRefVecIn) {
 	intf := n.i
-	n.txRefIns <- txRefIn{in: i, free: free}
+	n.txRefIns <- txRefIn{in: i}
 	atomic.AddInt32(&n.txAvailable, 1)
 	iomux.Update(intf)
 }
@@ -245,7 +244,7 @@ func (intf *Interface) WriteReady() (err error) {
 		}
 		if ri.i >= l {
 			if ri.in != nil {
-				ri.free <- ri.in
+				intf.m.Vnet.FreeTxRefIn(ri.in)
 				ri.in = nil
 			}
 			select {

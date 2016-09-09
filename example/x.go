@@ -15,6 +15,7 @@ import (
 
 	"fmt"
 	"os"
+	"time"
 )
 
 type stream struct {
@@ -272,9 +273,14 @@ func (n *myNode) InterfaceInput(o *vnet.RefOut) {
 	}
 }
 
-func (n *myNode) InterfaceOutput(i *vnet.RefVecIn, f chan *vnet.RefVecIn) {
+func (n *myNode) InterfaceOutput(i *vnet.TxRefVecIn) {
+	if false {
+		// Enable to test poller suspend/resume.
+		// Send my-node output to my-node (send to self).
+		time.Sleep(1 * time.Second)
+	}
 	n.CountError(tx_packets_dropped, i.NPackets())
-	f <- i
+	n.Vnet.FreeTxRefIn(i)
 }
 
 func main() {
