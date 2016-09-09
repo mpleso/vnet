@@ -4,6 +4,7 @@ import (
 	"github.com/platinasystems/vnet"
 
 	"bytes"
+	"math/rand"
 	"unsafe"
 )
 
@@ -42,11 +43,16 @@ type Address [AddressBytes]byte
 
 var BroadcastAddr = Address{0xff, 0xff, 0xff, 0xff, 0xff, 0xff}
 
+const (
+	isBroadcast           = 1 << 0
+	isLocallyAdministered = 1 << 1
+)
+
 func (a *Address) IsBroadcast() bool {
-	return a[0]&1 != 0
+	return a[0]&isBroadcast != 0
 }
 func (a *Address) IsLocallyAdministered() bool {
-	return a[0]&2 != 0
+	return a[0]&isLocallyAdministered != 0
 }
 func (a *Address) IsUnicast() bool {
 	return !a.IsBroadcast()
@@ -94,6 +100,16 @@ func (a *Address) Equal(b Address) bool {
 		}
 	}
 	return true
+}
+
+func RandomAddress() (a Address) {
+	for i := range a {
+		a[i] = uint8(rand.Int())
+	}
+	// Make address unicast and locally administered.
+	a[0] &^= isBroadcast
+	a[0] |= isLocallyAdministered
+	return
 }
 
 // Implement vnet.Header interface.
