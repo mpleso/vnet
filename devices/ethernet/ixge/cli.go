@@ -27,7 +27,7 @@ func (m *main) showDevs(c cli.Commander, w cli.Writer, in *cli.Input) (err error
 		v[1] = d.regs.tx_dma_control.get(d)
 		v[2] = d.regs.rx_enable.get(d)
 		v[3] = d.regs.xge_mac.mac_control.get(d)
-		fmt.Fprintf(w, "%s: %x\n", d.Hi().Name(m.Vnet), v)
+		fmt.Fprintf(w, "%s: link %v, %x\n", d.Hi().Name(m.Vnet), d.get_link_state(), v)
 		for i := range d.tx_queues {
 			q := &d.tx_queues[i]
 			dr := q.get_regs()

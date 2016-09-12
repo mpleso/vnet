@@ -83,11 +83,13 @@ func (i interrupt) String() (s string) {
 	return
 }
 
+func (d *dev) get_link_state() bool { return d.regs.xge_mac.link_status.get(d)&(1<<30) != 0 }
+
 // Signal link state change to vnet event handler.
 func (d *dev) link_state_change() {
 	d.m.Vnet.SignalEvent(&vnet.LinkStateEvent{
 		Hi:   d.HwIf.Hi(),
-		IsUp: d.regs.xge_mac.link_status&(1<<30) != 0,
+		IsUp: d.get_link_state(),
 	})
 }
 
