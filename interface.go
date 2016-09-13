@@ -277,14 +277,14 @@ type LinkStateEvent struct {
 }
 
 func (e *LinkStateEvent) EventAction() {
-	h := e.v.HwIf(e.Hi)
+	h := e.Vnet().HwIf(e.Hi)
 	if err := h.SetLinkUp(e.IsUp); err != nil {
 		panic(err)
 	}
 }
 
 func (e *LinkStateEvent) String() string {
-	return fmt.Sprintf("link-state %s %v", e.Hi.Name(e.v), e.IsUp)
+	return fmt.Sprintf("link-state %s %v", e.Hi.Name(e.Vnet()), e.IsUp)
 }
 
 func (h *HwIf) MaxPacketSize() uint { return h.maxPacketSize }

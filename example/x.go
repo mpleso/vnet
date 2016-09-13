@@ -217,7 +217,7 @@ func (n *myNode) Init() (err error) {
 
 	// Enable for event test
 	if false {
-		v.AddTimedEvent(&myEvent{}, 1)
+		n.AddTimedEvent(&myEvent{}, 1)
 	}
 	return
 }
