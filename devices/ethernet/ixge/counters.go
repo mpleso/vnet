@@ -150,7 +150,7 @@ func (d *dev) clear_counters() {
 
 func (d *dev) counter_init() {
 	d.clear_counters()
-	d.m.Vnet.AddTimedEvent(&counter_update_event{dev: d}, counter_update_interval)
+	d.AddTimedEvent(&counter_update_event{dev: d}, counter_update_interval)
 }
 
 func (d *dev) GetHwInterfaceCounters(n *vnet.InterfaceCounterNames, th *vnet.InterfaceThread) {
@@ -207,6 +207,6 @@ func (e *counter_update_event) EventAction() {
 	d.foreach_counter(only_64_bit, func(i uint, v uint64) {
 		vnet.HwIfCounterKind(i).Add64(th, hi, v)
 	})
-	e.AddTimedEvent(e, counter_update_interval)
+	d.AddTimedEvent(e, counter_update_interval)
 	e.sequence++
 }

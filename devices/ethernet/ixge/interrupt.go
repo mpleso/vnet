@@ -87,7 +87,7 @@ func (d *dev) get_link_state() bool { return d.regs.xge_mac.link_status.get(d)&(
 
 // Signal link state change to vnet event handler.
 func (d *dev) link_state_change() {
-	d.m.Vnet.SignalEvent(&vnet.LinkStateEvent{
+	d.SignalEvent(&vnet.LinkStateEvent{
 		Hi:   d.HwIf.Hi(),
 		IsUp: d.get_link_state(),
 	})
