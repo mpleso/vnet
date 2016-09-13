@@ -48,7 +48,7 @@ func (m *Main) listener(l *loop.Loop) {
 	nm := &m.netlinkMain
 	for msg := range nm.c {
 		if m.msgGeneratesEvent(msg) {
-			l.AddEvent(&netlinkEvent{m: m, msg: msg}, nm)
+			nm.AddEvent(&netlinkEvent{m: m, msg: msg}, nm)
 		} else {
 			if m.verboseNetlink {
 				m.v.Logf("netlink ignore %s\n", msg)
@@ -80,7 +80,7 @@ type netlinkEvent struct {
 
 func (m *netlinkMain) EventHandler() {}
 
-func (e *netlinkEvent) String() string { return "netlink-message" }
+func (e *netlinkEvent) String() string { return fmt.Sprintf("netlink-message %s", e.msg) }
 
 func (e *netlinkEvent) EventAction() {
 	var err error
