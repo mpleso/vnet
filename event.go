@@ -17,9 +17,11 @@ func (v *Vnet) eventInit() {
 }
 
 type Event struct {
-	v *Vnet
+	n *Node
 }
 
+func (e *Event) Node() *Node      { return e.n }
+func (e *Event) Vnet() *Vnet      { return e.n.Vnet }
 func (e *Event) GetEvent() *Event { return e }
 
 type Eventer interface {
@@ -27,19 +29,19 @@ type Eventer interface {
 	event.Actor
 }
 
-func (v *Vnet) SignalEvent(r Eventer) {
+func (n *Node) SignalEvent(r Eventer) {
+	v := n.Vnet
 	e := r.GetEvent()
-	e.v = v
-	l := v.GetLoop()
-	l.AddEvent(r, &v.eventMain.eventNode)
+	e.n = n
+	n.AddEvent(r, &v.eventMain.eventNode)
 }
 
-func (v *Vnet) AddTimedEvent(r Eventer, dt float64) {
+func (n *Node) AddTimedEvent(r Eventer, dt float64) {
+	v := n.Vnet
 	e := r.GetEvent()
-	e.v = v
-	l := v.GetLoop()
-	l.AddTimedEvent(r, &v.eventMain.eventNode, dt)
+	e.n = n
+	n.Node.AddTimedEvent(r, &v.eventMain.eventNode, dt)
 }
 
-func (e *Event) SignalEvent(r Eventer)               { e.v.SignalEvent(r) }
-func (e *Event) AddTimedEvent(r Eventer, dt float64) { e.v.AddTimedEvent(r, dt) }
+func (e *Event) Signal(r Eventer)                    { e.n.SignalEvent(r) }
+func (e *Event) AddTimedEvent(r Eventer, dt float64) { e.n.AddTimedEvent(r, dt) }
