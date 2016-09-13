@@ -25,8 +25,12 @@ func (p *swIfPool) PutIndex(i uint) (ok bool) {
 	return p.Pool.PutIndex(i)
 }
 
-func (p *swIfPool) IsFree(i uint) (ok bool) {
-	return p.Pool.IsFree(i)
+func (p *swIfPool) IsFree(i uint) (v bool) {
+	v = i >= uint(len(p.elts))
+	if !v {
+		v = p.Pool.IsFree(i)
+	}
+	return
 }
 
 func (p *swIfPool) Resize(n uint) {
