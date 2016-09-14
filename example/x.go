@@ -11,6 +11,7 @@ import (
 	"github.com/platinasystems/vnet/ip"
 	"github.com/platinasystems/vnet/ip4"
 	"github.com/platinasystems/vnet/ip6"
+	"github.com/platinasystems/vnet/pg"
 	"github.com/platinasystems/vnet/unix"
 
 	"fmt"
@@ -292,6 +293,7 @@ func main() {
 	ip4.Init(v)
 	ip6.Init(v)
 	ixge.Init(v)
+	pg.Init(v)
 	myNodePackage = v.AddPackage("my-node", MyNode)
 
 	var in parse.Input

@@ -1,0 +1,157 @@
+package pg
+
+import (
+	"github.com/platinasystems/elib"
+	"github.com/platinasystems/elib/cli"
+	"github.com/platinasystems/vnet"
+
+	"fmt"
+	"sort"
+)
+
+type default_stream struct {
+	Stream
+}
+
+func (s *default_stream) PacketData() []byte {
+	return vnet.MakePacket(
+		&vnet.IncrementingPayload{Count: s.max_size},
+	)
+}
+
+func (n *node) edit_streams(cmder cli.Commander, w cli.Writer, in *cli.Input) (err error) {
+	c := stream_config{
+		n_packets_limit: 1,
+		min_size:        64,
+		max_size:        64,
+		next:            next_error,
+	}
+	const (
+		set_limit = 1 << iota
+		set_size
+		set_next
+	)
+	var set_what uint
+	enable, disable := true, false
+	var r Streamer
+	for !in.End() {
+		var (
+			name  string
+			count float64
+		)
+		switch {
+		case (in.Parse("c%*ount %f", &count) || in.Parse("%f", &count)) && count >= 0:
+			c.n_packets_limit = uint64(count)
+			set_what |= set_limit
+		case in.Parse("si%*ze %d %d", &c.min_size, &c.max_size):
+		case in.Parse("si%*ze %d", &c.min_size):
+			c.max_size = c.min_size
+			set_what |= set_size
+		case in.Parse("r%*andom"):
+			c.random_size = true
+			set_what |= set_size
+		case in.Parse("n%*ext %s", &name):
+			c.next = n.v.AddNamedNext(n, name)
+			set_what |= set_next
+		case in.Parse("en%*able"):
+			enable = true
+		case in.Parse("dis%*able"):
+			disable = true
+		case in.Parse("st%ream %s", &name):
+			r = n.get_stream_by_name(name)
+		default:
+			err = cli.ParseError
+			return
+		}
+	}
+
+	create := r == nil
+	if create {
+		r = n.get_stream_by_name("default")
+		if create = r == nil; create {
+			r = &default_stream{}
+			n.new_stream(r, "default")
+		}
+	}
+
+	s := r.get_stream()
+
+	if create {
+		s.stream_config = c
+	} else {
+		if set_what&set_size != 0 {
+			s.min_size = c.min_size
+			s.max_size = c.max_size
+			s.random_size = c.random_size
+		}
+		if set_what&set_limit != 0 {
+			s.n_packets_limit = c.n_packets_limit
+			s.n_packets_sent = 0
+		}
+		if set_what&set_next != 0 {
+			s.next = c.next
+		}
+		// Set nothing: repeat last run
+		if set_what == 0 {
+			s.n_packets_sent = 0
+		}
+	}
+	s.SetData()
+	n.Activate(enable && !disable)
+	return
+}
+
+type cli_streams []cli_stream
+
+func (h cli_streams) Less(i, j int) bool { return h[i].Name < h[j].Name }
+func (h cli_streams) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
+func (h cli_streams) Len() int           { return len(h) }
+
+type cli_stream struct {
+	Name  string `format:"%-30s" align:"left"`
+	Limit string `format:"%16s" align:"right"`
+	Sent  uint64 `format:"%16d" align:"right"`
+}
+
+type limit uint64
+
+func (l limit) String() string {
+	if l == 0 {
+		return ""
+	} else {
+		return fmt.Sprintf("%d", l)
+	}
+}
+
+func (n *node) show_streams(c cli.Commander, w cli.Writer, in *cli.Input) (err error) {
+	var cs cli_streams
+	n.stream_pool.Foreach(func(r Streamer) {
+		s := r.get_stream()
+		cs = append(cs, cli_stream{
+			Name:  s.name,
+			Limit: limit(s.n_packets_limit).String(),
+			Sent:  s.n_packets_sent,
+		})
+	})
+	sort.Sort(cs)
+	elib.Tabulate(cs).Write(w)
+	return
+}
+
+func (n *node) cli_init() {
+	cmds := []cli.Command{
+		cli.Command{
+			Name:      "packet-generator",
+			ShortHelp: "edit or create packet generator streams",
+			Action:    n.edit_streams,
+		},
+		cli.Command{
+			Name:      "show packet-generator",
+			ShortHelp: "show packet generator streams",
+			Action:    n.show_streams,
+		},
+	}
+	for i := range cmds {
+		n.v.CliAdd(&cmds[i])
+	}
+}
