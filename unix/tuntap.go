@@ -307,6 +307,7 @@ func (m *Main) SwIfAddDel(v *vnet.Vnet, si vnet.Si, isDel bool) (err error) {
 				r.sockaddr.Addr.Data[i] = int8(ei.Address[i])
 			}
 			if err = intf.ioctl(intf.provision_fd, ifreq_SETIFHWADDR, uintptr(unsafe.Pointer(&r))); err != nil {
+				err = fmt.Errorf("%s: %s", err, &ei.Address)
 				return
 			}
 		}

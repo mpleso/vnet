@@ -29,7 +29,7 @@ func (d *dev) vnetInit() {
 	}
 
 	a := d.pciDev.Addr
-	ethernet.RegisterInterface(v, d, &d.ethIfConfig, "ixge%d:%d.%d", a.Bus, a.Slot, a.Fn)
+	ethernet.RegisterInterface(v, d, &d.ethIfConfig, "ixge%d.%d.%d", a.Bus, a.Slot, a.Fn)
 	v.RegisterInterfaceNode(d, d.Hi(), d.Name())
 }
 

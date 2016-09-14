@@ -109,7 +109,7 @@ func (d *dev) Init() {
 		r.control.set(d, v)
 
 		// Timed to take ~1e-6 secs.  No need for timeout.
-		for r.control.get(d)&dev_reset != 0 {
+		for r.control.get(d)&(dev_reset|mac_reset) != 0 {
 		}
 	}
 
@@ -123,6 +123,13 @@ func (d *dev) Init() {
 		// Not cleared by above reset.
 		for i := range r.rx_ethernet_address1 {
 			if i == 0 {
+				start := time.Now()
+				for r.rx_ethernet_address1[i][0].get(d) == 0xdeadbeef {
+					time.Sleep(10 * time.Microsecond)
+					if time.Since(start) > 100*time.Millisecond {
+						panic("ixge: ethernet address 0xdeadbeef timeout")
+					}
+				}
 				r.rx_ethernet_address1[i].get(d, &e)
 				d.ethIfConfig.Address = e.Address
 			} else {
