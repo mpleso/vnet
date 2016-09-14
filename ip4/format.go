@@ -25,6 +25,8 @@ func (h *Header) String() (s string) {
 
 func (h *Header) Parse(in *parse.Input) {
 	h.Ip_version_and_header_length = 0x45
-	in.Parse("%v: %v -> %v", &h.Protocol, &h.Src, &h.Dst)
+	if !in.ParseLoose("%v: %v -> %v", &h.Protocol, &h.Src, &h.Dst) {
+		panic(parse.ErrInput)
+	}
 	return
 }

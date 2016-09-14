@@ -23,6 +23,7 @@ type Main struct {
 	fibMain
 	ifAddrAddDelHooks IfAddrAddDelHookVec
 	nodeMain
+	pgMain
 }
 
 func (m *Main) Init() (err error) {
@@ -38,6 +39,7 @@ func (m *Main) Init() (err error) {
 	}
 	m.Main.Init(v, cf)
 	m.nodeInit(v)
+	m.pgInit(v)
 
 	cmds := [...]cli.Command{
 		cli.Command{

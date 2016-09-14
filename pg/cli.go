@@ -3,6 +3,7 @@ package pg
 import (
 	"github.com/platinasystems/elib"
 	"github.com/platinasystems/elib/cli"
+	"github.com/platinasystems/elib/parse"
 	"github.com/platinasystems/vnet"
 
 	"fmt"
@@ -13,14 +14,14 @@ type default_stream struct {
 	Stream
 }
 
-func (s *default_stream) PacketData() []byte {
-	return vnet.MakePacket(
-		&vnet.IncrementingPayload{Count: s.max_size},
-	)
+func (s *default_stream) PacketHeaders() []vnet.PacketHeader {
+	return []vnet.PacketHeader{
+		&vnet.IncrementingPayload{Count: s.MaxSize()},
+	}
 }
 
 func (n *node) edit_streams(cmder cli.Commander, w cli.Writer, in *cli.Input) (err error) {
-	c := stream_config{
+	default_stream_config := stream_config{
 		n_packets_limit: 1,
 		min_size:        64,
 		max_size:        64,
@@ -33,11 +34,15 @@ func (n *node) edit_streams(cmder cli.Commander, w cli.Writer, in *cli.Input) (e
 	)
 	var set_what uint
 	enable, disable := true, false
+	stream_name := "no-name"
+	c := default_stream_config
 	var r Streamer
 	for !in.End() {
 		var (
-			name  string
-			count float64
+			name   string
+			count  float64
+			sub_in parse.Input
+			index  uint
 		)
 		switch {
 		case (in.Parse("c%*ount %f", &count) || in.Parse("%f", &count)) && count >= 0:
@@ -57,8 +62,13 @@ func (n *node) edit_streams(cmder cli.Commander, w cli.Writer, in *cli.Input) (e
 			enable = true
 		case in.Parse("dis%*able"):
 			disable = true
-		case in.Parse("st%ream %s", &name):
-			r = n.get_stream_by_name(name)
+		case in.Parse("na%*me %s", &stream_name):
+		case in.Parse("%v %v", &n.stream_type_map, &index, &sub_in):
+			r, err = n.stream_types[index].ParseStream(&sub_in)
+			if err != nil {
+				return
+			}
+			r.get_stream().stream_config = default_stream_config
 		default:
 			err = cli.ParseError
 			return
@@ -67,11 +77,13 @@ func (n *node) edit_streams(cmder cli.Commander, w cli.Writer, in *cli.Input) (e
 
 	create := r == nil
 	if create {
-		r = n.get_stream_by_name("default")
+		r = n.get_stream_by_name(stream_name)
 		if create = r == nil; create {
 			r = &default_stream{}
-			n.new_stream(r, "default")
+			n.new_stream(r, stream_name)
 		}
+	} else {
+		n.new_stream(r, stream_name)
 	}
 
 	s := r.get_stream()
@@ -154,4 +166,16 @@ func (n *node) cli_init() {
 	for i := range cmds {
 		n.v.CliAdd(&cmds[i])
 	}
+}
+
+type StreamType interface {
+	ParseStream(in *parse.Input) (Streamer, error)
+}
+
+func AddStreamType(v *vnet.Vnet, name string, t StreamType) {
+	m := GetMain(v)
+	n := &m.node
+	ti := uint(len(n.stream_types))
+	n.stream_types = append(n.stream_types, t)
+	n.stream_type_map.Set(name, ti)
 }

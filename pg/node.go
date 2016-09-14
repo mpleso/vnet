@@ -24,6 +24,8 @@ type node struct {
 	pool hw.BufferPool
 	stream_pool
 	stream_index_by_name parse.StringMap
+	stream_type_map      parse.StringMap
+	stream_types         []StreamType
 }
 
 func (n *node) init(v *vnet.Vnet) {

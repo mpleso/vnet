@@ -9,7 +9,7 @@ import (
 type Streamer interface {
 	get_stream() *Stream
 	Del()
-	PacketData() []byte
+	PacketHeaders() []vnet.PacketHeader
 }
 
 func (s *Stream) get_stream() *Stream { return s }
@@ -45,6 +45,7 @@ type Stream struct {
 //go:generate gentemplate -d Package=pg -id stream -d PoolType=stream_pool -d Type=Streamer -d Data=elts github.com/platinasystems/elib/pool.tmpl
 
 func (s *Stream) GetSize() uint { return s.cur_size }
+func (s *Stream) MaxSize() uint { return s.max_size }
 func (s *Stream) NextSize(i uint) uint {
 	if x := s.cur_size + 1 + i; x <= s.max_size {
 		return x
@@ -58,7 +59,7 @@ func (s *Stream) SetData() {
 		s.max_size = s.min_size
 	}
 	s.cur_size = s.min_size
-	s.data = s.r.PacketData()
+	s.data = vnet.MakePacket(s.r.PacketHeaders()...)
 }
 
 func (n *node) get_stream(i uint) Streamer { return n.stream_pool.elts[i] }

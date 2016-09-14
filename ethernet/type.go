@@ -143,6 +143,8 @@ var typeMap = parse.NewStringMap(typeStrings[:])
 
 func (t *Type) Parse(in *parse.Input) {
 	var v uint16
-	in.Parse("%v", typeMap, &v)
+	if !in.Parse("%v", typeMap, &v) {
+		panic(parse.ErrInput)
+	}
 	*t = Type(v).FromHost()
 }
