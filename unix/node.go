@@ -23,7 +23,8 @@ func (nm *nodeMain) Init(m *Main) {
 	nm.rxPacketPool = make(chan *packet, 64)
 	nm.txPacketPool = make(chan *packet, 64)
 	nm.puntNode.Errors = []string{
-		puntErrorNonUnix: "non-unix interface",
+		puntErrorNonUnix:       "non-unix interface",
+		puntErrorInterfaceDown: "interface is down",
 	}
 	nm.puntNode.Next = []string{
 		puntNextError: "error",
@@ -279,6 +280,8 @@ func (intf *Interface) WriteReady() (err error) {
 			switch {
 			case errno == syscall.EWOULDBLOCK:
 				return
+			case errno == syscall.EIO: // means that interface is down
+				intf.m.puntNode.CountError(puntErrorInterfaceDown, 1)
 			case errno != 0:
 				err = fmt.Errorf("writev: %s", errno)
 				return
@@ -321,6 +324,7 @@ func (intf *Interface) ErrorReady() (err error) {
 
 const (
 	puntErrorNonUnix uint = iota
+	puntErrorInterfaceDown
 )
 const (
 	puntNextError uint = iota
