@@ -169,6 +169,7 @@ func (n *node) cli_init() {
 }
 
 type StreamType interface {
+	Name() string
 	ParseStream(in *parse.Input) (Streamer, error)
 }
 
@@ -178,4 +179,13 @@ func AddStreamType(v *vnet.Vnet, name string, t StreamType) {
 	ti := uint(len(n.stream_types))
 	n.stream_types = append(n.stream_types, t)
 	n.stream_type_map.Set(name, ti)
+}
+
+func GetStreamType(v *vnet.Vnet, name string) (t StreamType) {
+	m := GetMain(v)
+	n := &m.node
+	if ti, ok := m.stream_type_map[name]; ok {
+		t = n.stream_types[ti]
+	}
+	return
 }

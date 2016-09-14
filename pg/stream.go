@@ -59,7 +59,18 @@ func (s *Stream) SetData() {
 		s.max_size = s.min_size
 	}
 	s.cur_size = s.min_size
-	s.data = vnet.MakePacket(s.r.PacketHeaders()...)
+	h := s.r.PacketHeaders()
+
+	// Add incrementing payload to pad to max size.
+	l := uint(0)
+	for i := range h {
+		l += h[i].Len()
+	}
+	if l < s.MaxSize() {
+		h = append(h, &vnet.IncrementingPayload{Count: s.MaxSize() - l})
+	}
+
+	s.data = vnet.MakePacket(h...)
 }
 
 func (n *node) get_stream(i uint) Streamer { return n.stream_pool.elts[i] }
