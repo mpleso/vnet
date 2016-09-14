@@ -11,6 +11,8 @@ type vnet_dev struct {
 	ethIfConfig ethernet.InterfaceConfig
 }
 
+func (d *dev) IsUnix() bool { return true }
+
 func (d *dev) vnetInit() {
 	v := d.m.Vnet
 
