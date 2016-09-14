@@ -11,6 +11,7 @@ var packageIndex uint
 func Init(v *vnet.Vnet) {
 	m := &Main{}
 	packageIndex = v.AddPackage("ip4", m)
+	m.DependsOn("pg")
 }
 
 func GetMain(v *vnet.Vnet) *Main { return v.GetPackage(packageIndex).(*Main) }
