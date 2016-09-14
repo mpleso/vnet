@@ -3,6 +3,8 @@ package ixge
 
 import (
 	"github.com/platinasystems/elib/hw"
+	"github.com/platinasystems/vnet"
+	"github.com/platinasystems/vnet/ethernet"
 
 	"fmt"
 	"time"
@@ -551,7 +553,7 @@ type regs struct {
 	// [31] valid bit.
 	// Index 0 is read from eeprom after reset.
 	// Alias for first 16 entries of rx_ethernet_address1
-	rx_ethernet_address0 [16][2]reg
+	rx_ethernet_address0 [16]ethernet_address_reg
 
 	_                               [0x5800 - 0x5480]byte
 	wake_up_control                 reg
@@ -700,7 +702,7 @@ type regs struct {
 	// [30] 0 => mac address, 1 => e-tag
 	// [31] valid bit.
 	// Index 0 is read from eeprom after reset.
-	rx_ethernet_address1 [128][2]reg
+	rx_ethernet_address1 [128]ethernet_address_reg
 
 	/* Bitmap selecting 64 pools for each rx address. */
 	rx_ethernet_address_pool_select [128][2]reg
@@ -857,7 +859,7 @@ type regs struct {
 		// [1] [15:0] high 16 bits of mac address
 		//     [30] 0 => mac address, 1 => e-tag
 		//     [31] valid
-		dst_ethernet_address [64][2]reg
+		dst_ethernet_address [64]ethernet_address_reg
 
 		mirror_rule      [4]reg
 		mirror_rule_vlan [8]reg
@@ -997,4 +999,44 @@ type regs struct {
 
 	// If pf_vm_vlan_insert tag action == 1, specifies e-tag here.
 	pf_vm_tag_insert [64]reg
+}
+
+type ethernet_address_reg [2]reg
+
+type ethernet_address_entry struct {
+	valid   bool
+	is_etag bool
+	ethernet.Address
+	etag vnet.Uint32
+}
+
+func (r *ethernet_address_reg) get(d *dev, e *ethernet_address_entry) {
+	var v [2]reg
+	v[0], v[1] = (*reg)(&r[0]).get(d), (*reg)(&r[1]).get(d)
+	e.valid = v[1]&(1<<31) != 0
+	e.is_etag = v[1]&(1<<30) != 0
+	if e.is_etag {
+		e.etag = vnet.Uint32(v[0])
+	} else {
+		for i := range e.Address {
+			e.Address[i] = byte(v[i/4] >> uint(8*(i%4)))
+		}
+	}
+}
+
+func (r *ethernet_address_reg) set(d *dev, e *ethernet_address_entry) {
+	var v [2]reg
+	if e.valid {
+		v[1] |= 1 << 31
+	}
+	if e.is_etag {
+		v[1] |= 1 << 30
+		v[0] = reg(e.etag)
+	} else {
+		for i := range e.Address {
+			v[i/4] |= reg(e.Address[i]) << uint(8*(i%4))
+		}
+	}
+	(*reg)(&r[0]).set(d, v[0])
+	(*reg)(&r[1]).set(d, v[1])
 }

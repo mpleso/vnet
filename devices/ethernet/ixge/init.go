@@ -5,7 +5,6 @@ import (
 	"github.com/platinasystems/elib/hw/pci"
 	"github.com/platinasystems/vnet"
 	vnetpci "github.com/platinasystems/vnet/devices/bus/pci"
-	"github.com/platinasystems/vnet/ethernet"
 
 	"time"
 )
@@ -117,20 +116,19 @@ func (d *dev) Init() {
 	// Indicate software loaded.
 	r.extended_control.or(d, 1<<28)
 
-	// Invalidate all address filters.  Could be stale from previous run.
-	// Not cleared by above reset.
-	for i := range r.rx_ethernet_address1 {
-		r.rx_ethernet_address1[i][1].set(d, 0)
-	}
-
-	// FIXME: Fetch ethernet address from eeprom.
 	{
-		var q [2]reg
-		a := ethernet.Address{0xea, 0xeb, 0xec, 0xed, 0xee, 0xef}
-		q[0] = reg(a[0]) | reg(a[1])<<8 | reg(a[2])<<16 | reg(a[3])<<24
-		q[1] = 1<<31 | reg(a[4]) | reg(a[5])<<8
-		r.rx_ethernet_address1[0][0].set(d, q[0])
-		r.rx_ethernet_address1[0][1].set(d, q[1])
+		var zero, e ethernet_address_entry
+
+		// Invalidate all address filters.  Could be stale from previous run.
+		// Not cleared by above reset.
+		for i := range r.rx_ethernet_address1 {
+			if i == 0 {
+				r.rx_ethernet_address1[i].get(d, &e)
+				d.ethIfConfig.Address = e.Address
+			} else {
+				r.rx_ethernet_address1[i].set(d, &zero)
+			}
+		}
 	}
 
 	d.vnetInit()
