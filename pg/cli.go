@@ -109,6 +109,8 @@ func (n *node) edit_streams(cmder cli.Commander, w cli.Writer, in *cli.Input) (e
 		}
 	}
 	s.SetData()
+	n.pool.Data = s.data
+	n.Vnet.AddBufferPool(&n.pool)
 	n.Activate(enable && !disable)
 	return
 }
