@@ -54,8 +54,16 @@ func (p *Package) addDep(name string, typ int) {
 	}
 	p.depMap[typ][name] = struct{}{}
 }
-func (p *Package) DependsOn(name string)    { p.addDep(name, forward) }
-func (p *Package) DependedOnBy(name string) { p.addDep(name, anti) }
+func (p *Package) DependsOn(names ...string) {
+	for i := range names {
+		p.addDep(names[i], forward)
+	}
+}
+func (p *Package) DependedOnBy(names ...string) {
+	for i := range names {
+		p.addDep(names[i], anti)
+	}
+}
 
 func (v *Vnet) AddPackage(name string, r Packager) (pi uint) {
 	m := &v.packageMain
