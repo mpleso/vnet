@@ -121,7 +121,10 @@ func (n *interfaceNode) txFlush() {
 	if n.outCount == 0 {
 		return
 	}
-	t := n.threads[n.ThreadId()]
+	t := n.getThread()
+	if t == nil {
+		return
+	}
 	for i := range t.freeChan {
 		if done := n.freeRefs(i); done {
 			break
@@ -152,14 +155,18 @@ func (n *interfaceNode) ifOutputThread() {
 	}
 }
 
-func (n *interfaceNode) ifOutput(ri *RefIn) {
-	id := ri.ThreadId()
+func (n *interfaceNode) getThread() *interfaceNodeThread {
+	id := n.ThreadId()
 	n.threads.Validate(id)
 	if n.threads[id] == nil {
 		n.threads[id] = &interfaceNodeThread{}
 		n.threads[id].freeChan = make(chan *TxRefVecIn, 64)
 	}
-	nt := n.threads[id]
+	return n.threads[id]
+}
+
+func (n *interfaceNode) ifOutput(ri *RefIn) {
+	nt := n.getThread()
 	rvi := n.allocTxRefVecIn(nt, ri)
 	n_packets_in := ri.Len()
 
