@@ -121,7 +121,7 @@ func (n *interfaceNode) txFlush() {
 	if n.outCount == 0 {
 		return
 	}
-	t := n.getThread()
+	t := n.getThread(n.ThreadId())
 	if t == nil {
 		return
 	}
@@ -155,8 +155,7 @@ func (n *interfaceNode) ifOutputThread() {
 	}
 }
 
-func (n *interfaceNode) getThread() *interfaceNodeThread {
-	id := n.ThreadId()
+func (n *interfaceNode) getThread(id uint) *interfaceNodeThread {
 	n.threads.Validate(id)
 	if n.threads[id] == nil {
 		n.threads[id] = &interfaceNodeThread{}
@@ -166,7 +165,7 @@ func (n *interfaceNode) getThread() *interfaceNodeThread {
 }
 
 func (n *interfaceNode) ifOutput(ri *RefIn) {
-	nt := n.getThread()
+	nt := n.getThread(ri.ThreadId())
 	rvi := n.allocTxRefVecIn(nt, ri)
 	n_packets_in := ri.Len()
 
