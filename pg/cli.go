@@ -49,7 +49,7 @@ func (n *node) edit_streams(cmder cli.Commander, w cli.Writer, in *cli.Input) (e
 		case (in.Parse("c%*ount %f", &count) || in.Parse("%f", &count)) && count >= 0:
 			c.n_packets_limit = uint64(count)
 			set_what |= set_limit
-		case in.Parse("si%*ze %d %d", &c.min_size, &c.max_size):
+		case in.Parse("si%*ze %d-%d", &c.min_size, &c.max_size):
 			set_what |= set_size
 		case in.Parse("si%*ze %d", &c.min_size):
 			c.max_size = c.min_size

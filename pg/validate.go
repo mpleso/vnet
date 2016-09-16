@@ -1,12 +1,13 @@
 package pg
 
 import (
+	"github.com/platinasystems/elib"
 	"github.com/platinasystems/vnet"
 
 	"fmt"
 )
 
-const validate = false
+const validate = elib.Debug && true
 
 func (t *buffer_type) validate_ref(r *vnet.Ref) {
 	if !validate {

@@ -97,10 +97,7 @@ func buffer_type_for_size(size, unit uint) (n uint) {
 
 func (n *node) setData(s *Stream) {
 	// Return cached refs in pool.
-	{
-		rs := n.pool.AllocCachedRefs()
-		n.free_buffers(rs, nil)
-	}
+	n.return_buffers()
 
 	// Free previously used buffer types.
 	for _, t := range s.buffer_types {
@@ -131,27 +128,104 @@ func (n *node) setData(s *Stream) {
 	}
 }
 
-func (n *node) free_buffers(refs []vnet.Ref, t *buffer_type) {
+func (n *node) free1(r0 *vnet.Ref, ti0 uint32) {
+	t0 := &n.buffer_type_pool.elts[ti0]
+	r0.SetDataLen(uint(len(t0.data)))
+	t0.validate_ref(r0)
+	t0.free_refs = append(t0.free_refs, *r0)
+}
+
+func (n *node) free_buffers(refs vnet.RefVec, t *buffer_type) {
+	i, n_left := uint(0), refs.Len()
+
+	fl := t.free_refs.Len()
+	tf := t.free_refs
+	tf.Resize(n_left)
+	ti := t.index
+	fi := fl
+	tl := uint(len(t.data))
+
+	for n_left >= 4 {
+		r0, r1, r2, r3 := &refs[i+0], &refs[i+1], &refs[i+2], &refs[i+3]
+		b0, b1, b2, b3 := r0.GetBuffer(), r1.GetBuffer(), r2.GetBuffer(), r3.GetBuffer()
+		ti0, ti1, ti2, ti3 := uint32(b0.GetSave()), uint32(b1.GetSave()), uint32(b2.GetSave()), uint32(b3.GetSave())
+		r0.SetDataLen(tl)
+		r1.SetDataLen(tl)
+		r2.SetDataLen(tl)
+		r3.SetDataLen(tl)
+		tf[fi+0] = *r0
+		tf[fi+1] = *r1
+		tf[fi+2] = *r2
+		tf[fi+3] = *r3
+		i += 4
+		fi += 4
+		n_left -= 4
+		if ti0 != ti || ti1 != ti || ti2 != ti || ti3 != ti {
+			fi -= 4
+			fi = n.slow_path(t, tf, fi, r0, b0, ti0)
+			fi = n.slow_path(t, tf, fi, r1, b1, ti1)
+			fi = n.slow_path(t, tf, fi, r2, b2, ti2)
+			fi = n.slow_path(t, tf, fi, r3, b3, ti3)
+			tf.ValidateLen(fi + n_left)
+		}
+	}
+
+	for n_left > 0 {
+		r0 := &refs[i]
+		b0 := r0.GetBuffer()
+		ti0 := uint32(b0.GetSave())
+		r0.SetDataLen(tl)
+		tf[fi+0] = *r0
+		i += 1
+		fi += 1
+		n_left -= 1
+		if ti0 != ti {
+			fi -= 1
+			fi = n.slow_path(t, tf, fi, r0, b0, ti0)
+			tf.ValidateLen(fi + n_left)
+		}
+	}
+
+	t.free_refs = tf[:fi]
+}
+
+func (n *node) slow_path(t *buffer_type, tf []vnet.Ref, fiʹ uint, r0 *vnet.Ref, b0 *vnet.Buffer, ti0 uint32) (fi uint) {
+	fi = fiʹ
+	if ti0 == buffer_type_nil {
+		ti0 = t.index
+		r0.SetDataLen(uint(len(t.data)))
+		copy(r0.DataSlice(), t.data)
+		b0.SetSave(hw.BufferSave(ti0))
+	}
+
+	t0 := &n.buffer_type_pool.elts[ti0]
+	var f0 *vnet.Ref
+	if t0 == t {
+		f0 = &tf[fi]
+		fi++
+	} else {
+		l := t0.free_refs.Len()
+		t0.free_refs.Resize(1)
+		f0 = &t0.free_refs[l]
+	}
+
+	*f0 = *r0
+	f0.SetDataLen(uint(len(t0.data)))
+	t0.validate_ref(f0)
+	return
+}
+
+func (n *node) return_buffers() {
+	refs := n.pool.AllocCachedRefs()
 	for i := range refs {
 		r0 := &refs[i]
 		b0 := r0.GetBuffer()
 		ti0 := uint32(b0.GetSave())
 		if ti0 == buffer_type_nil {
-			if t != nil {
-				ti0 = t.index
-				r0.SetDataLen(uint(len(t.data)))
-				n.SetError(r0, error_none)
-				copy(r0.DataSlice(), t.data)
-				b0.SetSave(hw.BufferSave(ti0))
-			} else {
-				n.orphan_refs = append(n.orphan_refs, *r0)
-				continue
-			}
+			n.orphan_refs = append(n.orphan_refs, *r0)
+		} else {
+			n.free1(r0, ti0)
 		}
-		t0 := &n.buffer_type_pool.elts[ti0]
-		r0.SetDataLen(uint(len(t0.data)))
-		t0.validate_ref(r0)
-		t0.free_refs = append(t0.free_refs, *r0)
 	}
 	if l := n.orphan_refs.Len(); l > 0 {
 		n.pool.FreeRefs(&n.orphan_refs[0], l, false)
@@ -195,9 +269,13 @@ func (n *node) generate_n_types(s *Stream, dst []vnet.Ref, n_packets, n_types ui
 	save := s.cur_size
 	d := (n_types - 1) * n.pool.Size
 	n_bytes = d * n_packets
+	is_single_size := s.max_size == s.min_size
+	if is_single_size {
+		n_bytes += s.min_size * n_packets
+	}
 	for i := uint(0); i < n_types; i++ {
 		n.buffer_type_get_refs(this, n_packets, uint(s.buffer_types[i]))
-		if i+1 >= n_types {
+		if i+1 >= n_types && !is_single_size {
 			for j := uint(0); j < n_packets; j++ {
 				last_size := s.cur_size - d
 				this[j].SetDataLen(last_size)
