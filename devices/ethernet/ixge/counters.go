@@ -124,20 +124,24 @@ var counters = [n_counters]counter{
 	tx_undersize_drops:                      counter{offset: 0x4010, name: "tx undersize drops"},
 }
 
+func (c *counter) get(d *dev) (v uint64) {
+	o := uint(c.offset)
+	if c.is_64bit {
+		v = hw.LoadUint64(d.addr_for_offset64(o))
+	} else {
+		v = uint64(hw.LoadUint32(d.addr_for_offset32(o)))
+	}
+	return
+}
+
 func (d *dev) foreach_counter(only_64_bit bool, fn func(i uint, v uint64)) {
 	for i := range counters {
 		c := &counters[i]
-		o := uint(c.offset)
 		if only_64_bit && !c.is_64bit {
 			continue
 		}
 		// All counters are clear on read; so always add to previous value.
-		var v uint64
-		if c.is_64bit {
-			v = hw.LoadUint64(d.addr_for_offset64(o))
-		} else {
-			v = uint64(hw.LoadUint32(d.addr_for_offset32(o)))
-		}
+		v := c.get(d)
 		if fn != nil {
 			fn(uint(i), v)
 		}
@@ -149,7 +153,6 @@ func (d *dev) clear_counters() {
 }
 
 func (d *dev) counter_init() {
-	d.clear_counters()
 	d.AddTimedEvent(&counter_update_event{dev: d}, counter_update_interval)
 }
 
