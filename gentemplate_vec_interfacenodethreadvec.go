@@ -21,9 +21,22 @@ func (p *interfaceNodeThreadVec) Resize(n uint) {
 	*p = (*p)[:l]
 }
 
-func (p *interfaceNodeThreadVec) validate(i uint, zero **interfaceNodeThread) **interfaceNodeThread {
+func (p *interfaceNodeThreadVec) validate(new_len uint, zero **interfaceNodeThread) **interfaceNodeThread {
 	c := elib.Index(cap(*p))
-	l := elib.Index(i) + 1
+	lʹ := elib.Index(len(*p))
+	l := elib.Index(new_len)
+	if l <= c {
+		// Need to reslice to larger length?
+		if l >= lʹ {
+			*p = (*p)[:l]
+		}
+		return &(*p)[l-1]
+	}
+	return p.validateSlowPath(zero, c, l, lʹ)
+}
+
+func (p *interfaceNodeThreadVec) validateSlowPath(zero **interfaceNodeThread,
+	c, l, lʹ elib.Index) **interfaceNodeThread {
 	if l > c {
 		cNext := elib.NextResizeCap(l)
 		q := make([]*interfaceNodeThread, cNext, cNext)
@@ -35,16 +48,32 @@ func (p *interfaceNodeThreadVec) validate(i uint, zero **interfaceNodeThread) **
 		}
 		*p = q[:l]
 	}
-	if l > elib.Index(len(*p)) {
+	if l > lʹ {
 		*p = (*p)[:l]
 	}
-	return &(*p)[i]
+	return &(*p)[l-1]
 }
+
 func (p *interfaceNodeThreadVec) Validate(i uint) **interfaceNodeThread {
-	return p.validate(i, (**interfaceNodeThread)(nil))
+	return p.validate(i+1, (**interfaceNodeThread)(nil))
 }
+
 func (p *interfaceNodeThreadVec) ValidateInit(i uint, zero *interfaceNodeThread) **interfaceNodeThread {
-	return p.validate(i, &zero)
+	return p.validate(i+1, &zero)
+}
+
+func (p *interfaceNodeThreadVec) ValidateLen(l uint) (v **interfaceNodeThread) {
+	if l > 0 {
+		v = p.validate(l, (**interfaceNodeThread)(nil))
+	}
+	return
+}
+
+func (p *interfaceNodeThreadVec) ValidateLenInit(l uint, zero *interfaceNodeThread) (v **interfaceNodeThread) {
+	if l > 0 {
+		v = p.validate(l, &zero)
+	}
+	return
 }
 
 func (p interfaceNodeThreadVec) Len() uint { return uint(len(p)) }
