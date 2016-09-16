@@ -46,6 +46,17 @@ func (n *errorNode) getThread(id uint) (t *errorThread) {
 	return
 }
 
+const poisonErrorRef = 0xfeedface
+
+func (t *errorThread) count(e ErrorRef, n uint64) {
+	if elib.Debug {
+		if e == poisonErrorRef {
+			panic("error ref not set")
+		}
+	}
+	t.counts[e] += n
+}
+
 func (n *errorNode) MakeLoopIn() loop.LooperIn { return &RefIn{} }
 
 var ErrorNode = &errorNode{}
@@ -63,17 +74,17 @@ func (en *errorNode) NodeOutput(ri *RefIn) {
 	cacheCount := uint64(0)
 	i, n := uint(0), ri.Len()
 	for i+4 <= n {
-		e0, e1, e2, e3 := ri.Refs[i+0].Err, ri.Refs[i+1].Err, ri.Refs[i+2].Err, ri.Refs[i+3].Err
+		e0, e1, e2, e3 := ri.Refs[i+0].err, ri.Refs[i+1].err, ri.Refs[i+2].err, ri.Refs[i+3].err
 		cacheCount += 4
 		i += 4
 		if e0 == cache && e1 == cache && e2 == cache && e3 == cache {
 			continue
 		}
 		cacheCount -= 4
-		ts.counts[e0] += 1
-		ts.counts[e1] += 1
-		ts.counts[e2] += 1
-		ts.counts[e3] += 1
+		ts.count(e0, 1)
+		ts.count(e1, 1)
+		ts.count(e2, 1)
+		ts.count(e3, 1)
 		if e0 == e1 && e2 == e3 && e0 == e2 {
 			ts.counts[cache] += cacheCount
 			cache, cacheCount = e0, 0
@@ -81,11 +92,11 @@ func (en *errorNode) NodeOutput(ri *RefIn) {
 	}
 
 	for i < n {
-		ts.counts[ri.Refs[i+0].Err] += 1
+		ts.count(ri.Refs[i+0].err, 1)
 		i++
 	}
 
-	ts.counts[cache] += cacheCount
+	ts.count(cache, cacheCount)
 	ts.cache = cache
 	ri.FreeRefs(n)
 }
@@ -103,7 +114,7 @@ func (n *Node) NewError(s string) (r ErrorRef) {
 	return
 }
 
-func (r *refOpaque) SetError(n *Node, i uint) { r.Err = n.errorRefs[i] }
+func (r *refOpaque) SetError(n *Node, i uint) { r.err = n.errorRefs[i] }
 func (n *Node) SetError(r *Ref, i uint)       { r.SetError(n, i) }
 func (n *Node) CountError(i, count uint) {
 	ts := ErrorNode.getThread(0)
