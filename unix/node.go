@@ -101,7 +101,7 @@ type packet struct {
 }
 
 func (p *packet) allocRefs(m *Main, n uint) {
-	m.bufferPool.AllocRefs(&p.refs[0].RefHeader, n)
+	m.bufferPool.AllocRefs(p.refs[:n])
 	for i := uint(0); i < n; i++ {
 		p.iovs[i].Base = (*byte)(p.refs[i].Data())
 		p.iovs[i].Len = uint64(m.bufferPool.Size)
@@ -118,7 +118,7 @@ func (p *packet) initForRx(m *Main, intf *Interface) {
 }
 
 func (p *packet) free(m *Main) {
-	m.bufferPool.FreeRefs(&p.refs[0].RefHeader, p.refs.Len(), false)
+	m.bufferPool.FreeRefs(&p.refs[0], p.refs.Len(), false)
 }
 
 func (m *Main) getRxPacket(intf *Interface) (p *packet) {

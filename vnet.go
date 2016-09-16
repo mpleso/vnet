@@ -45,7 +45,6 @@ func (v *Vnet) Run(in *parse.Input) (err error) {
 	loop.AddInit(func(l *loop.Loop) {
 		v.interfaceMain.init()
 		v.CliInit()
-		v.BufferMain.Init()
 		v.eventInit()
 		for i := range initHooks.hooks {
 			initHooks.Get(i)(v)

@@ -27,7 +27,7 @@ func (d *dev) init_rx_pool() {
 
 	p.Name = fmt.Sprintf("ixge %s rx", d.pciDev)
 
-	*t = *hw.DefaultBufferTemplate
+	*t = vnet.DefaultBufferPool.BufferTemplate
 	t.Size = d.rx_buffer_bytes
 
 	// Set interface for rx buffers.
@@ -130,7 +130,7 @@ type rx_dev struct {
 	out                    *vnet.RefOut
 	irq_sequence           uint32
 	rx_queues              rx_dma_queue_vec
-	rx_pool                hw.BufferPool
+	rx_pool                vnet.BufferPool
 	rx_next_by_layer2_type [n_ethernet_type_filter]rx_next
 }
 

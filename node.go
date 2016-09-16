@@ -139,7 +139,7 @@ func (node *Node) ErrorRedirect(in *RefIn, out *RefOut, next uint, err ErrorRef)
 	for i := uint(0); i < n; i++ {
 		r := &o.Refs[i]
 		*r = in.Refs[i]
-		r.Err = err
+		r.err = err
 	}
 	node.SetOutLen(o, in, n)
 }

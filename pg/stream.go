@@ -1,6 +1,7 @@
 package pg
 
 import (
+	"github.com/platinasystems/elib"
 	"github.com/platinasystems/vnet"
 
 	"fmt"
@@ -37,7 +38,8 @@ type Stream struct {
 
 	n_packets_sent uint64
 
-	data []byte
+	data         []byte
+	buffer_types elib.Uint32Vec
 
 	stream_config
 }
@@ -46,8 +48,9 @@ type Stream struct {
 
 func (s *Stream) GetSize() uint { return s.cur_size }
 func (s *Stream) MaxSize() uint { return s.max_size }
-func (s *Stream) NextSize(i uint) uint {
-	if x := s.cur_size + 1 + i; x <= s.max_size {
+
+func (s *Stream) next_size(cur, i uint) uint {
+	if x := cur + 1 + i; x <= s.max_size {
 		return x
 	} else {
 		return s.min_size + i

@@ -2,6 +2,7 @@ package vnet
 
 import (
 	"github.com/platinasystems/elib/loop"
+	"sync/atomic"
 )
 
 type interfaceInputer interface {
@@ -26,9 +27,16 @@ type interfaceNode struct {
 
 	hi Hi
 
-	outChan chan *TxRefVecIn
-	tx      outputInterfaceNoder
-	rx      interfaceInputer
+	maxTxRefs uint32
+	outCount  uint32
+	outChan   chan *TxRefVecIn
+	tx        outputInterfaceNoder
+	rx        interfaceInputer
+}
+
+func (n *interfaceNode) send(v *TxRefVecIn) {
+	atomic.AddUint32(&n.outCount, uint32(v.Len()))
+	n.outChan <- v
 }
 
 type OutputInterfaceNode struct{ interfaceNode }
@@ -62,52 +70,67 @@ func (v *Vnet) RegisterOutputInterfaceNode(n outputInterfaceNoder, hi Hi, name s
 func (n *interfaceNode) setupTx(tx outputInterfaceNoder) {
 	n.tx = tx
 	n.outChan = make(chan *TxRefVecIn, 64)
+	n.maxTxRefs = 2 * MaxVectorLen
 	go n.ifOutputThread()
-}
-
-func (n *interfaceNode) slowPath(rvʹ RefVec, rs []Ref, is, ivʹ, nBytesʹ uint) (rv RefVec, iv, nBytes uint) {
-	rv, iv, nBytes = rvʹ, ivʹ, nBytesʹ
-	s := rs[is]
-	for {
-		// Copy buffer reference.
-		rv.Validate(iv)
-		rv[iv] = s
-		iv++
-
-		if h := s.NextRef(); h == nil {
-			break
-		} else {
-			s.RefHeader = *h
-		}
-		nBytes += s.DataLen()
-	}
-	return
 }
 
 type interfaceNodeThread struct {
 	freeChan chan *TxRefVecIn
-	n_alloc  uint
 }
 
 //go:generate gentemplate -d Package=vnet -id interfaceNodeThreadVec -d VecType=interfaceNodeThreadVec -d Type=*interfaceNodeThread github.com/platinasystems/elib/vec.tmpl
 
-func (t *interfaceNodeThread) allocTxRefVecIn(n *interfaceNode, in *RefIn) (i *TxRefVecIn) {
+func (n *interfaceNode) freeRefs(i *TxRefVecIn) (done bool) {
+	done = 0 == atomic.AddUint32(&n.outCount, -uint32(i.Len()))
+	i.FreeRefs(false)
+	return
+}
+
+func (n *interfaceNode) allocTxRefVecIn(t *interfaceNodeThread, in *RefIn) (i *TxRefVecIn) {
 	l := n.Vnet.loop
 	for {
 		select {
 		case i = <-t.freeChan:
-			i.FreeRefs(false)
+			n.freeRefs(i)
 			return
 		default:
+			if n.outCount < n.maxTxRefs {
+				i = &TxRefVecIn{t: t}
+				return
+			}
+			l.Suspend(&in.In)
 		}
-		if t.n_alloc < 2 {
-			t.n_alloc++
-			i = &TxRefVecIn{t: t}
-			return
-		}
-		l.Suspend(&in.In)
 	}
 	return
+}
+
+func (n *interfaceNode) newTxRefVecIn(t *interfaceNodeThread, in *RefIn, r []Ref) (i *TxRefVecIn) {
+	i = n.allocTxRefVecIn(t, in)
+	l := uint(len(r))
+	if l > 0 {
+		i.Refs.Validate(l - 1)
+		copy(i.Refs[0:], r)
+	}
+	i.Refs = i.Refs[:l]
+	return
+}
+
+func (n *interfaceNode) txFlush() {
+	if n.outCount == 0 {
+		return
+	}
+	t := n.threads[n.ThreadId()]
+	for i := range t.freeChan {
+		if done := n.freeRefs(i); done {
+			break
+		}
+	}
+}
+
+func (n *interfaceNode) Activate(enable bool) {
+	if wasEnabled := n.Node.Activate(enable); wasEnabled && !enable {
+		n.txFlush()
+	}
 }
 
 type TxRefVecIn struct {
@@ -135,22 +158,23 @@ func (n *interfaceNode) ifOutput(ri *RefIn) {
 		n.threads[id].freeChan = make(chan *TxRefVecIn, 64)
 	}
 	nt := n.threads[id]
-	rvi := nt.allocTxRefVecIn(n, ri)
-	nPackets := ri.Len()
-	rvi.nPackets = nPackets
+	rvi := n.allocTxRefVecIn(nt, ri)
+	n_packets := ri.Len()
+	rvi.nPackets = n_packets
 
 	// Copy common fields.
 	rvi.refInCommon = ri.refInCommon
 
-	rvi.Refs.Validate(nPackets - 1)
-	rvi.Refs = rvi.Refs[:nPackets]
+	rvi.Refs.Validate(n_packets - 1)
+	rvi.Refs = rvi.Refs[:n_packets]
 
-	n_left := nPackets
+	n_packets_left := n_packets
+
 	rs := ri.Refs[:]
 	rv := rvi.Refs
 	is, iv := uint(0), uint(0)
 	nBytes := uint(0)
-	for n_left >= 4 {
+	for n_packets_left >= 4 {
 		rv[iv+0] = rs[is+0]
 		rv[iv+1] = rs[is+1]
 		rv[iv+2] = rs[is+2]
@@ -158,39 +182,97 @@ func (n *interfaceNode) ifOutput(ri *RefIn) {
 		nBytes += rs[is+0].DataLen() + rs[is+1].DataLen() + rs[is+2].DataLen() + rs[is+3].DataLen()
 		iv += 4
 		is += 4
-		n_left -= 4
-		if RefFlag4(NextValid, rs, is-4) {
+		n_packets_left -= 4
+		if RefFlag4(NextValid, rs, is-4) || iv > MaxVectorLen {
 			iv -= 4
-			rv, iv, nBytes = n.slowPath(rv, rs, is-4, iv, nBytes)
-			rv, iv, nBytes = n.slowPath(rv, rs, is-3, iv, nBytes)
-			rv, iv, nBytes = n.slowPath(rv, rs, is-2, iv, nBytes)
-			rv, iv, nBytes = n.slowPath(rv, rs, is-1, iv, nBytes)
-			rv.Validate(iv + n_left - 1)
+			rvi, rv, iv, nBytes = n.slowPath(ri, rvi, rv, rs, is-4, iv, nBytes)
+			rvi, rv, iv, nBytes = n.slowPath(ri, rvi, rv, rs, is-3, iv, nBytes)
+			rvi, rv, iv, nBytes = n.slowPath(ri, rvi, rv, rs, is-2, iv, nBytes)
+			rvi, rv, iv, nBytes = n.slowPath(ri, rvi, rv, rs, is-1, iv, nBytes)
+			rv.Validate(iv + n_packets_left - 1)
 		}
 	}
-	rv.Validate(iv + n_left - 1)
-	for n_left > 0 {
+	rv.Validate(iv + n_packets_left - 1)
+	for n_packets_left > 0 {
 		rv[iv+0] = rs[is+0]
 		nBytes += rs[is+0].DataLen()
 		is += 1
 		iv += 1
-		n_left -= 1
-		if RefFlag1(NextValid, rs, is-1) {
+		n_packets_left -= 1
+		if RefFlag1(NextValid, rs, is-1) || iv > MaxVectorLen {
 			iv -= 1
-			rv, iv, nBytes = n.slowPath(rv, rs, is-1, iv, nBytes)
-			rv.Validate(iv + n_left - 1)
+			rvi, rv, iv, nBytes = n.slowPath(ri, rvi, rv, rs, is-1, iv, nBytes)
+			rv.Validate(iv + n_packets_left - 1)
 		}
 	}
 
-	rvi.Refs = rv[:iv]
+	if iv > MaxVectorLen {
+		panic("overflow")
+	}
 
 	// Bump interface packet and byte counters.
 	t := n.Vnet.GetIfThread(ri.ThreadId())
 	hw := n.Vnet.HwIf(n.hi)
-	IfTxCounter.Add(t, hw.si, nPackets, nBytes)
+	IfTxCounter.Add(t, hw.si, n_packets, nBytes)
 
-	// Send to output thread, which then calls n.tx.InterfaceOutput.
-	n.outChan <- rvi
+	if iv > 0 {
+		rvi.Refs = rv[:iv]
+
+		// Send to output thread, which then calls n.tx.InterfaceOutput.
+		n.send(rvi)
+	} else {
+		nt.freeChan <- rvi
+	}
+}
+
+// Slow path: copy whole packet (not just first ref) to vector.
+func (n *interfaceNode) slowPath(
+	ri *RefIn, rviʹ *TxRefVecIn, rvʹ RefVec, rs []Ref, is, ivʹ, nBytesʹ uint) (
+	rvi *TxRefVecIn, rv RefVec, iv, nBytes uint) {
+	rvi, rv, iv, nBytes = rviʹ, rvʹ, ivʹ, nBytesʹ
+	s := rs[is]
+	for {
+		// Copy buffer reference.
+		rv.Validate(iv)
+		rv[iv] = s
+		iv++
+
+		if h := s.NextRef(); h == nil {
+			break
+		} else {
+			s.RefHeader = *h
+		}
+		nBytes += s.DataLen()
+	}
+
+	// Tx ref vector must not exceed vector length; also, it must contain only full packets.
+	// Enfoce this.
+	if iv >= MaxVectorLen {
+		var save [MaxVectorLen]Ref
+		n_save := uint(0)
+		if iv > MaxVectorLen {
+			n_save = iv - ivʹ
+
+			// Packet must fit into a single vector.
+			if n_save > MaxVectorLen {
+				panic("packet too large")
+			}
+
+			copy(save[:n_save], rv[iv-n_save:n_save])
+			rv = rv[:ivʹ]
+		} else {
+			// Last packet exactly fits.
+			rv = rv[:iv]
+		}
+
+		// Output current vector and get a new one (possibly suspending).
+		rvi.Refs = rv
+		n.send(rvi)
+		rvi = n.newTxRefVecIn(rvi.t, ri, save[:n_save])
+		rv = rvi.Refs
+		iv = n_save
+	}
+	return
 }
 
 // Transmit ring common code.

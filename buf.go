@@ -7,12 +7,13 @@ import (
 	"github.com/platinasystems/elib/loop"
 
 	"fmt"
+	"reflect"
 	"sort"
 	"unsafe"
 )
 
 type refOpaque struct {
-	Err ErrorRef
+	err ErrorRef
 
 	Si Si
 }
@@ -72,7 +73,7 @@ type refInCommon struct {
 }
 
 type refInDupCopy struct {
-	BufferPool *hw.BufferPool
+	BufferPool *BufferPool
 }
 
 func (i *RefIn) dup(x *RefIn) { i.refInDupCopy = x.refInDupCopy }
@@ -98,14 +99,58 @@ type RefOut struct {
 	Outs []RefIn
 }
 
-func (r *RefIn) AllocPoolRefs(p *hw.BufferPool, n uint) {
+type BufferPool hw.BufferPool
+
+var DefaultBufferPool = &BufferPool{
+	Name:           "default",
+	BufferTemplate: getDefaultBufferTemplate(),
+}
+
+func getDefaultBufferTemplate() hw.BufferTemplate {
+	t := *hw.DefaultBufferTemplate
+	r := (*Ref)(unsafe.Pointer(&t.Ref))
+	// Poison so that if user does not override its obvious.
+	r.err = poisonErrorRef
+	r.Si = ^r.Si
+	return t
+}
+
+func (p *BufferPool) GetRefTemplate() *Ref {
+	return (*Ref)(unsafe.Pointer(&p.BufferTemplate.Ref))
+}
+func (p *BufferPool) GetBufferTemplate() *Buffer {
+	return (*Buffer)(unsafe.Pointer(&p.BufferTemplate.Buffer))
+}
+
+func (v *Vnet) AddBufferPool(p *BufferPool) {
+	v.BufferMain.AddBufferPool((*hw.BufferPool)(p))
+}
+
+func (r *RefIn) AllocPoolRefs(p *BufferPool, n uint) {
 	r.BufferPool = p
-	p.AllocRefs(&r.Refs[0].RefHeader, n)
+	(*hw.BufferPool)(p).AllocRefs(&r.Refs[0].RefHeader, n)
 }
-func (r *RefIn) FreePoolRefs(p *hw.BufferPool, n uint) {
+func (r *RefIn) FreePoolRefs(p *BufferPool, n uint) {
 	freeNext := true
-	p.FreeRefs(&r.Refs[0].RefHeader, n, freeNext)
+	(*hw.BufferPool)(p).FreeRefs(&r.Refs[0].RefHeader, n, freeNext)
 }
+
+func (p *BufferPool) AllocCachedRefs() (r RefVec) {
+	rs := (*hw.BufferPool)(p).AllocCachedRefs()
+	if rs != nil {
+		r = (*RefHeader)(&rs[0].RefHeader).slice(rs.Len())
+	}
+	return
+}
+
+func (p *BufferPool) AllocRefsStride(r *Ref, n, stride uint) {
+	(*hw.BufferPool)(p).AllocRefsStride((*hw.RefHeader)(&r.RefHeader), n, stride)
+}
+func (p *BufferPool) AllocRefs(r RefVec) { p.AllocRefsStride(&r[0], r.Len(), 1) }
+func (p *BufferPool) FreeRefs(r *Ref, n uint, freeNext bool) {
+	(*hw.BufferPool)(p).FreeRefs((*hw.RefHeader)(&r.RefHeader), n, freeNext)
+}
+
 func (i *RefIn) AllocRefs(n uint)       { i.AllocPoolRefs(i.BufferPool, n) }
 func (i *RefIn) FreeRefs(n uint)        { i.FreePoolRefs(i.BufferPool, n) }
 func (i *RefIn) SetLen(v *Vnet, l uint) { i.In.SetLen(&v.loop, l) }
@@ -114,22 +159,60 @@ func (i *RefIn) AddLen(v *Vnet) (l uint) {
 	i.SetLen(v, l+1)
 	return
 }
-func (i *RefIn) SetPoolAndLen(v *Vnet, p *hw.BufferPool, l uint) {
+func (i *RefIn) SetPoolAndLen(v *Vnet, p *BufferPool, l uint) {
 	i.BufferPool = p
 	i.SetLen(v, l)
 }
+
+func Get4Refs(rs []Ref, i uint) (r0, r1, r2, r3 *Ref) {
+	r0, r1, r2, r3 = &rs[i+0], &rs[i+1], &rs[i+2], &rs[i+3]
+	return
+}
+
+func Get1Ref(rs []Ref, i uint) (r0 *Ref) {
+	r0 = &rs[i+0]
+	return
+}
+
+type Buffer hw.Buffer
+
+func (r *Ref) GetBuffer() *Buffer { return (*Buffer)(r.RefHeader.GetBuffer()) }
+
+func Get4Buffers(rs []Ref, i uint) (b0, b1, b2, b3 *Buffer) {
+	b0, b1, b2, b3 = rs[i+0].GetBuffer(), rs[i+1].GetBuffer(), rs[i+2].GetBuffer(), rs[i+3].GetBuffer()
+	return
+}
+
+func Get1Buffer(rs []Ref, i uint) (b0 *Buffer) {
+	b0 = rs[i+0].GetBuffer()
+	return
+}
+
+func (r *RefIn) Get4Refs(i uint) (r0, r1, r2, r3 *Ref) { return Get4Refs(r.Refs[:], i) }
+func (r *RefIn) Get1Ref(i uint) (r0 *Ref)              { return Get1Ref(r.Refs[:], i) }
 
 func (n *Node) SetOutLen(out *RefIn, in *RefIn, l uint) {
 	out.dup(in)
 	out.SetLen(n.Vnet, l)
 }
 
-func (r *RefVecIn) FreePoolRefs(p *hw.BufferPool, freeNext bool) {
-	p.FreeRefs(&r.Refs[0].RefHeader, r.Refs.Len(), freeNext)
+func (r *RefVecIn) FreePoolRefs(p *BufferPool, freeNext bool) {
+	(*hw.BufferPool)(p).FreeRefs(&r.Refs[0].RefHeader, r.Refs.Len(), freeNext)
 }
 func (r *RefVecIn) Len() uint              { return r.Refs.Len() }
 func (r *RefVecIn) NPackets() uint         { return r.nPackets }
 func (r *RefVecIn) FreeRefs(freeNext bool) { r.FreePoolRefs(r.BufferPool, freeNext) }
+
+type RefHeader hw.RefHeader
+
+func (r *RefHeader) slice(n uint) (l []Ref) {
+	var h reflect.SliceHeader
+	h.Data = uintptr(unsafe.Pointer(r))
+	h.Len = int(n)
+	h.Cap = int(n)
+	l = *(*[]Ref)(unsafe.Pointer(&h))
+	return
+}
 
 type showPool struct {
 	Pool string `format:"%-30s" align:"left"`

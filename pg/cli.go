@@ -31,6 +31,7 @@ func (n *node) edit_streams(cmder cli.Commander, w cli.Writer, in *cli.Input) (e
 		set_limit = 1 << iota
 		set_size
 		set_next
+		set_stream
 	)
 	var set_what uint
 	enable, disable := true, false
@@ -49,6 +50,7 @@ func (n *node) edit_streams(cmder cli.Commander, w cli.Writer, in *cli.Input) (e
 			c.n_packets_limit = uint64(count)
 			set_what |= set_limit
 		case in.Parse("si%*ze %d %d", &c.min_size, &c.max_size):
+			set_what |= set_size
 		case in.Parse("si%*ze %d", &c.min_size):
 			c.max_size = c.min_size
 			set_what |= set_size
@@ -69,6 +71,7 @@ func (n *node) edit_streams(cmder cli.Commander, w cli.Writer, in *cli.Input) (e
 				return
 			}
 			r.get_stream().stream_config = default_stream_config
+			set_what |= set_stream
 		default:
 			err = cli.ParseError
 			return
@@ -108,9 +111,10 @@ func (n *node) edit_streams(cmder cli.Commander, w cli.Writer, in *cli.Input) (e
 			s.n_packets_sent = 0
 		}
 	}
-	s.SetData()
-	n.pool.Data = s.data
-	n.Vnet.AddBufferPool(&n.pool)
+	if set_what&(set_stream|set_size) != 0 || create {
+		s.SetData()
+		n.setData(s)
+	}
 	n.Activate(enable && !disable)
 	return
 }

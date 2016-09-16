@@ -50,7 +50,7 @@ type myNode struct {
 	vnet.InterfaceNode
 	ethernet.Interface
 	vnet.Package
-	pool   hw.BufferPool
+	pool   vnet.BufferPool
 	isUnix bool
 	stream
 }
@@ -88,36 +88,38 @@ func init() {
 		v.RegisterInterfaceNode(MyNode, MyNode.Hi(), "my-node")
 		MyNode.stream = stream{n_packets_limit: 1, min_size: 64, max_size: 64, next: next_error}
 
-		v.CliAdd(&cli.Command{
-			Name:      "a",
-			ShortHelp: "a short help",
-			Action: func(c cli.Commander, w cli.Writer, in *cli.Input) error {
-				n := MyNode
-				n.n_packets_sent = 0 // reset
-				for !in.End() {
-					var (
-						next_name string
-						count     float64
-					)
-					switch {
-					case (in.Parse("c%*ount %f", &count) || in.Parse("%f", &count)) && count >= 0:
-						n.n_packets_limit = uint(count)
-					case in.Parse("s%*ize %d %d", &n.min_size, &n.max_size):
-					case in.Parse("s%*ize %d", &n.min_size):
-						n.max_size = n.min_size
-					case in.Parse("n%*ext %s", &next_name):
-						n.next = v.AddNamedNext(n, next_name)
-					case in.Parse("r%*andom"):
-						n.random = true
-					default:
-						return cli.ParseError
+		if false {
+			v.CliAdd(&cli.Command{
+				Name:      "a",
+				ShortHelp: "a short help",
+				Action: func(c cli.Commander, w cli.Writer, in *cli.Input) error {
+					n := MyNode
+					n.n_packets_sent = 0 // reset
+					for !in.End() {
+						var (
+							next_name string
+							count     float64
+						)
+						switch {
+						case (in.Parse("c%*ount %f", &count) || in.Parse("%f", &count)) && count >= 0:
+							n.n_packets_limit = uint(count)
+						case in.Parse("s%*ize %d %d", &n.min_size, &n.max_size):
+						case in.Parse("s%*ize %d", &n.min_size):
+							n.max_size = n.min_size
+						case in.Parse("n%*ext %s", &next_name):
+							n.next = v.AddNamedNext(n, next_name)
+						case in.Parse("r%*andom"):
+							n.random = true
+						default:
+							return cli.ParseError
+						}
 					}
-				}
-				n.validate_size()
-				n.Activate(true)
-				return nil
-			},
-		})
+					n.validate_size()
+					n.Activate(true)
+					return nil
+				},
+			})
+		}
 	})
 }
 
@@ -206,7 +208,7 @@ func (n *myNode) Init() (err error) {
 	n.SetAdminUp(true)
 
 	t := &n.pool.BufferTemplate
-	*t = *hw.DefaultBufferTemplate
+	*t = vnet.DefaultBufferPool.BufferTemplate
 	t.Size = max_buffer_size
 	if true {
 		ip4Template(t)

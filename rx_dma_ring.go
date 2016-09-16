@@ -1,9 +1,5 @@
 package vnet
 
-import (
-	"github.com/platinasystems/elib/hw"
-)
-
 type RxDmaRing struct {
 	r        RxDmaRinger
 	v        *Vnet
@@ -21,7 +17,7 @@ type RxDmaRinger interface {
 
 func (r *RxDmaRing) getRing() *RxDmaRing { return r }
 
-func (g *RxDmaRing) RxDmaRingInit(v *Vnet, r RxDmaRinger, flags RxDmaDescriptorFlags, desc_flag_end_of_packet_shift uint, pool *hw.BufferPool, ring_len uint) {
+func (g *RxDmaRing) RxDmaRingInit(v *Vnet, r RxDmaRinger, flags RxDmaDescriptorFlags, desc_flag_end_of_packet_shift uint, pool *BufferPool, ring_len uint) {
 	g.r = r
 	g.v = v
 	g.is_sop = 1 // initialize at start of packet.
@@ -31,7 +27,7 @@ func (g *RxDmaRing) RxDmaRingInit(v *Vnet, r RxDmaRinger, flags RxDmaDescriptorF
 	g.desc_flag_end_of_packet_shift = desc_flag_end_of_packet_shift
 	g.RxDmaRefState = r.GetRefState(flags)
 	g.refs.Validate(2*ring_len - 1)
-	g.pool.AllocRefs(&g.refs[0].RefHeader, g.refs.Len())
+	g.pool.AllocRefs(g.refs)
 }
 
 type RxDmaDescriptorFlags uint64
@@ -40,7 +36,7 @@ type RxDmaDescriptorFlags uint64
 func (r *RxDmaRing) WrapRefill() {
 	ri0 := r.sequence & 1
 	r.sequence++
-	r.pool.AllocRefsStride(&r.refs[ri0].RefHeader, r.ring_len, 2)
+	r.pool.AllocRefsStride(&r.refs[ri0], r.ring_len, 2)
 }
 
 type rxDmaRingIndex uint
@@ -72,7 +68,7 @@ type rxDmaRingState struct {
 	desc_flags RxDmaDescriptorFlags
 
 	// Pool for allocating buffers/refs.
-	pool *hw.BufferPool
+	pool *BufferPool
 
 	desc_flag_end_of_packet_shift uint
 
