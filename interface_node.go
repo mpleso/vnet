@@ -96,6 +96,8 @@ func (n *interfaceNode) allocTxRefVecIn(t *interfaceNodeThread, in *RefIn) (i *T
 		default:
 			if n.outCount < n.maxTxRefs {
 				i = &TxRefVecIn{t: t}
+				i.refInCommon = in.refInCommon
+				i.nPackets = 0
 				return
 			}
 			l.Suspend(&in.In)
@@ -159,50 +161,54 @@ func (n *interfaceNode) ifOutput(ri *RefIn) {
 	}
 	nt := n.threads[id]
 	rvi := n.allocTxRefVecIn(nt, ri)
-	n_packets := ri.Len()
-	rvi.nPackets = n_packets
+	n_packets_in := ri.Len()
 
 	// Copy common fields.
 	rvi.refInCommon = ri.refInCommon
 
-	rvi.Refs.Validate(n_packets - 1)
-	rvi.Refs = rvi.Refs[:n_packets]
+	rvi.Refs.Validate(n_packets_in - 1)
+	rvi.Refs = rvi.Refs[:n_packets_in]
 
-	n_packets_left := n_packets
+	// Number of packets left to process.
+	n_ref_left := n_packets_in
 
 	rs := ri.Refs[:]
 	rv := rvi.Refs
 	is, iv := uint(0), uint(0)
-	nBytes := uint(0)
-	for n_packets_left >= 4 {
+	n_bytes_in, n_packets_rvi := uint(0), uint(0)
+	for n_ref_left >= 4 {
 		rv[iv+0] = rs[is+0]
 		rv[iv+1] = rs[is+1]
 		rv[iv+2] = rs[is+2]
 		rv[iv+3] = rs[is+3]
-		nBytes += rs[is+0].DataLen() + rs[is+1].DataLen() + rs[is+2].DataLen() + rs[is+3].DataLen()
+		n_bytes_in += rs[is+0].DataLen() + rs[is+1].DataLen() + rs[is+2].DataLen() + rs[is+3].DataLen()
 		iv += 4
 		is += 4
-		n_packets_left -= 4
+		n_ref_left -= 4
+		n_packets_rvi += 4
 		if RefFlag4(NextValid, rs, is-4) || iv > MaxVectorLen {
 			iv -= 4
-			rvi, rv, iv, nBytes = n.slowPath(ri, rvi, rv, rs, is-4, iv, nBytes)
-			rvi, rv, iv, nBytes = n.slowPath(ri, rvi, rv, rs, is-3, iv, nBytes)
-			rvi, rv, iv, nBytes = n.slowPath(ri, rvi, rv, rs, is-2, iv, nBytes)
-			rvi, rv, iv, nBytes = n.slowPath(ri, rvi, rv, rs, is-1, iv, nBytes)
-			rv.Validate(iv + n_packets_left - 1)
+			n_packets_rvi -= 4
+			rvi, rv, iv, n_bytes_in, n_packets_rvi = n.slowPath(ri, rvi, rv, rs, is-4, iv, n_bytes_in, n_packets_rvi)
+			rvi, rv, iv, n_bytes_in, n_packets_rvi = n.slowPath(ri, rvi, rv, rs, is-3, iv, n_bytes_in, n_packets_rvi)
+			rvi, rv, iv, n_bytes_in, n_packets_rvi = n.slowPath(ri, rvi, rv, rs, is-2, iv, n_bytes_in, n_packets_rvi)
+			rvi, rv, iv, n_bytes_in, n_packets_rvi = n.slowPath(ri, rvi, rv, rs, is-1, iv, n_bytes_in, n_packets_rvi)
+			rv.ValidateLen(iv + n_ref_left)
 		}
 	}
-	rv.Validate(iv + n_packets_left - 1)
-	for n_packets_left > 0 {
+	rv.ValidateLen(iv + n_ref_left)
+	for n_ref_left > 0 {
 		rv[iv+0] = rs[is+0]
-		nBytes += rs[is+0].DataLen()
+		n_bytes_in += rs[is+0].DataLen()
 		is += 1
 		iv += 1
-		n_packets_left -= 1
+		n_ref_left -= 1
+		n_packets_rvi += 1
 		if RefFlag1(NextValid, rs, is-1) || iv > MaxVectorLen {
 			iv -= 1
-			rvi, rv, iv, nBytes = n.slowPath(ri, rvi, rv, rs, is-1, iv, nBytes)
-			rv.Validate(iv + n_packets_left - 1)
+			n_packets_rvi -= 1
+			rvi, rv, iv, n_bytes_in, n_packets_rvi = n.slowPath(ri, rvi, rv, rs, is-1, iv, n_bytes_in, n_packets_rvi)
+			rv.ValidateLen(iv + n_ref_left)
 		}
 	}
 
@@ -213,10 +219,11 @@ func (n *interfaceNode) ifOutput(ri *RefIn) {
 	// Bump interface packet and byte counters.
 	t := n.Vnet.GetIfThread(ri.ThreadId())
 	hw := n.Vnet.HwIf(n.hi)
-	IfTxCounter.Add(t, hw.si, n_packets, nBytes)
+	IfTxCounter.Add(t, hw.si, n_packets_in, n_bytes_in)
 
 	if iv > 0 {
 		rvi.Refs = rv[:iv]
+		rvi.nPackets = n_packets_rvi
 
 		// Send to output thread, which then calls n.tx.InterfaceOutput.
 		n.send(rvi)
@@ -227,10 +234,12 @@ func (n *interfaceNode) ifOutput(ri *RefIn) {
 
 // Slow path: copy whole packet (not just first ref) to vector.
 func (n *interfaceNode) slowPath(
-	ri *RefIn, rviʹ *TxRefVecIn, rvʹ RefVec, rs []Ref, is, ivʹ, nBytesʹ uint) (
-	rvi *TxRefVecIn, rv RefVec, iv, nBytes uint) {
-	rvi, rv, iv, nBytes = rviʹ, rvʹ, ivʹ, nBytesʹ
+	ri *RefIn, rviʹ *TxRefVecIn, rvʹ RefVec, rs []Ref, is, ivʹ, n_bytesʹ, n_packetsʹ uint) (
+	rvi *TxRefVecIn, rv RefVec, iv, n_bytes, n_packets uint) {
+	rvi, rv, iv, n_bytes, n_packets = rviʹ, rvʹ, ivʹ, n_bytesʹ, n_packetsʹ
 	s := rs[is]
+
+	n_packets++
 	for {
 		// Copy buffer reference.
 		rv.Validate(iv)
@@ -242,7 +251,7 @@ func (n *interfaceNode) slowPath(
 		} else {
 			s.RefHeader = *h
 		}
-		nBytes += s.DataLen()
+		n_bytes += s.DataLen()
 	}
 
 	// Tx ref vector must not exceed vector length; also, it must contain only full packets.
@@ -258,8 +267,9 @@ func (n *interfaceNode) slowPath(
 				panic("packet too large")
 			}
 
-			copy(save[:n_save], rv[iv-n_save:n_save])
+			copy(save[:n_save], rv[iv-n_save:iv])
 			rv = rv[:ivʹ]
+			n_packets--
 		} else {
 			// Last packet exactly fits.
 			rv = rv[:iv]
@@ -267,10 +277,12 @@ func (n *interfaceNode) slowPath(
 
 		// Output current vector and get a new one (possibly suspending).
 		rvi.Refs = rv
+		rvi.nPackets = n_packets
 		n.send(rvi)
 		rvi = n.newTxRefVecIn(rvi.t, ri, save[:n_save])
 		rv = rvi.Refs
 		iv = n_save
+		n_packets = 0
 	}
 	return
 }
