@@ -125,7 +125,8 @@ func (n *interfaceNode) txFlush() {
 	if t == nil {
 		return
 	}
-	for i := range t.freeChan {
+	for n.outCount > 0 {
+		i := <-t.freeChan
 		if done := n.freeRefs(i); done {
 			break
 		}
