@@ -2,6 +2,7 @@ package vnet
 
 import (
 	"github.com/platinasystems/elib"
+	"github.com/platinasystems/elib/cpu"
 	"github.com/platinasystems/elib/dep"
 	"github.com/platinasystems/elib/loop"
 	"github.com/platinasystems/elib/parse"
@@ -40,6 +41,7 @@ func (v *Vnet) configure(in *parse.Input) (err error) {
 	}
 	return
 }
+func (v *Vnet) TimeDiff(t0, t1 cpu.Time) float64 { return v.loop.TimeDiff(t1, t0) }
 
 func (v *Vnet) Run(in *parse.Input) (err error) {
 	loop.AddInit(func(l *loop.Loop) {

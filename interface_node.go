@@ -117,28 +117,6 @@ func (n *interfaceNode) newTxRefVecIn(t *interfaceNodeThread, in *RefIn, r []Ref
 	return
 }
 
-func (n *interfaceNode) txFlush() {
-	if n.outCount == 0 {
-		return
-	}
-	t := n.getThread(n.ThreadId())
-	if t == nil {
-		return
-	}
-	for n.outCount > 0 {
-		i := <-t.freeChan
-		if done := n.freeRefs(i); done {
-			break
-		}
-	}
-}
-
-func (n *interfaceNode) Activate(enable bool) {
-	if wasEnabled := n.Node.Activate(enable); wasEnabled && !enable {
-		n.txFlush()
-	}
-}
-
 type TxRefVecIn struct {
 	RefVecIn
 	t *interfaceNodeThread

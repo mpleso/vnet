@@ -2,6 +2,7 @@ package pg
 
 import (
 	"github.com/platinasystems/elib"
+	"github.com/platinasystems/elib/cpu"
 	"github.com/platinasystems/elib/hw"
 	"github.com/platinasystems/elib/parse"
 	"github.com/platinasystems/vnet"
@@ -334,26 +335,44 @@ func (n *node) generate(s *Stream, dst []vnet.Ref, n_packets uint) (n_bytes uint
 	return
 }
 
-func (s *Stream) n_packets_this_input(cap uint) (n uint) {
+func (n *node) n_packets_this_input(s *Stream, cap uint) (p uint, dt_next float64) {
 	if s.n_packets_limit == 0 { // unlimited
-		n = cap
+		p = cap
 	} else if s.n_packets_sent < s.n_packets_limit {
 		max := s.n_packets_limit - s.n_packets_sent
 		if max > uint64(cap) {
-			n = cap
+			p = cap
 		} else {
-			n = uint(max)
+			p = uint(max)
+		}
+	}
+	if s.rate_packets_per_sec != 0 {
+		now := cpu.TimeNow()
+		dt := n.Vnet.TimeDiff(now, s.last_time)
+		s.credit_packets += dt * s.rate_packets_per_sec
+		if float64(p) > s.credit_packets {
+			p = uint(s.credit_packets)
+			s.credit_packets -= float64(p)
+		}
+		s.last_time = now
+		if s.credit_packets < 1 {
+			dt_next = (1 - s.credit_packets) / s.rate_packets_per_sec
 		}
 	}
 	return
 }
 
-func (n *node) stream_input(o *vnet.RefOut, s *Stream) (done bool) {
+func (n *node) stream_input(o *vnet.RefOut, s *Stream) (done bool, dt float64) {
 	out := &o.Outs[s.next]
 	out.BufferPool = &n.pool
 	t := n.GetIfThread()
 
-	n_packets := s.n_packets_this_input(out.Cap())
+	var n_packets uint
+	n_packets, dt = n.n_packets_this_input(s, out.Cap())
+	if n_packets == 0 {
+		return
+	}
+
 	n_bytes := n.generate(s, out.Refs[:], n_packets)
 	vnet.IfRxCounter.Add(t, n.Si(), n_packets, n_bytes)
 	out.SetPoolAndLen(n.Vnet, &n.pool, n_packets)
@@ -364,11 +383,24 @@ func (n *node) stream_input(o *vnet.RefOut, s *Stream) (done bool) {
 
 func (n *node) InterfaceInput(o *vnet.RefOut) {
 	all_done := true
+	min_dt, min_dt_valid := float64(0), false
 	n.stream_pool.Foreach(func(s Streamer) {
-		done := n.stream_input(o, s.get_stream())
+		done, dt := n.stream_input(o, s.get_stream())
 		all_done = all_done && done
+		if dt > 0 {
+			if !min_dt_valid {
+				min_dt = dt
+				min_dt_valid = true
+			} else if dt < min_dt {
+				min_dt = dt
+			}
+		}
 	})
-	n.Activate(!all_done)
+	if !all_done && min_dt > 0 {
+		n.ActivateAfterTime(min_dt)
+	} else {
+		n.Activate(!all_done)
+	}
 }
 
 func (n *node) InterfaceOutput(i *vnet.TxRefVecIn) {

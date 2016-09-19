@@ -2,6 +2,7 @@ package pg
 
 import (
 	"github.com/platinasystems/elib"
+	"github.com/platinasystems/elib/cpu"
 	"github.com/platinasystems/vnet"
 
 	"fmt"
@@ -23,6 +24,11 @@ type stream_config struct {
 	max_size uint
 	// Number of packets to send or 0 for no limit.
 	n_packets_limit uint64
+
+	// Data rate in bits or packets per second.
+	rate_bits_per_sec    float64
+	rate_packets_per_sec float64
+
 	// Next index relative to input node for this stream.
 	next uint
 }
@@ -35,6 +41,10 @@ type Stream struct {
 	random_seed int64
 
 	cur_size uint
+
+	last_time            cpu.Time
+	rate_packets_per_sec float64
+	credit_packets       float64
 
 	n_packets_sent uint64
 

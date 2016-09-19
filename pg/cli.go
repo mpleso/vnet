@@ -3,6 +3,7 @@ package pg
 import (
 	"github.com/platinasystems/elib"
 	"github.com/platinasystems/elib/cli"
+	"github.com/platinasystems/elib/cpu"
 	"github.com/platinasystems/elib/parse"
 	"github.com/platinasystems/vnet"
 
@@ -30,6 +31,7 @@ func (n *node) edit_streams(cmder cli.Commander, w cli.Writer, in *cli.Input) (e
 	const (
 		set_limit = 1 << iota
 		set_size
+		set_speed
 		set_next
 		set_stream
 	)
@@ -41,19 +43,31 @@ func (n *node) edit_streams(cmder cli.Commander, w cli.Writer, in *cli.Input) (e
 	for !in.End() {
 		var (
 			name   string
-			count  float64
+			x      float64
 			sub_in parse.Input
 			index  uint
 		)
 		switch {
-		case (in.Parse("c%*ount %f", &count) || in.Parse("%f", &count)) && count >= 0:
-			c.n_packets_limit = uint64(count)
+		case (in.Parse("c%*ount %f", &x) || in.Parse("%f", &x)) && x >= 0:
+			c.n_packets_limit = uint64(x)
 			set_what |= set_limit
 		case in.Parse("si%*ze %d-%d", &c.min_size, &c.max_size):
 			set_what |= set_size
 		case in.Parse("si%*ze %d", &c.min_size):
 			c.max_size = c.min_size
 			set_what |= set_size
+		case in.Parse("sp%*eed %fpps", &x):
+			set_what |= set_speed
+			c.rate_packets_per_sec = x
+			if set_what&set_limit == 0 {
+				c.n_packets_limit = 0
+			}
+		case in.Parse("sp%*eed %fbps", &x):
+			set_what |= set_speed
+			c.rate_bits_per_sec = x
+			if set_what&set_limit == 0 {
+				c.n_packets_limit = 0
+			}
 		case in.Parse("r%*andom"):
 			c.random_size = true
 			set_what |= set_size
@@ -110,11 +124,27 @@ func (n *node) edit_streams(cmder cli.Commander, w cli.Writer, in *cli.Input) (e
 		if set_what == 0 {
 			s.n_packets_sent = 0
 		}
+		if set_what&set_speed != 0 {
+			s.rate_bits_per_sec = c.rate_bits_per_sec
+			s.rate_packets_per_sec = c.rate_packets_per_sec
+		}
 	}
+
+	s.last_time = cpu.TimeNow()
+	ave_packet_bits := 8 * .5 * float64(s.min_size+s.max_size)
+	if c.rate_bits_per_sec != 0 {
+		s.rate_bits_per_sec = c.rate_bits_per_sec
+		s.rate_packets_per_sec = s.rate_bits_per_sec / ave_packet_bits
+	} else {
+		s.rate_bits_per_sec = c.rate_packets_per_sec * ave_packet_bits
+		s.rate_packets_per_sec = c.rate_packets_per_sec
+	}
+
 	if set_what&(set_stream|set_size) != 0 || create {
 		s.SetData()
 		n.setData(s)
 	}
+
 	n.Activate(enable && !disable)
 	return
 }
