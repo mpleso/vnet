@@ -369,14 +369,12 @@ func (n *node) stream_input(o *vnet.RefOut, s *Stream) (done bool, dt float64) {
 
 	var n_packets uint
 	n_packets, dt = n.n_packets_this_input(s, out.Cap())
-	if n_packets == 0 {
-		return
+	if n_packets > 0 {
+		n_bytes := n.generate(s, out.Refs[:], n_packets)
+		vnet.IfRxCounter.Add(t, n.Si(), n_packets, n_bytes)
+		out.SetPoolAndLen(n.Vnet, &n.pool, n_packets)
+		s.n_packets_sent += uint64(n_packets)
 	}
-
-	n_bytes := n.generate(s, out.Refs[:], n_packets)
-	vnet.IfRxCounter.Add(t, n.Si(), n_packets, n_bytes)
-	out.SetPoolAndLen(n.Vnet, &n.pool, n_packets)
-	s.n_packets_sent += uint64(n_packets)
 	done = s.n_packets_limit != 0 && s.n_packets_sent >= s.n_packets_limit
 	return
 }

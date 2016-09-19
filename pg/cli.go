@@ -131,6 +131,7 @@ func (n *node) edit_streams(cmder cli.Commander, w cli.Writer, in *cli.Input) (e
 	}
 
 	s.last_time = cpu.TimeNow()
+	s.credit_packets = 0
 	ave_packet_bits := 8 * .5 * float64(s.min_size+s.max_size)
 	if c.rate_bits_per_sec != 0 {
 		s.rate_bits_per_sec = c.rate_bits_per_sec
