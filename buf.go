@@ -137,7 +137,7 @@ func (r *RefIn) FreePoolRefs(p *BufferPool, n uint) {
 
 func (p *BufferPool) AllocCachedRefs() (r RefVec) {
 	rs := (*hw.BufferPool)(p).AllocCachedRefs()
-	if rs != nil {
+	if len(rs) > 0 {
 		r = (*RefHeader)(&rs[0].RefHeader).slice(rs.Len())
 	}
 	return
