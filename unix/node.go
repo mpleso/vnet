@@ -280,7 +280,8 @@ func (intf *Interface) WriteReady() (err error) {
 			switch {
 			case errno == syscall.EWOULDBLOCK:
 				return
-			case errno == syscall.EIO: // means that interface is down
+			case errno == syscall.EIO:
+				// Signaled by tun.c in kernel and means that interface is down.
 				intf.m.puntNode.CountError(puntErrorInterfaceDown, 1)
 			case errno != 0:
 				err = fmt.Errorf("writev: %s", errno)
