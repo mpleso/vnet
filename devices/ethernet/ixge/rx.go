@@ -444,6 +444,7 @@ func (q *rx_dma_queue) rx_no_wrap(n_doneʹ reg, n_descriptors reg) (done rx_done
 
 func (d *dev) rx_queue_interrupt(queue uint) {
 	q := &d.rx_queues[queue]
+	// Protects again polling and interrupt happening concurrently.
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	q.Out = d.out
