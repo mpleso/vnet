@@ -153,6 +153,8 @@ func (d *dev) clear_counters() {
 }
 
 func (d *dev) counter_init() {
+	// Clear anything left over from previous runs.
+	d.clear_counters()
 	d.AddTimedEvent(&counter_update_event{dev: d}, counter_update_interval)
 }
 
