@@ -352,8 +352,8 @@ func (n *node) n_packets_this_input(s *Stream, cap uint) (p uint, dt_next float6
 		s.credit_packets += dt * s.rate_packets_per_sec
 		if float64(p) > s.credit_packets {
 			p = uint(s.credit_packets)
-			s.credit_packets -= float64(p)
 		}
+		s.credit_packets -= float64(p)
 		s.last_time = now
 		if s.credit_packets < 1 {
 			dt_next = (1 - s.credit_packets) / s.rate_packets_per_sec
@@ -396,7 +396,7 @@ func (n *node) InterfaceInput(o *vnet.RefOut) {
 			}
 		}
 	})
-	if !all_done && min_dt > 0 {
+	if !all_done && min_dt > 1e-4 {
 		n.ActivateAfterTime(min_dt)
 	} else {
 		n.Activate(!all_done)
