@@ -31,7 +31,7 @@ func (n *node) edit_streams(cmder cli.Commander, w cli.Writer, in *cli.Input) (e
 	const (
 		set_limit = 1 << iota
 		set_size
-		set_speed
+		set_rate
 		set_next
 		set_stream
 	)
@@ -56,19 +56,19 @@ func (n *node) edit_streams(cmder cli.Commander, w cli.Writer, in *cli.Input) (e
 		case in.Parse("si%*ze %d", &c.min_size):
 			c.max_size = c.min_size
 			set_what |= set_size
-		case in.Parse("sp%*eed %fpps", &x):
-			set_what |= set_speed
-			c.rate_packets_per_sec = x
-			if set_what&set_limit == 0 {
-				c.n_packets_limit = 0
-			}
-		case in.Parse("sp%*eed %fbps", &x):
-			set_what |= set_speed
+		case in.Parse("ra%*te %fbps", &x):
+			set_what |= set_rate
 			c.rate_bits_per_sec = x
 			if set_what&set_limit == 0 {
 				c.n_packets_limit = 0
 			}
-		case in.Parse("r%*andom"):
+		case in.Parse("ra%*te %fpps", &x) || in.Parse("ra%*te %f", &x):
+			set_what |= set_rate
+			c.rate_packets_per_sec = x
+			if set_what&set_limit == 0 {
+				c.n_packets_limit = 0
+			}
+		case in.Parse("random"):
 			c.random_size = true
 			set_what |= set_size
 		case in.Parse("n%*ext %s", &name):
@@ -124,7 +124,7 @@ func (n *node) edit_streams(cmder cli.Commander, w cli.Writer, in *cli.Input) (e
 		if set_what == 0 {
 			s.n_packets_sent = 0
 		}
-		if set_what&set_speed != 0 {
+		if set_what&set_rate != 0 {
 			s.rate_bits_per_sec = c.rate_bits_per_sec
 			s.rate_packets_per_sec = c.rate_packets_per_sec
 		}
@@ -133,12 +133,14 @@ func (n *node) edit_streams(cmder cli.Commander, w cli.Writer, in *cli.Input) (e
 	s.last_time = cpu.TimeNow()
 	s.credit_packets = 0
 	ave_packet_bits := 8 * .5 * float64(s.min_size+s.max_size)
-	if c.rate_bits_per_sec != 0 {
-		s.rate_bits_per_sec = c.rate_bits_per_sec
-		s.rate_packets_per_sec = s.rate_bits_per_sec / ave_packet_bits
-	} else {
-		s.rate_bits_per_sec = c.rate_packets_per_sec * ave_packet_bits
-		s.rate_packets_per_sec = c.rate_packets_per_sec
+	if create || set_what&set_rate != 0 {
+		if c.rate_bits_per_sec != 0 {
+			s.rate_bits_per_sec = c.rate_bits_per_sec
+			s.rate_packets_per_sec = s.rate_bits_per_sec / ave_packet_bits
+		} else {
+			s.rate_bits_per_sec = c.rate_packets_per_sec * ave_packet_bits
+			s.rate_packets_per_sec = c.rate_packets_per_sec
+		}
 	}
 
 	if set_what&(set_stream|set_size) != 0 || create {
