@@ -308,6 +308,19 @@ func (hw *HwIf) SetSpeed(v Bandwidth) (err error) {
 	return
 }
 
+var ErrNotSupported = errors.New("not supported")
+
+// Default versions.
+func (h *HwIf) ValidateSpeed(v Bandwidth) (err error) { return }
+func (h *HwIf) SetLoopback(v IfLoopbackType) (err error) {
+	switch v {
+	case IfLoopbackNone:
+	default:
+		err = ErrNotSupported
+	}
+	return
+}
+
 type interfaceMain struct {
 	hwIferPool      hwIferPool
 	hwIfIndexByName parse.StringMap
@@ -376,10 +389,24 @@ func (m *interfaceMain) SwLessThan(a, b *swIf) bool {
 type IfLoopbackType int
 
 const (
-	None IfLoopbackType = iota
-	Mac
-	Phy
+	IfLoopbackNone IfLoopbackType = iota
+	IfLoopbackMac
+	IfLoopbackPhy
 )
+
+func (x *IfLoopbackType) Parse(in *parse.Input) {
+	switch text := in.Token(); text {
+	case "none":
+		*x = IfLoopbackNone
+	case "mac":
+		*x = IfLoopbackMac
+	case "phy":
+		*x = IfLoopbackPhy
+	default:
+		panic(parse.ErrInput)
+	}
+	return
+}
 
 // To clarify units: 1e9 * vnet.Bps
 const (
@@ -447,6 +474,7 @@ type Devicer interface {
 	loop.OutputLooper
 	IsUnix() bool
 	ValidateSpeed(speed Bandwidth) error
+	SetLoopback(v IfLoopbackType) error
 	GetHwInterfaceCounters(n *InterfaceCounterNames, t *InterfaceThread)
 }
 
