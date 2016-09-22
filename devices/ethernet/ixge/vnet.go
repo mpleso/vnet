@@ -29,11 +29,11 @@ func (d *dev) vnetInit() {
 	}
 
 	a := d.pciDev.Addr
-	ethernet.RegisterInterface(v, d, &d.ethIfConfig, "ixge%d.%d.%d", a.Bus, a.Slot, a.Fn)
+	ethernet.RegisterInterface(v, d, &d.ethIfConfig, "ixge%d-%d-%d", a.Bus, a.Slot, a.Fn)
 	v.RegisterInterfaceNode(d, d.Hi(), d.Name())
 }
 
-func (d *dev) SetIfLoopbackType(x vnet.IfLoopbackType) (err error) {
+func (d *dev) SetLoopback(x vnet.IfLoopbackType) (err error) {
 	const (
 		force_link_up = 1 << 0
 		mac_loopback  = 1 << 15
