@@ -94,7 +94,7 @@ func (e *netlinkEvent) EventAction() {
 		known = true
 		intf := e.m.getInterface(v.Index)
 		// Respect flag admin state changes from unix shell via ifconfig or "ip link" commands.
-		err = intf.si.SetAdminUp(vn, v.Flags&netlink.IFF_UP != 0)
+		err = intf.si.SetAdminUp(vn, v.IfInfomsg.Flags&netlink.IFF_UP != 0)
 	case *netlink.IfAddrMessage:
 		switch v.Family {
 		case netlink.AF_INET:
@@ -181,7 +181,7 @@ func (m *Main) ip4IfaddrMsg(v *netlink.IfAddrMessage) (err error) {
 }
 
 func (m *Main) ip4NeighborMsg(v *netlink.NeighborMessage) (err error) {
-	if v.Type != netlink.RTN_UNICAST {
+	if v.Ndmsg.Type != netlink.RTN_UNICAST {
 		return
 	}
 	isDel := v.Header.Type == netlink.RTM_DELNEIGH
@@ -221,7 +221,7 @@ func (m *Main) ip4RouteMsg(v *netlink.RouteMessage) (err error) {
 		// Ignore all except routes that are static (RTPROT_BOOT) or originating from routing-protocols.
 		return
 	}
-	if v.Type != netlink.RTN_UNICAST {
+	if v.Rtmsg.Type != netlink.RTN_UNICAST {
 		return
 	}
 	p := ip4Prefix(v.Attrs[netlink.RTA_DST], v.DstLen)
