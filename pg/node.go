@@ -309,9 +309,9 @@ func (n *node) generate_n_types(s *Stream, dst []vnet.Ref, n_packets, n_types ui
 }
 
 func (n *node) generate(s *Stream, dst []vnet.Ref, n_packets uint) (n_bytes uint) {
-	nt := 1 + buffer_type_for_size(s.cur_size, n.pool.Size)
 	n_left := n_packets
 	for {
+		nt := 1 + buffer_type_for_size(s.cur_size, n.pool.Size)
 		n_this := n_left
 		if s.max_size != s.min_size {
 			n_this = 1 + s.max_size - s.cur_size
@@ -326,10 +326,6 @@ func (n *node) generate(s *Stream, dst []vnet.Ref, n_packets uint) (n_bytes uint
 		n_left -= n_this
 		if n_left == 0 {
 			break
-		}
-		nt++
-		if nt > uint(len(s.buffer_types)) {
-			nt = 1
 		}
 	}
 	return
