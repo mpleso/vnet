@@ -174,6 +174,10 @@ func Get1Ref(rs []Ref, i uint) (r0 *Ref) {
 	return
 }
 
+func (p *BufferPool) ValidateRef(r *Ref, want hw.BufferState) {
+	(*hw.BufferPool)(p).ValidateRefs((*hw.RefHeader)(&r.RefHeader), want, 1, 1)
+}
+
 func (p *BufferPool) ValidateRefs(refs []Ref, want hw.BufferState) {
 	(*hw.BufferPool)(p).ValidateRefs((*hw.RefHeader)(&refs[0].RefHeader), want, uint(len(refs)), 1)
 }
