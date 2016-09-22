@@ -268,6 +268,9 @@ func (n *interfaceNode) slowPath(
 		rv = rvi.Refs
 		iv = n_save
 		n_packets = 0
+		if n_save > 0 {
+			n_packets = 1
+		}
 	}
 	return
 }
