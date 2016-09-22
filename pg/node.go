@@ -268,11 +268,11 @@ func (n *node) generate_n_types(s *Stream, dst []vnet.Ref, n_packets, n_types ui
 	var prev, prev_prev []vnet.Ref
 	this := dst
 	save := s.cur_size
+	is_single_size := s.max_size == s.min_size
 	d := (n_types - 1) * n.pool.Size
 	n_bytes = d * n_packets
-	is_single_size := s.max_size == s.min_size
 	if is_single_size {
-		n_bytes += s.min_size * n_packets
+		n_bytes = s.min_size * n_packets
 	}
 	for i := uint(0); i < n_types; i++ {
 		n.buffer_type_get_refs(this, n_packets, uint(s.buffer_types[i]))
