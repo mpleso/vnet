@@ -128,7 +128,6 @@ func (n *node) del_stream(r Streamer) {
 	s.clean()
 }
 
-func (n *node) ValidateSpeed(speed vnet.Bandwidth) (err error)                                 { return }
 func (n *node) GetHwInterfaceCounters(nm *vnet.InterfaceCounterNames, t *vnet.InterfaceThread) {}
 func (n *node) FormatRewrite(rw *vnet.Rewrite) string                                          { return "" }
 func (n *node) SetRewrite(v *vnet.Vnet, rw *vnet.Rewrite, packetType vnet.PacketType, da []byte) {

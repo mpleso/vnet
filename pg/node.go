@@ -394,7 +394,8 @@ func (n *node) InterfaceInput(o *vnet.RefOut) {
 			}
 		}
 	})
-	if !all_done && min_dt > 1e-4 {
+	// For any wait "too small" (10 microseconds), just remain active.
+	if !all_done && min_dt > 10e-6 {
 		n.ActivateAfterTime(min_dt)
 	} else {
 		n.Activate(!all_done)

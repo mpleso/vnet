@@ -160,13 +160,6 @@ func (d *dev) Init() {
 	d.regs.xge_mac.control.or(d, 1<<2)
 	d.regs.xge_mac.rx_max_frame_size.set(d, 0xffff<<16)
 
-	if false {
-		// Force link up.
-		d.regs.xge_mac.mac_control.or(d, 1<<0)
-		// Put mac in loopback.
-		d.regs.xge_mac.control.or(d, 1<<15)
-	}
-
 	// Enable all interrupts.
 	d.InterruptEnable(true)
 

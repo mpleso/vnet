@@ -33,6 +33,25 @@ func (d *dev) vnetInit() {
 	v.RegisterInterfaceNode(d, d.Hi(), d.Name())
 }
 
+func (d *dev) SetIfLoopbackType(x vnet.IfLoopbackType) (err error) {
+	const (
+		force_link_up = 1 << 0
+		mac_loopback  = 1 << 15
+	)
+	switch x {
+	case vnet.IfLoopbackMac:
+		d.regs.xge_mac.mac_control.or(d, force_link_up)
+		d.regs.xge_mac.control.or(d, mac_loopback)
+	case vnet.IfLoopbackNone:
+		d.regs.xge_mac.control.andnot(d, mac_loopback)
+		d.regs.xge_mac.mac_control.andnot(d, force_link_up)
+	default:
+		return vnet.ErrNotSupported
+	}
+
+	return
+}
+
 func (d *dev) ValidateSpeed(speed vnet.Bandwidth) (err error) {
 	return
 }

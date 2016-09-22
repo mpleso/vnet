@@ -281,18 +281,22 @@ func (v *Vnet) setHwIf(c cli.Commander, w cli.Writer, in *cli.Input) (err error)
 		mtu       uint
 		bw        Bandwidth
 		provision parse.Enable
+		loopback  IfLoopbackType
 	)
 
 	switch {
+	case in.Parse("l%*oopback %v %v", &hi, v, &loopback):
+		h := v.HwIfer(hi)
+		err = h.SetLoopback(loopback)
 	case in.Parse("mtu %v %d", &hi, v, &mtu):
 		h := v.HwIf(hi)
 		err = h.SetMaxPacketSize(mtu)
-	case in.Parse("speed %v %", &hi, &bw):
-		h := v.HwIf(hi)
-		err = h.SetSpeed(bw)
-	case in.Parse("provision %v %v", &hi, v, &provision):
+	case in.Parse("p%*rovision %v %v", &hi, v, &provision):
 		h := v.HwIf(hi)
 		err = h.SetProvisioned(bool(provision))
+	case in.Parse("s%*peed %v %v", &hi, v, &bw):
+		h := v.HwIf(hi)
+		err = h.SetSpeed(bw)
 	default:
 		err = cli.ParseError
 	}
