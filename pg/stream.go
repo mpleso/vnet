@@ -128,7 +128,7 @@ func (n *node) del_stream(r Streamer) {
 	s.clean()
 }
 
-func (n *node) GetHwInterfaceCounters(nm *vnet.InterfaceCounterNames, t *vnet.InterfaceThread) {}
-func (n *node) FormatRewrite(rw *vnet.Rewrite) string                                          { return "" }
-func (n *node) SetRewrite(v *vnet.Vnet, rw *vnet.Rewrite, packetType vnet.PacketType, da []byte) {
-}
+func (n *node) GetHwInterfaceCounters(nm *vnet.InterfaceCounterNames, t *vnet.InterfaceThread)   {}
+func (n *node) FormatAddress() (s string)                                                        { return }
+func (n *node) FormatRewrite(rw *vnet.Rewrite) (s string)                                        { return }
+func (n *node) SetRewrite(v *vnet.Vnet, rw *vnet.Rewrite, packetType vnet.PacketType, da []byte) {}

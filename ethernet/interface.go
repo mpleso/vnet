@@ -153,6 +153,8 @@ func RegisterInterface(v *vnet.Vnet, hi HwInterfacer, config *InterfaceConfig, f
 	v.RegisterHwInterface(hi, format, args...)
 }
 
+func (hi *Interface) FormatAddress() string { return hi.Address.String() }
+
 var rewriteTypeMap = [...]Type{
 	vnet.IP4:            IP4,
 	vnet.IP6:            IP6,

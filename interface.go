@@ -465,6 +465,7 @@ func (b *Bandwidth) Parse(in *parse.Input) {
 
 // Class of hardware interfaces, for example, ethernet, sonet, srp, docsis, etc.
 type HwIfClasser interface {
+	FormatAddress() string
 	SetRewrite(v *Vnet, r *Rewrite, t PacketType, dstAddr []byte)
 	FormatRewrite(r *Rewrite) string
 }

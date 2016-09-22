@@ -178,6 +178,7 @@ func (h *hwIfIndices) Len() int           { return len(h.ifs) }
 
 type showHwIf struct {
 	Name    string `format:"%-30s"`
+	Address string `format:"%-12s" align:"center"`
 	Link    string `width:12`
 	Counter string `format:"%-30s" align:"left"`
 	Count   string `format:"%16s" align:"right"`
@@ -230,8 +231,9 @@ func (v *Vnet) showHwIfs(c cli.Commander, w cli.Writer, in *cli.Input) (err erro
 		h := hi.GetHwIf()
 		first := true
 		firstIf := showHwIf{
-			Name: h.name,
-			Link: h.LinkString(),
+			Name:    h.name,
+			Address: hi.FormatAddress(),
+			Link:    h.LinkString(),
 		}
 		v.foreachHwIfCounter(cf.detail, h.hi, func(counter string, count uint64) {
 			s := showHwIf{
@@ -242,6 +244,7 @@ func (v *Vnet) showHwIfs(c cli.Commander, w cli.Writer, in *cli.Input) (err erro
 			if first {
 				first = false
 				s.Name = firstIf.Name
+				s.Address = firstIf.Address
 				s.Link = firstIf.Link
 			}
 			ifs = append(ifs, s)
