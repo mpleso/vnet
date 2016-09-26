@@ -302,7 +302,7 @@ func (d *dev) tx_queue_interrupt(queue uint) {
 		n_advance += q.len
 	}
 	q.head_index = di
-	if elog.Enabled() && n_advance > 0 {
+	if elog.Enabled() {
 		dr := q.get_regs()
 		tail := dr.tail_index.get(d)
 		elog.GenEventf("%s tx irq adv %d head %d tail %d", d.Name(), n_advance, di, tail)
