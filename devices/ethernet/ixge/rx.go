@@ -78,7 +78,7 @@ func (d *dev) rx_dma_init(queue uint) {
 	dr.n_descriptor_bytes.set(d, n_desc*reg(unsafe.Sizeof(q.rx_desc[0])))
 
 	{
-		v := reg(d.rx_buffer_bytes/24) << 0
+		v := reg(d.rx_buffer_bytes/1024) << 0
 		// Set lo free descriptor interrupt threshold to 1 * 64 descriptors.
 		v |= 1 << 22
 		// Descriptor type: advanced one buffer descriptors.
