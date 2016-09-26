@@ -171,6 +171,13 @@ func (g *RxDmaRing) slow_path(r0 *Ref, f0 RxDmaDescriptorFlags) {
 
 	s := &g.rxDmaRingState
 
+	is_sop0 := s.chain.Len() == 0
+
+	// Correct advance if not at start of packet.
+	if !is_sop0 {
+		r0.Advance(-g.Advance)
+	}
+
 	// Append buffer to current chain.
 	s.chain.Append(r0)
 
