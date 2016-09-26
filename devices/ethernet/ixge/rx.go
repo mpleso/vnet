@@ -387,7 +387,7 @@ func (q *rx_dma_queue) rx_no_wrap(n_doneʹ reg, n_descriptors reg) (done rx_done
 		}
 
 		b0, b1 := uint(x0.n_bytes_this_descriptor), uint(x1.n_bytes_this_descriptor)
-		b2, b3 := uint(x3.n_bytes_this_descriptor), uint(x2.n_bytes_this_descriptor)
+		b2, b3 := uint(x2.n_bytes_this_descriptor), uint(x3.n_bytes_this_descriptor)
 
 		x0.refill(q.RefillRef(ri.NextRingIndex(0)))
 		x1.refill(q.RefillRef(ri.NextRingIndex(1)))
