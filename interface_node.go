@@ -2,6 +2,7 @@ package vnet
 
 import (
 	"github.com/platinasystems/elib/loop"
+
 	"sync/atomic"
 )
 
@@ -23,13 +24,12 @@ type inputOutputInterfaceNoder interface {
 type interfaceNode struct {
 	Node
 
-	threads interfaceNodeThreadVec
-
 	hi Hi
 
 	maxTxRefs uint32
 	outCount  uint32
 	outChan   chan *TxRefVecIn
+	freeChan  chan *TxRefVecIn
 	tx        outputInterfaceNoder
 	rx        interfaceInputer
 }
@@ -67,15 +67,14 @@ func (v *Vnet) RegisterOutputInterfaceNode(n outputInterfaceNoder, hi Hi, name s
 	v.RegisterNode(n, name, args...)
 }
 
+const tx_ref_vec_in_fifo_len = 256
+
 func (n *interfaceNode) setupTx(tx outputInterfaceNoder) {
 	n.tx = tx
-	n.outChan = make(chan *TxRefVecIn, 64)
+	n.outChan = make(chan *TxRefVecIn, tx_ref_vec_in_fifo_len)
+	n.freeChan = make(chan *TxRefVecIn, tx_ref_vec_in_fifo_len)
 	n.maxTxRefs = 2 * MaxVectorLen
 	go n.ifOutputThread()
-}
-
-type interfaceNodeThread struct {
-	freeChan chan *TxRefVecIn
 }
 
 //go:generate gentemplate -d Package=vnet -id interfaceNodeThreadVec -d VecType=interfaceNodeThreadVec -d Type=*interfaceNodeThread github.com/platinasystems/elib/vec.tmpl
@@ -86,16 +85,16 @@ func (n *interfaceNode) freeRefs(i *TxRefVecIn) (done bool) {
 	return
 }
 
-func (n *interfaceNode) allocTxRefVecIn(t *interfaceNodeThread, in *RefIn) (i *TxRefVecIn) {
+func (n *interfaceNode) allocTxRefVecIn(in *RefIn) (i *TxRefVecIn) {
 	l := n.Vnet.loop
 	for {
 		select {
-		case i = <-t.freeChan:
+		case i = <-n.freeChan:
 			n.freeRefs(i)
 			return
 		default:
-			if n.outCount < n.maxTxRefs {
-				i = &TxRefVecIn{t: t}
+			if n.outCount+MaxVectorLen <= n.maxTxRefs {
+				i = &TxRefVecIn{n: n}
 				i.refInCommon = in.refInCommon
 				i.nPackets = 0
 				return
@@ -106,8 +105,8 @@ func (n *interfaceNode) allocTxRefVecIn(t *interfaceNodeThread, in *RefIn) (i *T
 	return
 }
 
-func (n *interfaceNode) newTxRefVecIn(t *interfaceNodeThread, in *RefIn, r []Ref) (i *TxRefVecIn) {
-	i = n.allocTxRefVecIn(t, in)
+func (n *interfaceNode) newTxRefVecIn(in *RefIn, r []Ref) (i *TxRefVecIn) {
+	i = n.allocTxRefVecIn(in)
 	l := uint(len(r))
 	if l > 0 {
 		i.Refs.Validate(l - 1)
@@ -119,11 +118,11 @@ func (n *interfaceNode) newTxRefVecIn(t *interfaceNodeThread, in *RefIn, r []Ref
 
 type TxRefVecIn struct {
 	RefVecIn
-	t *interfaceNodeThread
+	n *interfaceNode
 }
 
 func (v *Vnet) FreeTxRefIn(i *TxRefVecIn) {
-	i.t.freeChan <- i
+	i.n.freeChan <- i
 	v.loop.Resume(&i.In)
 }
 func (i *TxRefVecIn) Free(v *Vnet) { v.FreeTxRefIn(i) }
@@ -134,18 +133,8 @@ func (n *interfaceNode) ifOutputThread() {
 	}
 }
 
-func (n *interfaceNode) getThread(id uint) *interfaceNodeThread {
-	n.threads.Validate(id)
-	if n.threads[id] == nil {
-		n.threads[id] = &interfaceNodeThread{}
-		n.threads[id].freeChan = make(chan *TxRefVecIn, 64)
-	}
-	return n.threads[id]
-}
-
 func (n *interfaceNode) ifOutput(ri *RefIn) {
-	nt := n.getThread(ri.ThreadId())
-	rvi := n.allocTxRefVecIn(nt, ri)
+	rvi := n.allocTxRefVecIn(ri)
 	n_packets_in := ri.Len()
 
 	// Copy common fields.
@@ -213,7 +202,7 @@ func (n *interfaceNode) ifOutput(ri *RefIn) {
 		// Send to output thread, which then calls n.tx.InterfaceOutput.
 		n.send(rvi)
 	} else {
-		nt.freeChan <- rvi
+		n.freeChan <- rvi
 	}
 }
 
@@ -264,7 +253,7 @@ func (n *interfaceNode) slowPath(
 		rvi.Refs = rv
 		rvi.nPackets = n_packets
 		n.send(rvi)
-		rvi = n.newTxRefVecIn(rvi.t, ri, save[:n_save])
+		rvi = n.newTxRefVecIn(ri, save[:n_save])
 		rv = rvi.Refs
 		iv = n_save
 		n_packets = 0
@@ -285,7 +274,7 @@ type TxDmaRing struct {
 
 func (r *TxDmaRing) Init(v *Vnet) {
 	r.v = v
-	r.ToInterrupt = make(chan *TxRefVecIn, 64)
+	r.ToInterrupt = make(chan *TxRefVecIn, tx_ref_vec_in_fifo_len)
 }
 
 func (r *TxDmaRing) InterruptAdvance(n uint) {
