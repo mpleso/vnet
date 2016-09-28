@@ -25,7 +25,7 @@ func (d *dev) init_rx_pool() {
 	p := &d.rx_pool
 	t := &p.BufferTemplate
 
-	p.Name = fmt.Sprintf("ixge %s rx", d.pciDev)
+	p.Name = fmt.Sprintf("%s rx", d.Name())
 
 	*t = vnet.DefaultBufferPool.BufferTemplate
 	t.Size = d.rx_buffer_bytes
