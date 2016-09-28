@@ -23,15 +23,15 @@ func Init(v *vnet.Vnet) {
 
 func GetMain(v *vnet.Vnet) *Main { return v.GetPackage(packageIndex).(*Main) }
 
-type add_del struct {
-	is_del     bool
-	is_ip6     bool
-	ip4_prefix ip4.Prefix
-	ip4_nhs    []ip4.NextHop
-	adjs       []ip.Adjacency
-}
-
 func (m *Main) ip_route(c cli.Commander, w cli.Writer, in *cli.Input) (err error) {
+	type add_del struct {
+		is_del     bool
+		is_ip6     bool
+		ip4_prefix ip4.Prefix
+		count      uint
+		ip4_nhs    []ip4.NextHop
+		adjs       []ip.Adjacency
+	}
 	var x add_del
 
 	switch {
@@ -45,6 +45,9 @@ func (m *Main) ip_route(c cli.Commander, w cli.Writer, in *cli.Input) (err error
 		err = fmt.Errorf("looking for prefix, got `%s'", in)
 		return
 	}
+
+	x.count = 1
+	in.Parse("c%*ount %d", &x.count)
 
 	var (
 		adj ip.Adjacency
@@ -61,20 +64,24 @@ func (m *Main) ip_route(c cli.Commander, w cli.Writer, in *cli.Input) (err error
 	}
 
 	m4 := ip4.GetMain(m.Vnet)
-	for i := range x.ip4_nhs {
-		err = m4.AddDelRouteNextHop(&x.ip4_prefix, &x.ip4_nhs[i], x.is_del)
-		if err != nil {
-			return
-		}
-	}
+	for i := uint(0); i < x.count; i++ {
+		p := x.ip4_prefix.Add(i)
 
-	if len(x.adjs) > 0 {
-		p := x.ip4_prefix.ToIpPrefix()
-		for i := range x.adjs {
-			ai, a := m4.NewAdj(1)
-			a[0] = x.adjs[i]
-			if _, err = m4.AddDelRoute(&p, 0, ai, x.is_del); err != nil {
+		for i := range x.ip4_nhs {
+			err = m4.AddDelRouteNextHop(&p, &x.ip4_nhs[i], x.is_del)
+			if err != nil {
 				return
+			}
+		}
+
+		if len(x.adjs) > 0 {
+			pi := p.ToIpPrefix()
+			for i := range x.adjs {
+				ai, a := m4.NewAdj(1)
+				a[0] = x.adjs[i]
+				if _, err = m4.AddDelRoute(&pi, 0, ai, x.is_del); err != nil {
+					return
+				}
 			}
 		}
 	}

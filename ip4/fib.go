@@ -29,10 +29,12 @@ func (p *Prefix) LessThan(q *Prefix) bool {
 }
 
 // Add adds offset to prefix.  For example, 1.2.3.0/24 + 1 = 1.2.4.0/24.
-func (p *Prefix) Add(offset uint) {
+func (p *Prefix) Add(offset uint) (q Prefix) {
 	a := p.Address.AsUint32().ToHost()
 	a += uint32(offset << (32 - p.Len))
-	p.Address.FromUint32(vnet.Uint32(a).FromHost())
+	q = *p
+	q.Address.FromUint32(vnet.Uint32(a).FromHost())
+	return
 }
 
 // True if given destination matches prefix.
