@@ -468,6 +468,7 @@ type HwIfClasser interface {
 	FormatAddress() string
 	SetRewrite(v *Vnet, r *Rewrite, t PacketType, dstAddr []byte)
 	FormatRewrite(r *Rewrite) string
+	ParseRewrite(r *Rewrite, in *parse.Input)
 }
 
 type Devicer interface {

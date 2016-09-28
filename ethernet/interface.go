@@ -3,6 +3,7 @@ package ethernet
 
 import (
 	"github.com/platinasystems/elib"
+	"github.com/platinasystems/elib/parse"
 	"github.com/platinasystems/vnet"
 
 	"unsafe"
@@ -195,6 +196,13 @@ func (hi *Interface) SetRewrite(v *vnet.Vnet, rw *vnet.Rewrite, packetType vnet.
 func (hi *Interface) FormatRewrite(rw *vnet.Rewrite) string {
 	h := (*rwHeader)(rw.GetData())
 	return h.String()
+}
+
+func (hi *Interface) ParseRewrite(rw *vnet.Rewrite, in *parse.Input) {
+	var h Header
+	h.Parse(in)
+	rw.SetData(nil)
+	rw.AddData(unsafe.Pointer(&h), HeaderBytes)
 }
 
 // Block of ethernet addresses for allocation by a switch.

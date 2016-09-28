@@ -9,6 +9,7 @@ import (
 	"github.com/platinasystems/vnet/devices/ethernet/ixge"
 	"github.com/platinasystems/vnet/ethernet"
 	"github.com/platinasystems/vnet/ip"
+	ipcli "github.com/platinasystems/vnet/ip/cli"
 	"github.com/platinasystems/vnet/ip4"
 	"github.com/platinasystems/vnet/ip6"
 	"github.com/platinasystems/vnet/pg"
@@ -296,6 +297,7 @@ func main() {
 	ip6.Init(v)
 	ixge.Init(v)
 	pg.Init(v)
+	ipcli.Init(v)
 	myNodePackage = v.AddPackage("my-node", MyNode)
 
 	var in parse.Input

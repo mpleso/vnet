@@ -3,6 +3,7 @@ package pg
 import (
 	"github.com/platinasystems/elib"
 	"github.com/platinasystems/elib/cpu"
+	"github.com/platinasystems/elib/parse"
 	"github.com/platinasystems/vnet"
 
 	"fmt"
@@ -132,3 +133,4 @@ func (n *node) GetHwInterfaceCounters(nm *vnet.InterfaceCounterNames, t *vnet.In
 func (n *node) FormatAddress() (s string)                                                        { return }
 func (n *node) FormatRewrite(rw *vnet.Rewrite) (s string)                                        { return }
 func (n *node) SetRewrite(v *vnet.Vnet, rw *vnet.Rewrite, packetType vnet.PacketType, da []byte) {}
+func (n *node) ParseRewrite(rw *vnet.Rewrite, in *parse.Input)                                   {}
