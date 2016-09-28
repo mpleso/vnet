@@ -42,10 +42,11 @@ func (n *node) edit_streams(cmder cli.Commander, w cli.Writer, in *cli.Input) (e
 	var r Streamer
 	for !in.End() {
 		var (
-			name   string
-			x      float64
-			sub_in parse.Input
-			index  uint
+			name    string
+			x       float64
+			sub_in  parse.Input
+			comment parse.Comment
+			index   uint
 		)
 		switch {
 		case (in.Parse("c%*ount %f", &x) || in.Parse("%f", &x)) && x >= 0:
@@ -86,6 +87,7 @@ func (n *node) edit_streams(cmder cli.Commander, w cli.Writer, in *cli.Input) (e
 			}
 			r.get_stream().stream_config = default_stream_config
 			set_what |= set_stream
+		case in.Parse("%v", &comment):
 		default:
 			err = cli.ParseError
 			return
