@@ -2,8 +2,6 @@ package vnet
 
 import (
 	"github.com/platinasystems/elib/loop"
-
-	"sync/atomic"
 )
 
 type interfaceInputer interface {
@@ -26,17 +24,14 @@ type interfaceNode struct {
 
 	hi Hi
 
-	maxTxRefs uint32
-	outCount  uint32
-	outChan   chan *TxRefVecIn
-	freeChan  chan *TxRefVecIn
-	tx        outputInterfaceNoder
-	rx        interfaceInputer
-}
+	max_tx_refs uint
+	cur_tx_refs uint
+	tx_chan     chan *TxRefVecIn
+	free_list   []*TxRefVecIn
 
-func (n *interfaceNode) send(v *TxRefVecIn) {
-	atomic.AddUint32(&n.outCount, uint32(v.Len()))
-	n.outChan <- v
+	freeChan chan *TxRefVecIn
+	tx       outputInterfaceNoder
+	rx       interfaceInputer
 }
 
 type OutputInterfaceNode struct{ interfaceNode }
@@ -71,18 +66,17 @@ const tx_ref_vec_in_fifo_len = 256
 
 func (n *interfaceNode) setupTx(tx outputInterfaceNoder) {
 	n.tx = tx
-	n.outChan = make(chan *TxRefVecIn, tx_ref_vec_in_fifo_len)
+	n.tx_chan = make(chan *TxRefVecIn, tx_ref_vec_in_fifo_len)
 	n.freeChan = make(chan *TxRefVecIn, tx_ref_vec_in_fifo_len)
-	n.maxTxRefs = 2 * MaxVectorLen
+	n.max_tx_refs = 2 * MaxVectorLen
 	go n.ifOutputThread()
 }
 
 //go:generate gentemplate -d Package=vnet -id interfaceNodeThreadVec -d VecType=interfaceNodeThreadVec -d Type=*interfaceNodeThread github.com/platinasystems/elib/vec.tmpl
 
-func (n *interfaceNode) freeRefs(i *TxRefVecIn) (done bool) {
-	done = 0 == atomic.AddUint32(&n.outCount, -uint32(i.Len()))
-	i.FreeRefs(false)
-	return
+func (n *interfaceNode) send(i *TxRefVecIn) {
+	n.cur_tx_refs += i.Len()
+	n.tx_chan <- i
 }
 
 func (n *interfaceNode) allocTxRefVecIn(in *RefIn) (i *TxRefVecIn) {
@@ -90,15 +84,23 @@ func (n *interfaceNode) allocTxRefVecIn(in *RefIn) (i *TxRefVecIn) {
 	for {
 		select {
 		case i = <-n.freeChan:
-			n.freeRefs(i)
-			return
+			i.FreeRefs(false)
+			n.cur_tx_refs -= i.Len()
 		default:
-			if n.outCount+MaxVectorLen <= n.maxTxRefs {
+			if l := len(n.free_list); l > 0 {
+				i = n.free_list[l-1]
+				n.free_list = n.free_list[:l-1]
+			} else {
 				i = &TxRefVecIn{n: n}
-				i.refInCommon = in.refInCommon
-				i.nPackets = 0
-				return
 			}
+			i.refInCommon = in.refInCommon
+			i.nPackets = 0
+		}
+		if n.cur_tx_refs+MaxVectorLen <= n.max_tx_refs {
+			return
+		}
+		n.free_list = append(n.free_list, i)
+		if len(n.freeChan) == 0 {
 			l.Suspend(&in.In)
 		}
 	}
@@ -128,7 +130,7 @@ func (v *Vnet) FreeTxRefIn(i *TxRefVecIn) {
 func (i *TxRefVecIn) Free(v *Vnet) { v.FreeTxRefIn(i) }
 
 func (n *interfaceNode) ifOutputThread() {
-	for x := range n.outChan {
+	for x := range n.tx_chan {
 		n.tx.InterfaceOutput(x)
 	}
 }
