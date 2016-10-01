@@ -1,7 +1,7 @@
 package vnet
 
 import (
-	"github.com/platinasystems/elib/event"
+	"github.com/platinasystems/go/elib/event"
 )
 
 type eventNode struct{ Node }

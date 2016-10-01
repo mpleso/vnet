@@ -1,8 +1,8 @@
 package pg
 
 import (
-	"github.com/platinasystems/elib"
-	"github.com/platinasystems/vnet"
+	"github.com/platinasystems/go/elib"
+	"github.com/platinasystems/go/vnet"
 
 	"fmt"
 )

@@ -1,8 +1,8 @@
 package vnet
 
 import (
-	"github.com/platinasystems/elib/cli"
-	"github.com/platinasystems/elib/parse"
+	"github.com/platinasystems/go/elib/cli"
+	"github.com/platinasystems/go/elib/parse"
 )
 
 func (v *Vnet) CliAdd(c *cli.Command)                     { v.loop.CliAdd(c) }

@@ -1,8 +1,8 @@
 package ip4
 
 import (
-	"github.com/platinasystems/elib/cli"
-	"github.com/platinasystems/vnet/ip"
+	"github.com/platinasystems/go/elib/cli"
+	"github.com/platinasystems/go/vnet/ip"
 
 	"fmt"
 	"sort"

@@ -1,8 +1,8 @@
 package vnet
 
 import (
-	"github.com/platinasystems/elib"
-	"github.com/platinasystems/elib/hw"
+	"github.com/platinasystems/go/elib"
+	"github.com/platinasystems/go/elib/hw"
 
 	"unsafe"
 )

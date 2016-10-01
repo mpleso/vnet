@@ -1,10 +1,10 @@
 package unix
 
 import (
-	"github.com/platinasystems/elib"
-	"github.com/platinasystems/elib/iomux"
-	"github.com/platinasystems/vnet"
-	"github.com/platinasystems/vnet/ethernet"
+	"github.com/platinasystems/go/elib"
+	"github.com/platinasystems/go/elib/iomux"
+	"github.com/platinasystems/go/vnet"
+	"github.com/platinasystems/go/vnet/ethernet"
 
 	"fmt"
 	"sync/atomic"
@@ -74,7 +74,7 @@ func (n *node) ValidateSpeed(speed vnet.Bandwidth) (err error)                  
 
 type iovec syscall.Iovec
 
-//go:generate gentemplate -d Package=unix -id iovec -d VecType=iovecVec -d Type=iovec github.com/platinasystems/elib/vec.tmpl
+//go:generate gentemplate -d Package=unix -id iovec -d VecType=iovecVec -d Type=iovec github.com/platinasystems/go/elib/vec.tmpl
 
 func rwv(fd int, iov []iovec, isWrite bool) (n int, e syscall.Errno) {
 	sc := syscall.SYS_READV

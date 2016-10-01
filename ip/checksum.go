@@ -1,7 +1,7 @@
 package ip
 
 import (
-	"github.com/platinasystems/vnet"
+	"github.com/platinasystems/go/vnet"
 )
 
 // Incremental checksum update.

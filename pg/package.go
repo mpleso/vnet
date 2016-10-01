@@ -1,7 +1,7 @@
 package pg
 
 import (
-	"github.com/platinasystems/vnet"
+	"github.com/platinasystems/go/vnet"
 )
 
 var packageIndex uint

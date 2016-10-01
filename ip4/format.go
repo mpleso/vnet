@@ -1,7 +1,7 @@
 package ip4
 
 import (
-	"github.com/platinasystems/elib/parse"
+	"github.com/platinasystems/go/elib/parse"
 
 	"fmt"
 )

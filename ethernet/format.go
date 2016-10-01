@@ -1,8 +1,8 @@
 package ethernet
 
 import (
-	"github.com/platinasystems/elib/parse"
-	"github.com/platinasystems/vnet"
+	"github.com/platinasystems/go/elib/parse"
+	"github.com/platinasystems/go/vnet"
 
 	"fmt"
 )

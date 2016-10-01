@@ -1,10 +1,10 @@
 package ixge
 
 import (
-	"github.com/platinasystems/elib/hw"
-	"github.com/platinasystems/elib/hw/pci"
-	"github.com/platinasystems/vnet"
-	vnetpci "github.com/platinasystems/vnet/devices/bus/pci"
+	"github.com/platinasystems/go/elib/hw"
+	"github.com/platinasystems/go/elib/hw/pci"
+	"github.com/platinasystems/go/vnet"
+	vnetpci "github.com/platinasystems/go/vnet/devices/bus/pci"
 
 	"time"
 )

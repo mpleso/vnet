@@ -1,11 +1,11 @@
 package pg
 
 import (
-	"github.com/platinasystems/elib"
-	"github.com/platinasystems/elib/cpu"
-	"github.com/platinasystems/elib/hw"
-	"github.com/platinasystems/elib/parse"
-	"github.com/platinasystems/vnet"
+	"github.com/platinasystems/go/elib"
+	"github.com/platinasystems/go/elib/cpu"
+	"github.com/platinasystems/go/elib/hw"
+	"github.com/platinasystems/go/elib/parse"
+	"github.com/platinasystems/go/vnet"
 )
 
 const (
@@ -46,7 +46,7 @@ type buffer_type struct {
 	validate_sequence uint
 }
 
-//go:generate gentemplate -d Package=pg -id buffer_type_pool -d PoolType=buffer_type_pool -d Type=buffer_type -d Data=elts github.com/platinasystems/elib/pool.tmpl
+//go:generate gentemplate -d Package=pg -id buffer_type_pool -d PoolType=buffer_type_pool -d Type=buffer_type -d Data=elts github.com/platinasystems/go/elib/pool.tmpl
 
 func (n *node) init(v *vnet.Vnet) {
 	n.v = v

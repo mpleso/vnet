@@ -1,8 +1,8 @@
 package ip4
 
 import (
-	"github.com/platinasystems/vnet"
-	"github.com/platinasystems/vnet/ip"
+	"github.com/platinasystems/go/vnet"
+	"github.com/platinasystems/go/vnet/ip"
 
 	"fmt"
 )
@@ -141,8 +141,8 @@ type Fib struct {
 type FibAddDelHook func(i ip.FibIndex, p *Prefix, r ip.Adj, isDel bool)
 type IfAddrAddDelHook func(ia ip.IfAddr, isDel bool)
 
-//go:generate gentemplate -id FibAddDelHook -d Package=ip4 -d DepsType=FibAddDelHookVec -d Type=FibAddDelHook -d Data=hooks github.com/platinasystems/elib/dep/dep.tmpl
-//go:generate gentemplate -id IfAddrAddDelHook -d Package=ip4 -d DepsType=IfAddrAddDelHookVec -d Type=IfAddrAddDelHook -d Data=hooks github.com/platinasystems/elib/dep/dep.tmpl
+//go:generate gentemplate -id FibAddDelHook -d Package=ip4 -d DepsType=FibAddDelHookVec -d Type=FibAddDelHook -d Data=hooks github.com/platinasystems/go/elib/dep/dep.tmpl
+//go:generate gentemplate -id IfAddrAddDelHook -d Package=ip4 -d DepsType=IfAddrAddDelHookVec -d Type=IfAddrAddDelHook -d Data=hooks github.com/platinasystems/go/elib/dep/dep.tmpl
 
 func (f *Fib) addDel(main *Main, p *Prefix, r ip.Adj, isDel bool) (oldAdj ip.Adj, ok bool) {
 	// Call hooks before unset.
@@ -284,7 +284,7 @@ type fibMain struct {
 	ifRouteAdjIndexBySi map[vnet.Si]ip.Adj
 }
 
-//go:generate gentemplate -d Package=ip4 -id Fib -d VecType=FibVec -d Type=*Fib github.com/platinasystems/elib/vec.tmpl
+//go:generate gentemplate -d Package=ip4 -id Fib -d VecType=FibVec -d Type=*Fib github.com/platinasystems/go/elib/vec.tmpl
 
 func (m *Main) fibByIndex(i ip.FibIndex, create bool) (f *Fib) {
 	m.fibs.Validate(uint(i))

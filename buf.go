@@ -1,10 +1,10 @@
 package vnet
 
 import (
-	"github.com/platinasystems/elib"
-	"github.com/platinasystems/elib/cli"
-	"github.com/platinasystems/elib/hw"
-	"github.com/platinasystems/elib/loop"
+	"github.com/platinasystems/go/elib"
+	"github.com/platinasystems/go/elib/cli"
+	"github.com/platinasystems/go/elib/hw"
+	"github.com/platinasystems/go/elib/loop"
 
 	"fmt"
 	"reflect"
@@ -65,7 +65,7 @@ func (c *RefChain) Done() (h Ref) {
 	return
 }
 
-//go:generate gentemplate -d Package=vnet -id Ref -d VecType=RefVec -d Type=Ref github.com/platinasystems/elib/vec.tmpl
+//go:generate gentemplate -d Package=vnet -id Ref -d VecType=RefVec -d Type=Ref github.com/platinasystems/go/elib/vec.tmpl
 
 type refInCommon struct {
 	loop.In

@@ -1,10 +1,10 @@
 package arp
 
 import (
-	"github.com/platinasystems/elib"
-	"github.com/platinasystems/vnet"
-	"github.com/platinasystems/vnet/ethernet"
-	"github.com/platinasystems/vnet/ip4"
+	"github.com/platinasystems/go/elib"
+	"github.com/platinasystems/go/vnet"
+	"github.com/platinasystems/go/vnet/ethernet"
+	"github.com/platinasystems/go/vnet/ip4"
 
 	"bytes"
 	"fmt"

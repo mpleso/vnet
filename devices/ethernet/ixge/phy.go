@@ -1,7 +1,7 @@
 package ixge
 
 import (
-	"github.com/platinasystems/vnet/devices/phy/xge"
+	"github.com/platinasystems/go/vnet/devices/phy/xge"
 )
 
 func (d *dev) rw_phy_reg(dev_type, reg_index, v reg, is_read bool) (w reg) {

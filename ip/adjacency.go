@@ -1,9 +1,9 @@
 package ip
 
 import (
-	"github.com/platinasystems/elib"
-	"github.com/platinasystems/elib/parse"
-	"github.com/platinasystems/vnet"
+	"github.com/platinasystems/go/elib"
+	"github.com/platinasystems/go/elib/parse"
+	"github.com/platinasystems/go/vnet"
 
 	"math"
 	"sort"
@@ -104,8 +104,8 @@ const (
 	AdjNil  Adj = (^Adj(0) - 1) // so AdjNil + 1 is non-zero for remaps.
 )
 
-//go:generate gentemplate -d Package=ip -id adjacencyHeap -d HeapType=adjacencyHeap -d Data=elts -d Type=Adjacency github.com/platinasystems/elib/heap.tmpl
-//go:generate gentemplate -d Package=ip -id AdjRemapVec -d VecType=AdjRemapVec -d Type=AdjRemap github.com/platinasystems/elib/vec.tmpl
+//go:generate gentemplate -d Package=ip -id adjacencyHeap -d HeapType=adjacencyHeap -d Data=elts -d Type=Adjacency github.com/platinasystems/go/elib/heap.tmpl
+//go:generate gentemplate -d Package=ip -id AdjRemapVec -d VecType=AdjRemapVec -d Type=AdjRemap github.com/platinasystems/go/elib/vec.tmpl
 
 type adjacencyThread struct {
 	// Packet/byte counters for each adjacency.
@@ -146,8 +146,8 @@ type adjacencyMain struct {
 type adjAddDelHook func(m *Main, adj Adj, isDel bool)
 type adjSyncHook func(m *Main)
 
-//go:generate gentemplate -id adjAddDelHook -d Package=ip -d DepsType=adjAddDelHookVec -d Type=adjAddDelHook -d Data=adjAddDelHooks github.com/platinasystems/elib/dep/dep.tmpl
-//go:generate gentemplate -id adjSyncHook -d Package=ip -d DepsType=adjSyncHookVec -d Type=adjSyncHook -d Data=adjSyncHooks github.com/platinasystems/elib/dep/dep.tmpl
+//go:generate gentemplate -id adjAddDelHook -d Package=ip -d DepsType=adjAddDelHookVec -d Type=adjAddDelHook -d Data=adjAddDelHooks github.com/platinasystems/go/elib/dep/dep.tmpl
+//go:generate gentemplate -id adjSyncHook -d Package=ip -d DepsType=adjSyncHookVec -d Type=adjSyncHook -d Data=adjSyncHooks github.com/platinasystems/go/elib/dep/dep.tmpl
 
 type NextHopWeight uint32
 
@@ -160,9 +160,9 @@ type nextHop struct {
 	weight NextHopWeight
 }
 
-//go:generate gentemplate -d Package=ip -id nextHopHeap -d HeapType=nextHopHeap -d Data=elts -d Type=nextHop github.com/platinasystems/elib/heap.tmpl
-//go:generate gentemplate -d Package=ip -id nextHopVec -d VecType=nextHopVec -d Type=nextHop github.com/platinasystems/elib/vec.tmpl
-//go:generate gentemplate -d Package=ip -id multipathAdjacencyVec -d VecType=multipathAdjacencyVec -d Type=multipathAdjacency github.com/platinasystems/elib/vec.tmpl
+//go:generate gentemplate -d Package=ip -id nextHopHeap -d HeapType=nextHopHeap -d Data=elts -d Type=nextHop github.com/platinasystems/go/elib/heap.tmpl
+//go:generate gentemplate -d Package=ip -id nextHopVec -d VecType=nextHopVec -d Type=nextHop github.com/platinasystems/go/elib/vec.tmpl
+//go:generate gentemplate -d Package=ip -id multipathAdjacencyVec -d VecType=multipathAdjacencyVec -d Type=multipathAdjacency github.com/platinasystems/go/elib/vec.tmpl
 
 type multipathMain struct {
 	cachedNextHopVec [2]nextHopVec

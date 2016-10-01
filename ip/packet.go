@@ -1,8 +1,8 @@
 package ip
 
 import (
-	"github.com/platinasystems/elib"
-	"github.com/platinasystems/elib/parse"
+	"github.com/platinasystems/go/elib"
+	"github.com/platinasystems/go/elib/parse"
 )
 
 // 8-bit protocol field from IP 4/6 headers.

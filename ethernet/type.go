@@ -1,8 +1,8 @@
 package ethernet
 
 import (
-	"github.com/platinasystems/elib"
-	"github.com/platinasystems/elib/parse"
+	"github.com/platinasystems/go/elib"
+	"github.com/platinasystems/go/elib/parse"
 )
 
 const (

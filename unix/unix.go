@@ -1,7 +1,7 @@
 package unix
 
 import (
-	"github.com/platinasystems/vnet"
+	"github.com/platinasystems/go/vnet"
 )
 
 func Init(v *vnet.Vnet) {

@@ -1,9 +1,9 @@
 package pg
 
 import (
-	"github.com/platinasystems/elib"
-	"github.com/platinasystems/elib/cpu"
-	"github.com/platinasystems/vnet"
+	"github.com/platinasystems/go/elib"
+	"github.com/platinasystems/go/elib/cpu"
+	"github.com/platinasystems/go/vnet"
 
 	"fmt"
 )
@@ -54,7 +54,7 @@ type Stream struct {
 	stream_config
 }
 
-//go:generate gentemplate -d Package=pg -id stream -d PoolType=stream_pool -d Type=Streamer -d Data=elts github.com/platinasystems/elib/pool.tmpl
+//go:generate gentemplate -d Package=pg -id stream -d PoolType=stream_pool -d Type=Streamer -d Data=elts github.com/platinasystems/go/elib/pool.tmpl
 
 func (s *Stream) GetSize() uint { return s.cur_size }
 func (s *Stream) MaxSize() uint { return s.max_size }

@@ -1,9 +1,9 @@
 package vnet
 
 import (
-	"github.com/platinasystems/elib/dep"
-	"github.com/platinasystems/elib/hw"
-	"github.com/platinasystems/elib/loop"
+	"github.com/platinasystems/go/elib/dep"
+	"github.com/platinasystems/go/elib/hw"
+	"github.com/platinasystems/go/elib/loop"
 )
 
 type Node struct {

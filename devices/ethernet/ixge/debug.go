@@ -3,7 +3,7 @@
 package ixge
 
 import (
-	"github.com/platinasystems/elib/hw"
+	"github.com/platinasystems/go/elib/hw"
 
 	"unsafe"
 )

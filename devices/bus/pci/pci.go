@@ -1,8 +1,8 @@
 package pci
 
 import (
-	"github.com/platinasystems/elib/hw/pci"
-	"github.com/platinasystems/vnet"
+	"github.com/platinasystems/go/elib/hw/pci"
+	"github.com/platinasystems/go/vnet"
 )
 
 type pciDiscover struct{ vnet.Package }

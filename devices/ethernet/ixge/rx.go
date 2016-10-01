@@ -1,11 +1,11 @@
 package ixge
 
 import (
-	"github.com/platinasystems/elib"
-	"github.com/platinasystems/elib/elog"
-	"github.com/platinasystems/elib/hw"
-	"github.com/platinasystems/vnet"
-	"github.com/platinasystems/vnet/ethernet"
+	"github.com/platinasystems/go/elib"
+	"github.com/platinasystems/go/elib/elog"
+	"github.com/platinasystems/go/elib/hw"
+	"github.com/platinasystems/go/vnet"
+	"github.com/platinasystems/go/vnet/ethernet"
 
 	"fmt"
 	"sync/atomic"
@@ -124,7 +124,7 @@ func (d *dev) rx_dma_enable(queue uint, enable bool) {
 	}
 }
 
-//go:generate gentemplate -d Package=ixge -id rx_dma_queue -d VecType=rx_dma_queue_vec -d Type=rx_dma_queue github.com/platinasystems/elib/vec.tmpl
+//go:generate gentemplate -d Package=ixge -id rx_dma_queue -d VecType=rx_dma_queue_vec -d Type=rx_dma_queue github.com/platinasystems/go/elib/vec.tmpl
 
 type rx_dev struct {
 	out                    *vnet.RefOut
@@ -211,7 +211,7 @@ type rx_from_hw_descriptor struct {
 
 const n_desc_per_cache_line = 4
 
-//go:generate gentemplate -d Package=ixge -id rx_from_hw_descriptor -d Type=rx_from_hw_descriptor -d VecType=rx_from_hw_descriptor_vec github.com/platinasystems/elib/hw/dma_mem.tmpl
+//go:generate gentemplate -d Package=ixge -id rx_from_hw_descriptor -d Type=rx_from_hw_descriptor -d VecType=rx_from_hw_descriptor_vec github.com/platinasystems/go/elib/hw/dma_mem.tmpl
 
 func (e *rx_from_hw_descriptor) String() (s string) {
 	var (

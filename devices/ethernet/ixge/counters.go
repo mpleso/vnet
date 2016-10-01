@@ -1,8 +1,8 @@
 package ixge
 
 import (
-	"github.com/platinasystems/elib/hw"
-	"github.com/platinasystems/vnet"
+	"github.com/platinasystems/go/elib/hw"
+	"github.com/platinasystems/go/vnet"
 
 	"fmt"
 )

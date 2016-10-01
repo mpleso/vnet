@@ -1,9 +1,9 @@
 package vnet
 
 import (
-	"github.com/platinasystems/elib/cli"
-	"github.com/platinasystems/elib/dep"
-	"github.com/platinasystems/elib/parse"
+	"github.com/platinasystems/go/elib/cli"
+	"github.com/platinasystems/go/elib/dep"
+	"github.com/platinasystems/go/elib/parse"
 
 	"fmt"
 )

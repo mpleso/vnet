@@ -2,9 +2,9 @@
 package ixge
 
 import (
-	"github.com/platinasystems/elib/hw"
-	"github.com/platinasystems/vnet"
-	"github.com/platinasystems/vnet/ethernet"
+	"github.com/platinasystems/go/elib/hw"
+	"github.com/platinasystems/go/vnet"
+	"github.com/platinasystems/go/vnet/ethernet"
 
 	"fmt"
 	"time"

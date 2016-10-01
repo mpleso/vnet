@@ -1,7 +1,7 @@
 package ip6
 
 import (
-	"github.com/platinasystems/vnet"
+	"github.com/platinasystems/go/vnet"
 )
 
 func GetHeader(r *vnet.Ref) *Header { return (*Header)(r.Data()) }

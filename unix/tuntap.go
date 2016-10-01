@@ -3,11 +3,11 @@
 package unix
 
 import (
-	"github.com/platinasystems/elib"
-	"github.com/platinasystems/elib/iomux"
-	"github.com/platinasystems/elib/parse"
-	"github.com/platinasystems/vnet"
-	"github.com/platinasystems/vnet/ethernet"
+	"github.com/platinasystems/go/elib"
+	"github.com/platinasystems/go/elib/iomux"
+	"github.com/platinasystems/go/elib/parse"
+	"github.com/platinasystems/go/vnet"
+	"github.com/platinasystems/go/vnet/ethernet"
 
 	"fmt"
 	"strings"
@@ -32,7 +32,7 @@ type Interface struct {
 	mtuBuffers   uint
 }
 
-//go:generate gentemplate -d Package=unix -id ifVec -d VecType=interfaceVec -d Type=*Interface github.com/platinasystems/elib/vec.tmpl
+//go:generate gentemplate -d Package=unix -id ifVec -d VecType=interfaceVec -d Type=*Interface github.com/platinasystems/go/elib/vec.tmpl
 
 func (m *Main) interfaceForSi(si vnet.Si) *Interface { return m.ifVec[si] }
 
