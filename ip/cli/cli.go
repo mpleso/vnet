@@ -31,6 +31,7 @@ func (m *Main) ip_route(c cli.Commander, w cli.Writer, in *cli.Input) (err error
 		count      uint
 		ip4_nhs    []ip4.NextHop
 		adjs       []ip.Adjacency
+		fib_index  ip.FibIndex
 	}
 	var x add_del
 
@@ -47,7 +48,15 @@ func (m *Main) ip_route(c cli.Commander, w cli.Writer, in *cli.Input) (err error
 	}
 
 	x.count = 1
-	in.Parse("c%*ount %d", &x.count)
+loop:
+	for !in.End() {
+		switch {
+		case in.Parse("c%*ount %d", &x.count):
+		case in.Parse("t%*able %d", &x.fib_index):
+		default:
+			break loop
+		}
+	}
 
 	var (
 		adj ip.Adjacency
@@ -79,7 +88,7 @@ func (m *Main) ip_route(c cli.Commander, w cli.Writer, in *cli.Input) (err error
 			for i := range x.adjs {
 				ai, a := m4.NewAdj(1)
 				a[0] = x.adjs[i]
-				if _, err = m4.AddDelRoute(&pi, 0, ai, x.is_del); err != nil {
+				if _, err = m4.AddDelRoute(&pi, x.fib_index, ai, x.is_del); err != nil {
 					return
 				}
 			}

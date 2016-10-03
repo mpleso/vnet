@@ -330,8 +330,9 @@ func (m *Main) getRoute(p *ip.Prefix, si vnet.Si) (ai ip.Adj, ok bool) {
 	return
 }
 
-func (m *Main) addDelRoute(p *ip.Prefix, si vnet.Si, newAdj ip.Adj, isDel bool) (oldAdj ip.Adj, err error) {
-	f := m.fibBySi(si)
+func (m *Main) addDelRoute(p *ip.Prefix, fi ip.FibIndex, newAdj ip.Adj, isDel bool) (oldAdj ip.Adj, err error) {
+	createFib := !isDel
+	f := m.fibByIndex(fi, createFib)
 	q := FromIp4Prefix(p)
 	var ok bool
 	oldAdj, ok = f.addDel(m, &q, newAdj, isDel)
