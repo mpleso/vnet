@@ -113,7 +113,7 @@ func (c HwIfCombinedCounterKind) Add64(t *InterfaceThread, hi Hi, packets, bytes
 
 type foreachFn func(name string, value uint64)
 
-func (m *interfaceMain) doSwCombined(f foreachFn, nm *InterfaceCounterNames, zero bool, k, i uint) {
+func (m *interfaceMain) doSwCombined(f foreachFn, nm *InterfaceCounterNames, zero bool, nk, k, i uint) {
 	var v, w CombinedCounter
 	for _, t := range m.ifThreads {
 		if t != nil {
@@ -122,13 +122,13 @@ func (m *interfaceMain) doSwCombined(f foreachFn, nm *InterfaceCounterNames, zer
 		}
 	}
 	if v.Packets != 0 || zero {
-		f(nm.Combined[k]+" packets", v.Packets)
-		f(nm.Combined[k]+" bytes", v.Bytes)
+		f(nm.Combined[nk]+" packets", v.Packets)
+		f(nm.Combined[nk]+" bytes", v.Bytes)
 	}
 	return
 }
 
-func (m *interfaceMain) doSwSingle(f foreachFn, nm *InterfaceCounterNames, zero bool, k, i uint) {
+func (m *interfaceMain) doSwSingle(f foreachFn, nm *InterfaceCounterNames, zero bool, nk, k, i uint) {
 	var v, w uint64
 	for _, t := range m.ifThreads {
 		if t != nil {
@@ -137,7 +137,7 @@ func (m *interfaceMain) doSwSingle(f foreachFn, nm *InterfaceCounterNames, zero 
 		}
 	}
 	if v != 0 || zero {
-		f(nm.Single[k], v)
+		f(nm.Single[nk], v)
 	}
 	return
 }
@@ -160,28 +160,28 @@ func (m *interfaceMain) foreachSwIfCounter(zero bool, si Si, f func(name string,
 
 	// First builtin counters.
 	for k0 = 0; k0 < uint(len(builtinCombinedIfCounterNames)); k0++ {
-		m.doSwCombined(f, &m.swIfCounterNames, zero, k0, i)
+		m.doSwCombined(f, &m.swIfCounterNames, zero, k0, k0, i)
 	}
 	for k1 = 0; k1 < uint(len(builtinSingleIfCounterNames)); k1++ {
-		m.doSwSingle(f, &m.swIfCounterNames, zero, k1, i)
+		m.doSwSingle(f, &m.swIfCounterNames, zero, k1, k1, i)
 	}
 
 	// Next user-defined counters.
 	for ; k0 < uint(len(m.swIfCounterNames.Combined)); k0++ {
-		m.doSwCombined(f, &m.swIfCounterNames, zero, k0, i)
+		m.doSwCombined(f, &m.swIfCounterNames, zero, k0, k0, i)
 	}
 	for ; k1 < uint(len(m.swIfCounterNames.Single)); k1++ {
-		m.doSwSingle(f, &m.swIfCounterNames, zero, k1, i)
+		m.doSwSingle(f, &m.swIfCounterNames, zero, k1, k1, i)
 	}
 
 	// Next hardware software interface counters.
 	h := m.HwIfer(m.SupHi(si))
 	nm := h.GetSwInterfaceCounterNames()
 	for k := uint(0); k < uint(len(nm.Combined)); k++ {
-		m.doSwCombined(f, &nm, zero, k0+k, i)
+		m.doSwCombined(f, &nm, zero, k, k0+k, i)
 	}
 	for k := uint(0); k < uint(len(nm.Single)); k++ {
-		m.doSwSingle(f, &nm, zero, k1+k, i)
+		m.doSwSingle(f, &nm, zero, k, k1+k, i)
 	}
 }
 
