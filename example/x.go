@@ -136,7 +136,7 @@ const (
 	c2_counter
 )
 
-func (n *myNode) GetHwInterfaceCounters(nm *vnet.InterfaceCounterNames, t *vnet.InterfaceThread) {
+func (n *myNode) GetHwInterfaceCounterNames() (nm vnet.InterfaceCounterNames) {
 	nm.Single = []string{
 		s1_counter: "s1",
 		s2_counter: "s2",
@@ -145,7 +145,10 @@ func (n *myNode) GetHwInterfaceCounters(nm *vnet.InterfaceCounterNames, t *vnet.
 		c1_counter: "c1",
 		c2_counter: "c2",
 	}
+	return
 }
+
+func (n *myNode) GetHwInterfaceCounterValues(t *vnet.InterfaceThread) { return }
 
 func ip4Template(t *hw.BufferTemplate) {
 	t.Data = vnet.MakePacket(

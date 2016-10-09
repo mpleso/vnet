@@ -154,7 +154,8 @@ func RegisterInterface(v *vnet.Vnet, hi HwInterfacer, config *InterfaceConfig, f
 	v.RegisterHwInterface(hi, format, args...)
 }
 
-func (hi *Interface) FormatAddress() string { return hi.Address.String() }
+func (hi *Interface) FormatAddress() string    { return hi.Address.String() }
+func (hi *Interface) EthernetAddress() Address { return hi.Address }
 
 var rewriteTypeMap = [...]Type{
 	vnet.IP4:            IP4,
@@ -177,7 +178,7 @@ func (hi *Interface) SetRewrite(v *vnet.Vnet, rw *vnet.Rewrite, packetType vnet.
 	size := uintptr(HeaderBytes)
 	if sw != sup {
 		h.Type = VLAN.FromHost()
-		h.vlan[0].Priority_cfi_and_id = vnet.Uint16(sw.Id()).FromHost()
+		h.vlan[0].Priority_cfi_and_id = vnet.Uint16(sw.Id(v)).FromHost()
 		h.vlan[0].Type = t
 		size += VlanHeaderBytes
 	} else {
