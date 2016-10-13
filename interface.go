@@ -155,6 +155,7 @@ func (m *Vnet) NewSwIf(typ swIfType, id IfIndex) (si Si) {
 }
 
 func (m *interfaceMain) SwIf(i Si) *swIf { return &m.swInterfaces.elts[i] }
+func (m *interfaceMain) SupSi(i Si) Si   { return m.SwIf(i).supSi }
 func (m *interfaceMain) SupSwIf(s *swIf) (sup *swIf) {
 	sup = s
 	if s.supSi != s.si {
