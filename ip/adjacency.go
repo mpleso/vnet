@@ -2,6 +2,7 @@ package ip
 
 import (
 	"github.com/platinasystems/elib"
+	"github.com/platinasystems/elib/dep"
 	"github.com/platinasystems/elib/parse"
 	"github.com/platinasystems/vnet"
 
@@ -604,6 +605,10 @@ func (m *Main) callAdjAddDelHooks(a Adj, isDel bool) {
 }
 func (m *Main) CallAdjAddHooks(a Adj) { m.callAdjAddDelHooks(a, false) }
 func (m *Main) CallAdjDelHooks(a Adj) { m.callAdjAddDelHooks(a, true) }
+
+func (m *Main) RegisterAdjAddDelHook(f adjAddDelHook, dep ...*dep.Dep) {
+	m.adjAddDelHookVec.Add(f, dep...)
+}
 
 func (m *Main) CallAdjSyncHooks() {
 	for i := range m.adjSyncHooks {
