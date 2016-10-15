@@ -261,8 +261,6 @@ func (h *HwIf) SetProvisioned(v bool) (err error) {
 	return
 }
 
-func (h *HwIf) SetDefaultId(id uint) { h.defaultId = IfIndex(id) }
-
 func (h *HwIf) IsLinkUp() bool      { return h.linkUp }
 func (hi Hi) IsLinkUp(v *Vnet) bool { return v.HwIf(hi).IsLinkUp() }
 
@@ -332,6 +330,7 @@ func (h *HwIf) SetLoopback(v IfLoopbackType) (err error) {
 	return
 }
 func (h *HwIf) GetSwInterfaceCounterNames() (nm InterfaceCounterNames) { return }
+func (h *HwIf) DefaultId() IfIndex                                     { return 0 }
 
 type interfaceMain struct {
 	hwIferPool      hwIferPool
@@ -366,6 +365,7 @@ func (v *Vnet) RegisterHwInterface(h HwInterfacer, format string, args ...interf
 	hw.hi = hi
 	hw.SetName(v, fmt.Sprintf(format, args...))
 	hw.vnet = v
+	hw.defaultId = h.DefaultId()
 	hw.si = v.NewSwIf(swIfTypeHardware, IfIndex(hw.hi))
 	return
 }
@@ -477,6 +477,7 @@ func (b *Bandwidth) Parse(in *parse.Input) {
 
 // Class of hardware interfaces, for example, ethernet, sonet, srp, docsis, etc.
 type HwIfClasser interface {
+	DefaultId() IfIndex
 	FormatAddress() string
 	SetRewrite(v *Vnet, r *Rewrite, t PacketType, dstAddr []byte)
 	FormatRewrite(r *Rewrite) string
