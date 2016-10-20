@@ -78,3 +78,11 @@ func (p *plyPool) Foreach(f func(x ply)) {
 		}
 	}
 }
+
+func (p *plyPool) ForeachIndex(f func(i uint)) {
+	for i := range p.plys {
+		if !p.Pool.IsFree(uint(i)) {
+			f(uint(i))
+		}
+	}
+}

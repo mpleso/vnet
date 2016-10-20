@@ -78,3 +78,11 @@ func (p *stream_pool) Foreach(f func(x Streamer)) {
 		}
 	}
 }
+
+func (p *stream_pool) ForeachIndex(f func(i uint)) {
+	for i := range p.elts {
+		if !p.Pool.IsFree(uint(i)) {
+			f(uint(i))
+		}
+	}
+}

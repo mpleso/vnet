@@ -78,3 +78,11 @@ func (p *swIfPool) Foreach(f func(x swIf)) {
 		}
 	}
 }
+
+func (p *swIfPool) ForeachIndex(f func(i uint)) {
+	for i := range p.elts {
+		if !p.Pool.IsFree(uint(i)) {
+			f(uint(i))
+		}
+	}
+}

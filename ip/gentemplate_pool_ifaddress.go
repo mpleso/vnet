@@ -78,3 +78,11 @@ func (p *ifAddressPool) Foreach(f func(x IfAddress)) {
 		}
 	}
 }
+
+func (p *ifAddressPool) ForeachIndex(f func(i uint)) {
+	for i := range p.ifAddrs {
+		if !p.Pool.IsFree(uint(i)) {
+			f(uint(i))
+		}
+	}
+}

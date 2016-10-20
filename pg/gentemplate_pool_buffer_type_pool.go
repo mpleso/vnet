@@ -78,3 +78,11 @@ func (p *buffer_type_pool) Foreach(f func(x buffer_type)) {
 		}
 	}
 }
+
+func (p *buffer_type_pool) ForeachIndex(f func(i uint)) {
+	for i := range p.elts {
+		if !p.Pool.IsFree(uint(i)) {
+			f(uint(i))
+		}
+	}
+}

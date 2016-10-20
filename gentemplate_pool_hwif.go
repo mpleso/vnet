@@ -78,3 +78,11 @@ func (p *hwIferPool) Foreach(f func(x HwInterfacer)) {
 		}
 	}
 }
+
+func (p *hwIferPool) ForeachIndex(f func(i uint)) {
+	for i := range p.elts {
+		if !p.Pool.IsFree(uint(i)) {
+			f(uint(i))
+		}
+	}
+}

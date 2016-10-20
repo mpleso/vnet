@@ -78,3 +78,11 @@ func (p *ipNeighborPool) Foreach(f func(x ipNeighbor)) {
 		}
 	}
 }
+
+func (p *ipNeighborPool) ForeachIndex(f func(i uint)) {
+	for i := range p.neighbors {
+		if !p.Pool.IsFree(uint(i)) {
+			f(uint(i))
+		}
+	}
+}
