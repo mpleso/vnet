@@ -48,6 +48,8 @@ type ifChooser struct {
 	re        parse.Regexp
 	siMap     map[Si]struct{}
 	hiMap     map[Hi]struct{}
+	sw        swIfIndices
+	hw        hwIfIndices
 }
 
 func (c *ifChooser) parse(in *parse.Input) {
@@ -86,6 +88,11 @@ func (c *ifChooser) finalize() {
 				c.hiMap[h.hi] = empty
 			})
 		}
+		c.hw.Vnet = c.v
+		for hi := range c.hiMap {
+			c.hw.ifs = append(c.hw.ifs, hi)
+		}
+		sort.Sort(&c.hw)
 	} else {
 		if len(c.siMap) == 0 || c.re.Valid() {
 			c.v.swInterfaces.ForeachIndex(func(i uint) {
@@ -96,6 +103,11 @@ func (c *ifChooser) finalize() {
 				c.siMap[si] = empty
 			})
 		}
+		c.sw.Vnet = c.v
+		for si := range c.siMap {
+			c.sw.ifs = append(c.sw.ifs, si)
+		}
+		sort.Sort(&c.sw)
 	}
 }
 
@@ -116,24 +128,15 @@ func (c *SwIfChooser) Init(v *Vnet) {
 func (c *HwIfChooser) Parse(in *parse.Input) { (*ifChooser)(c).parse(in) }
 func (c *SwIfChooser) Parse(in *parse.Input) { (*ifChooser)(c).parse(in) }
 
-func (c *HwIfChooser) Len() uint {
-	(*ifChooser)(c).finalize()
-	return uint(len(c.hiMap))
-}
-func (c *SwIfChooser) Len() uint {
-	(*ifChooser)(c).finalize()
-	return uint(len(c.siMap))
-}
-
 func (c *HwIfChooser) Foreach(f func(v *Vnet, h HwInterfacer)) {
 	(*ifChooser)(c).finalize()
-	for hi := range c.hiMap {
+	for _, hi := range c.hw.ifs {
 		f(c.v, c.v.HwIfer(hi))
 	}
 }
 func (c *SwIfChooser) Foreach(f func(v *Vnet, si Si)) {
 	(*ifChooser)(c).finalize()
-	for si := range c.siMap {
+	for _, si := range c.sw.ifs {
 		f(c.v, si)
 	}
 }
