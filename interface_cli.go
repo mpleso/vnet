@@ -50,23 +50,16 @@ type ifChooser struct {
 	hiMap     map[Hi]struct{}
 }
 
-func (c *ifChooser) parse(in *parse.Input, args *parse.Args, isHw bool) {
-	c.v = args.Get().(*Vnet)
-	c.isHw = isHw
-	if isHw {
-		c.hiMap = make(map[Hi]struct{})
-	} else {
-		c.siMap = make(map[Si]struct{})
-	}
+func (c *ifChooser) parse(in *parse.Input) {
 	var empty struct{}
 	var (
 		si Si
 		hi Hi
 	)
 	switch {
-	case !isHw && in.Parse("%v", &si, c.v):
+	case !c.isHw && in.Parse("%v", &si, c.v):
 		c.siMap[si] = empty
-	case isHw && in.Parse("%v", &hi, c.v):
+	case c.isHw && in.Parse("%v", &hi, c.v):
 		c.hiMap[hi] = empty
 	case in.Parse("m%*atching %v", &c.re):
 	default:
@@ -109,12 +102,19 @@ func (c *ifChooser) finalize() {
 type HwIfChooser ifChooser
 type SwIfChooser ifChooser
 
-func (c *HwIfChooser) ParseWithArgs(in *parse.Input, args *parse.Args) {
-	(*ifChooser)(c).parse(in, args, true)
+func (c *HwIfChooser) Init(v *Vnet) {
+	c.v = v
+	c.isHw = true
+	c.hiMap = make(map[Hi]struct{})
 }
-func (c *SwIfChooser) ParseWithArgs(in *parse.Input, args *parse.Args) {
-	(*ifChooser)(c).parse(in, args, false)
+func (c *SwIfChooser) Init(v *Vnet) {
+	c.v = v
+	c.isHw = false
+	c.siMap = make(map[Si]struct{})
 }
+
+func (c *HwIfChooser) Parse(in *parse.Input) { (*ifChooser)(c).parse(in) }
+func (c *SwIfChooser) Parse(in *parse.Input) { (*ifChooser)(c).parse(in) }
 
 func (c *HwIfChooser) Len() uint {
 	(*ifChooser)(c).finalize()
