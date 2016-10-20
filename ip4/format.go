@@ -40,5 +40,13 @@ func (h *Header) Parse(in *parse.Input) {
 	if !in.ParseLoose("%v: %v -> %v", &h.Protocol, &h.Src, &h.Dst) {
 		panic(parse.ErrInput)
 	}
+loop:
+	for {
+		switch {
+		case in.Parse("ttl %d", &h.Ttl):
+		default:
+			break loop
+		}
+	}
 	return
 }
