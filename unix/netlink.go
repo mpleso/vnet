@@ -64,6 +64,12 @@ func (m *Main) listener(l *loop.Loop) {
 }
 
 func (nm *netlinkMain) LoopInit(l *loop.Loop) {
+	var err error
+	nm.c = make(chan netlink.Message, 64)
+	nm.s, err = netlink.New(nm.c)
+	if err != nil {
+		panic(err)
+	}
 	go nm.s.Listen()
 	go nm.m.listener(l)
 }
@@ -72,8 +78,6 @@ func (nm *netlinkMain) Init(m *Main) (err error) {
 	nm.m = m
 	l := nm.m.v.GetLoop()
 	l.RegisterNode(nm, "netlink-listener")
-	nm.c = make(chan netlink.Message, 64)
-	nm.s, err = netlink.New(nm.c)
 	return
 }
 
