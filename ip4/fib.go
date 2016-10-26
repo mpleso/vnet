@@ -340,6 +340,13 @@ func (m *Main) getRoute(p *ip.Prefix, si vnet.Si) (ai ip.Adj, ok bool) {
 	return
 }
 
+func (m *Main) getRouteFibIndex(p *ip.Prefix, fi ip.FibIndex) (ai ip.Adj, ok bool) {
+	f := m.fibByIndex(fi, false)
+	q := FromIp4Prefix(p)
+	ai, ok = f.Get(&q)
+	return
+}
+
 func (m *Main) addDelRoute(p *ip.Prefix, fi ip.FibIndex, newAdj ip.Adj, isDel bool) (oldAdj ip.Adj, err error) {
 	createFib := !isDel
 	f := m.fibByIndex(fi, createFib)
@@ -406,7 +413,7 @@ func (m *Main) AddDelRouteNextHop(p *Prefix, nh *NextHop, isDel bool) (err error
 	}
 
 	if newAdj, ok = m.AddDelNextHop(oldAdj, isDel, nhAdj, nh.Weight); !ok {
-		err = fmt.Errorf("requested next-hop %U not found in multipath", &nh.Address)
+		err = fmt.Errorf("requested next-hop %s not found in multipath", &nh.Address)
 		return
 	}
 
