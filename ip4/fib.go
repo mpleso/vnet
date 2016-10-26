@@ -154,6 +154,14 @@ type Fib struct {
 	mtrie
 }
 
+// Total number of routes in FIB.
+func (f *Fib) Len() (n uint) {
+	for i := range f.mapFib.maps {
+		n += uint(len(f.mapFib.maps[i]))
+	}
+	return
+}
+
 type FibAddDelHook func(i ip.FibIndex, p *Prefix, r ip.Adj, isDel bool)
 type IfAddrAddDelHook func(ia ip.IfAddr, isDel bool)
 
