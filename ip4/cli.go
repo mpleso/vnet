@@ -63,10 +63,7 @@ func (m *Main) showIpFib(c cli.Commander, w cli.Writer, in *cli.Input) (err erro
 		adjs := m.GetAdj(r.adj)
 		for ai := range adjs {
 			initialSpace := "  "
-			line := initialSpace
-			if len(adjs) > 1 {
-				line += fmt.Sprintf("%d: ", ai)
-			}
+			line := fmt.Sprintf("%s%d: ", initialSpace, int(r.adj)+ai)
 			ss := adjs[ai].String(&m.Main)
 
 			m.Main.ForeachAdjCounter(r.adj+ip.Adj(ai), func(tag string, v vnet.CombinedCounter) {
